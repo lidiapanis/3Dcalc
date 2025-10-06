@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Produtos</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        /* Estilos CSS (inalterados) */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        fieldset {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        legend {
+            font-weight: bold;
+            color: #007bff;
+            padding: 0 10px;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .resultados {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #eee;
+        }
+
+        .resultados h2 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .resultados p {
+            margin: 8px 0;
+            font-size: 1.1em;
+        }
+
+        .resultados span {
+            font-weight: bold;
+            float: right;
+        }
+
+        .total-custo {
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+            font-size: 1.2em;
+            color: #e66a2e;
+        }
+
+        .total-venda {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #28a745;
+            margin-top: 15px;
+        }
+
+        .feedback {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .home-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #007bff; /* Azul */
+            font-size: 1.8em;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .home-btn:hover {
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <a href="home.html" class="home-btn" title="Voltar para a Página Inicial">
+        <i class="fas fa-home"></i>
+    </a>
+    <div class="container">
+        <h1>Cadastro de Produto 3D</h1>
+        <form id="calculatorForm">
+            <fieldset>
+                <legend>Material (Filamento)</legend>
+                <label for="nomePeca">Nome do Produto:</label>
+                <input type="text" id="nomePeca" required>
+
+                <label for="precoRolo">Preço Médio do Rolo (1kg) - R$:</label>
+                <input type="number" id="precoRolo" min="0" step="0.01" value="100.00" required>
+
+                <label for="pesoPeca">Peso da Peça (gramas):</label>
+                <input type="number" id="pesoPeca" min="0" step="0.1" value="50" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Energia Elétrica</legend>
+                <label for="taxaKWh">Valor do kWh na sua conta (R$):</label>
+                <input type="number" id="taxaKWh" min="0" step="0.0001" value="1" required>
+
+                <label for="consumoImpressora">Consumo da Impressora (Watts):</label>
+                <input type="number" id="consumoImpressora" min="0" step="1" value="150" required>
+
+                <label for="tempoImpressao">Tempo de Impressão (Horas):</label>
+                <input type="number" id="tempoImpressao" min="0" step="0.01" value="3.5" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Margem e Venda</legend>
+                <label for="margemLucro">Margem de Lucro (%):</label>
+                <input type="number" id="margemLucro" min="0" step="1" value="100" required>
+            </fieldset>
+
+            <button type="button" onclick="iniciarCalculoESalvamento()">Calcular e Salvar</button>
+        </form>
+
+        <div id="resultados" class="resultados">
+            <h2>Resultados:</h2>
+            <p>Custo por Grama: <span id="custoGrama">R$ 0.00</span></p>
+            <p>Custo do Material: <span id="custoMaterial">R$ 0.00</span></p>
+            <p>Custo da Energia: <span id="custoEnergia">R$ 0.00</span></p>
+            <p class="total-custo">Custo Total de Produção: <span id="custoTotal">R$ 0.00</span></p>
+            <p class="total-venda">Preço de Venda Sugerido: <span id="precoVenda">R$ 0.00</span></p>
+            <p id="feedback" class="feedback"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+    
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+        const CAMINHO_RTDB = "produtos"; 
+        const CAMINHO_CONTADOR = "contador_produtos/proximoId"; 
+    
+        let idEmEdicao = null;
+
+        // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+        
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Redireciona se não estiver logado
+                window.location.href = 'login.html';
+            } else {
+                // Se estiver logado, inicializa a página
+                verificarModoEdicao(); 
+            }
+        });
+    
+        // --- 3. FUNÇÕES DE UTILIDADE ---
+    
+        function formatarMoeda(valor) {
+            return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+    
+        function validarCampos() {
+            const nomePeca = document.getElementById('nomePeca').value;
+            const campos = ['precoRolo', 'pesoPeca', 'taxaKWh', 'consumoImpressora', 'tempoImpressao', 'margemLucro'];
+    
+            if (!nomePeca) return false;
+            for (const id of campos) {
+                if (isNaN(parseFloat(document.getElementById(id).value))) return false;
+            }
+            return true;
+        }
+    
+        // Função que preenche o formulário com os dados carregados do Firebase
+        function preencherFormulario(dados) {
+            document.getElementById('nomePeca').value = dados.nomePeca || '';
+            document.getElementById('precoRolo').value = dados.precoRolo || 0;
+            document.getElementById('pesoPeca').value = dados.pesoPeca || 0;
+            document.getElementById('taxaKWh').value = dados.taxaKWh || 0;
+            document.getElementById('consumoImpressora').value = dados.consumoImpressora || 0;
+            document.getElementById('tempoImpressao').value = dados.tempoImpressao || 0;
+            document.getElementById('margemLucro').value = dados.margemLucro || 0;
+    
+            document.querySelector('h1').textContent = `Editar Produto #${idEmEdicao}`;
+            document.querySelector('button').textContent = "Atualizar Produto";
+    
+            processarCalculo(null);
+            document.getElementById('feedback').textContent = `Dados do Produto #${idEmEdicao} carregados.`;
+        }
+    
+    
+        // --- 4. LÓGICA DE CARREGAMENTO E FLUXO ---
+    
+        function verificarModoEdicao() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+    
+            if (id) {
+                idEmEdicao = id;
+                document.getElementById('feedback').textContent = `Carregando Produto #${id}...`;
+    
+                database.ref(CAMINHO_RTDB + '/' + id).once('value')
+                    .then((snapshot) => {
+                        if (snapshot.exists()) {
+                            preencherFormulario(snapshot.val());
+                        } else {
+                            document.getElementById('feedback').textContent = `Erro: Produto #${id} não encontrado.`;
+                        }
+                    })
+                    .catch((error) => {
+                        document.getElementById('feedback').textContent = `Erro ao carregar dados: ${error.message}`;
+                        console.error("Erro ao carregar dados de edição:", error);
+                    });
+                
+            } else {
+                document.querySelector('h1').textContent = "Cadastro de Produto 3D";
+                document.querySelector('button').textContent = "Calcular e Salvar";
+                document.getElementById('feedback').textContent = "Modo: Novo Cadastro.";
+                iniciarCalculoESalvamento(false); 
+            }
+        }
+    
+    
+        // --- 5. CÁLCULO E SALVAMENTO/ATUALIZAÇÃO (Fluxo unificado) ---
+    
+        function iniciarCalculoESalvamento(salvar = true) {
+            if (!validarCampos()) {
+                if (salvar) alert("Por favor, preencha todos os campos com valores válidos.");
+                document.getElementById('feedback').textContent = salvar ? "Preencha todos os campos." : "";
+                return;
+            }
+    
+            if (idEmEdicao !== null) {
+                document.getElementById('feedback').textContent = "Atualizando produto...";
+                processarCalculo(idEmEdicao);
+            } else if (salvar) {
+                obterProximoId();
+            } else {
+                processarCalculo(null);
+            }
+        }
+    
+        function obterProximoId() {
+            document.getElementById('feedback').textContent = "Calculando e buscando novo ID sequencial...";
+            
+            database.ref(CAMINHO_CONTADOR).transaction((currentData) => {
+                let proximoId = currentData === null ? 1 : currentData + 1;
+                return proximoId;
+            })
+            .then(result => {
+                if (result.committed) {
+                    const idParaSalvar = result.snapshot.val();
+                    processarCalculo(idParaSalvar);
+                } else {
+                    document.getElementById('feedback').textContent = "Falha temporária na transação. Tente novamente.";
+                }
+            })
+            .catch(error => {
+                document.getElementById('feedback').textContent = "Erro ao obter ID: " + error.message;
+                console.error("Erro transacional: ", error);
+            });
+        }
+    
+        function processarCalculo(idParaSalvar) {
+            // Obter Inputs
+            const nomePeca = document.getElementById('nomePeca').value;
+            const precoRolo = parseFloat(document.getElementById('precoRolo').value);
+            const pesoPeca = parseFloat(document.getElementById('pesoPeca').value);
+            const taxaKWh = parseFloat(document.getElementById('taxaKWh').value);
+            const consumoImpressora = parseFloat(document.getElementById('consumoImpressora').value);
+            const tempoImpressao = parseFloat(document.getElementById('tempoImpressao').value);
+            const margemLucro = parseFloat(document.getElementById('margemLucro').value);
+    
+            // CÁLCULOS
+            const custoPorGrama = precoRolo / 1000;
+            const custoMaterial = custoPorGrama * pesoPeca;
+            const energiaGastaKWh = (consumoImpressora / 1000) * tempoImpressao;
+            const custoEnergia = energiaGastaKWh * taxaKWh;
+            const custoTotal = custoMaterial + custoEnergia;
+            const precoVenda = custoTotal * (1 + (margemLucro / 100));
+    
+            // EXIBIR RESULTADOS
+            document.getElementById('custoGrama').textContent = formatarMoeda(custoPorGrama);
+            document.getElementById('custoMaterial').textContent = formatarMoeda(custoMaterial);
+            document.getElementById('custoEnergia').textContent = formatarMoeda(custoEnergia);
+            document.getElementById('custoTotal').textContent = formatarMoeda(custoTotal);
+            document.getElementById('precoVenda').textContent = formatarMoeda(precoVenda);
+    
+            // Se houver um ID, salva/atualiza
+            if (idParaSalvar !== null) {
+                const dadosParaSalvar = {
+                    idSequencial: idParaSalvar,
+                    nomePeca: nomePeca,
+                    custoMaterial: custoMaterial,
+                    custoEnergia: custoEnergia,
+                    custoTotal: custoTotal,
+                    precoVenda: precoVenda,
+                    dataCriacao: new Date().toISOString(),
+                    // Campos de entrada para rastreamento
+                    precoRolo: precoRolo,
+                    pesoPeca: pesoPeca,
+                    taxaKWh: taxaKWh,
+                    consumoImpressora: consumoImpressora,
+                    tempoImpressao: tempoImpressao,
+                    margemLucro: margemLucro,
+                };
+                salvarNoFirebase(idParaSalvar, dadosParaSalvar);
+            } else {
+                document.getElementById('feedback').textContent = idEmEdicao ? `Pronto para atualizar Produto #${idEmEdicao}.` : "Modo: Novo Cadastro.";
+            }
+        }
+    
+        function salvarNoFirebase(id, dados) {
+            const acao = idEmEdicao !== null ? 'atualizado' : 'salvo';
+
+            database.ref(CAMINHO_RTDB + '/' + id).set(dados)
+                .then(() => {
+                    document.getElementById('feedback').textContent = `Produto #${id} ${acao} com sucesso!`;
+                    console.log(`Documento ${acao} com ID sequencial: ${id}`);
+                    
+                    if (idEmEdicao === null) {
+                        document.getElementById('calculatorForm').reset();
+                    }
+
+                    setTimeout(() => {
+                        window.location.href = 'listagem_produtos.html';
+                    }, 1500);
+                    
+                })
+                .catch((error) => {
+                    document.getElementById('feedback').textContent = `Erro ao ${acao}r: ` + error.message;
+                    console.error(`Erro ao ${acao}r documento: `, error);
+                });
+        }
+    </script>
+</body>
+</html>

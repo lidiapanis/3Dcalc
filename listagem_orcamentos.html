@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listagem de Orçamentos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        /* CSS adaptado da listagem de clientes/produtos */
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1200px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
+        .sort-buttons button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 5px 10px; margin-right: 5px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #0056b3; }
+    </style>
+</head>
+<body>
+    <a href="home.html" class="home-btn" title="Voltar para a Página Inicial">
+        <i class="fas fa-home"></i>
+    </a>
+    <div class="container">
+        <h1>Listagem de Orçamentos</h1>
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por Nome/Descrição do Orçamento...">
+            <div class="sort-buttons">
+                <button onclick="ordenarTabela('id')">Ordenar por ID</button>
+                <button onclick="ordenarTabela('nomeOrcamento')">Ordenar por Nome</button>
+            </div>
+            <a href="cadastro_orcamentos.html" style="text-decoration: none;">
+                 <button style="background-color: #28a745; margin-left: 20px;">+ Novo Orçamento</button>
+            </a>
+        </div>
+        
+        <table id="orcamentosTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Orçamento</th>
+                    <th>Cliente</th>
+                    <th>Total</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+    
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+        const CAMINHO_RTDB = "orcamentos"; // Caminho dos Orçamentos
+        
+        let orcamentosData = [];
+        let clientesMap = {}; // Mapa para armazenar {ID_Cliente: Nome_Cliente}
+        let currentSort = 'id';
+
+        // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Redireciona se não estiver logado
+                window.location.href = 'login.html';
+            } else {
+                // Se estiver logado, inicia o carregamento sequencial dos dados
+                carregarClientes()
+                    .then(carregarOrcamentos)
+                    .catch(error => {
+                        document.getElementById('feedback').textContent = "Erro fatal ao carregar dados. Verifique o console.";
+                        console.error("Erro no carregamento inicial:", error);
+                    });
+            }
+        });
+    
+        // --- 3. FUNÇÕES DE UTILIDADE ---
+        function formatarMoeda(valor) {
+            return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+        function formatarData(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            return date.toLocaleDateString('pt-BR');
+        }
+    
+        // --- 4. CARREGAMENTO DE DADOS (SEQUENCIAL) ---
+    
+        function carregarClientes() {
+            document.getElementById('feedback').textContent = "Carregando clientes...";
+            return new Promise((resolve, reject) => {
+                database.ref("clientes").once('value')
+                    .then((snapshot) => {
+                        snapshot.forEach((childSnapshot) => {
+                            const data = childSnapshot.val();
+                            clientesMap[childSnapshot.key] = data.nome;
+                        });
+                        resolve();
+                    })
+                    .catch(reject);
+            });
+        }
+    
+        function carregarOrcamentos() {
+            document.getElementById('feedback').textContent = "Carregando orçamentos...";
+            database.ref(CAMINHO_RTDB).once('value', (snapshot) => {
+                orcamentosData = [];
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    orcamentosData.push({
+                        id: parseInt(childSnapshot.key),
+                        nomeOrcamento: data.nomeOrcamento,
+                        clienteId: data.clienteId,
+                        total: data.total,
+                        dataCriacao: data.dataCriacao
+                    });
+                });
+                
+                document.getElementById('feedback').textContent = "";
+                ordenarTabela(currentSort);
+            }).catch(error => {
+                document.getElementById('feedback').textContent = "Erro ao carregar orçamentos: " + error.message;
+                console.error("Erro ao carregar orçamentos:", error);
+            });
+        }
+    
+        window.deletarOrcamento = function(id) {
+            if (confirm(`Tem certeza que deseja deletar o Orçamento # ${id}?`)) {
+                database.ref(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => {
+                        alert(`Orçamento # ${id} deletado com sucesso!`);
+                        carregarOrcamentos();
+                    })
+                    .catch((error) => {
+                        alert("Erro ao deletar: " + error.message);
+                        console.error("Erro ao deletar documento: ", error);
+                    });
+            }
+        }
+        
+        window.editarOrcamento = function(id) {
+            window.location.href = `cadastro_orcamentos.html?id=${id}`;
+        }
+    
+        // --- 5. FUNÇÕES DE ORDENAÇÃO E FILTRO ---
+        window.ordenarTabela = function(key) {
+            currentSort = key;
+            if (key === 'id') {
+                orcamentosData.sort((a, b) => a.id - b.id);
+            } else if (key === 'nomeOrcamento') {
+                orcamentosData.sort((a, b) => a.nomeOrcamento.localeCompare(b.nomeOrcamento));
+            }
+            aplicarFiltro();
+        }
+    
+        window.aplicarFiltro = function() {
+            const searchText = document.getElementById('searchBar').value.toLowerCase();
+            const filteredData = orcamentosData.filter(item => 
+                item.nomeOrcamento.toLowerCase().includes(searchText) || 
+                (clientesMap[item.clienteId] && clientesMap[item.clienteId].toLowerCase().includes(searchText))
+            );
+            renderizarTabela(filteredData);
+        }
+    
+        function renderizarTabela(data) {
+            const tbody = document.getElementById('orcamentosTable').querySelector('tbody');
+            tbody.innerHTML = '';
+    
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum orçamento encontrado.</td></tr>';
+                return;
+            }
+    
+            data.forEach(item => {
+                const nomeCliente = clientesMap[item.clienteId] || `ID ${item.clienteId} (Não Encontrado)`;
+                
+                const row = tbody.insertRow();
+                row.insertCell().textContent = item.id;
+                row.insertCell().textContent = item.nomeOrcamento;
+                row.insertCell().textContent = nomeCliente;
+                row.insertCell().textContent = formatarMoeda(item.total);
+                row.insertCell().textContent = formatarData(item.dataCriacao);
+                
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.textContent = 'Editar';
+                editBtn.onclick = () => editarOrcamento(item.id); 
+                actionsCell.appendChild(editBtn);
+    
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'Deletar';
+                deleteBtn.onclick = () => deletarOrcamento(item.id); 
+                actionsCell.appendChild(deleteBtn);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listagem de Clientes</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        /* Reutilize o CSS da listagem_produtos.html */
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1000px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
+        .sort-buttons button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 5px 10px; margin-right: 5px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #0056b3; }
+    </style>
+</head>
+<body>
+    <a href="home.html" class="home-btn" title="Voltar para a Página Inicial">
+        <i class="fas fa-home"></i>
+    </a>
+    <div class="container">
+        <h1>Clientes Cadastrados</h1>
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por Nome do Cliente...">
+            <div class="sort-buttons">
+                <button onclick="ordenarTabela('id')">Ordenar por ID</button>
+                <button onclick="ordenarTabela('nome')">Ordenar por Nome</button>
+            </div>
+            <a href="cadastro_clientes.html" style="text-decoration: none;">
+                 <button style="background-color: #28a745; margin-left: 20px;">+ Novo Cliente</button>
+            </a>
+        </div>
+        
+        <table id="clientesTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Endereço</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+    
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "clientes";
+        
+        let clientesData = [];
+        let currentSort = 'id';
+    
+        // --- 2. FUNÇÕES DE ORDENAÇÃO, FILTRO E RENDERIZAÇÃO (MOVIDAS PARA CIMA) ---
+    
+        window.ordenarTabela = function(key) {
+            currentSort = key;
+            if (key === 'id') {
+                clientesData.sort((a, b) => a.id - b.id);
+            } else if (key === 'nome') {
+                clientesData.sort((a, b) => a.nome.localeCompare(b.nome));
+            }
+            aplicarFiltro();
+        }
+    
+        window.aplicarFiltro = function() {
+            const searchText = document.getElementById('searchBar').value.toLowerCase();
+            const filteredData = clientesData.filter(item => 
+                item.nome.toLowerCase().includes(searchText)
+            );
+            renderizarTabela(filteredData);
+        }
+    
+        function renderizarTabela(data) {
+            const tbody = document.getElementById('clientesTable').querySelector('tbody');
+            tbody.innerHTML = '';
+    
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum cliente encontrado.</td></tr>';
+                return;
+            }
+    
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = item.id;
+                row.insertCell().textContent = item.nome;
+                row.insertCell().textContent = item.telefone;
+                row.insertCell().textContent = item.endereco;
+                
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn';
+                editBtn.textContent = 'Editar';
+                editBtn.onclick = () => editarCliente(item.id); 
+                actionsCell.appendChild(editBtn);
+    
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn';
+                deleteBtn.textContent = 'Deletar';
+                deleteBtn.onclick = () => deletarCliente(item.id); 
+                actionsCell.appendChild(deleteBtn);
+            });
+        }
+    
+    
+        // --- 3. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+        
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Redireciona se não estiver logado
+                window.location.href = 'login.html';
+            } else {
+                // Se estiver logado, inicia o carregamento dos dados
+                carregarClientes();
+                // Inicializa o filtro após a página estar carregada
+                document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            }
+        });
+    
+        // --- 4. FUNÇÕES CRUD E DE BUSCA DE DADOS ---
+    
+        function carregarClientes() {
+            document.getElementById('feedback').textContent = "Carregando clientes...";
+            database.ref(CAMINHO_RTDB).once('value', (snapshot) => {
+                clientesData = [];
+                snapshot.forEach((childSnapshot) => {
+                    const data = childSnapshot.val();
+                    clientesData.push({
+                        id: parseInt(childSnapshot.key),
+                        nome: data.nome,
+                        endereco: data.endereco,
+                        telefone: data.telefone
+                    });
+                });
+                
+                document.getElementById('feedback').textContent = "";
+                ordenarTabela(currentSort); // Chama a função que agora está definida acima
+            });
+        }
+    
+        window.deletarCliente = function(id) {
+            if (confirm(`Tem certeza que deseja deletar o Cliente # ${id}?`)) {
+                database.ref(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => {
+                        alert(`Cliente # ${id} deletado com sucesso!`);
+                        carregarClientes();
+                    })
+                    .catch((error) => {
+                        alert("Erro ao deletar: " + error.message);
+                        console.error("Erro ao deletar documento: ", error);
+                    });
+            }
+        }
+        
+        window.editarCliente = function(id) {
+            window.location.href = `cadastro_clientes.html?id=${id}`;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Orçamentos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        /* Reutilize o CSS anterior e adicione regras específicas */
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding-top: 50px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 800px; width: 100%; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #007bff; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        select, input[type="number"], input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .product-item { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; border-bottom: 1px dashed #eee; padding-bottom: 5px;}
+        .product-item select, .product-item input { flex-grow: 1; }
+        .product-item .delete-btn { width: 40px; height: 40px; background-color: #dc3545; color: white; border-radius: 4px; cursor: pointer; border: none; font-size: 1.2em;}
+        #addProductBtn { background-color: #17a2b8; color: white; margin-top: 10px; width: auto; padding: 8px 15px; }
+        #totalArea { font-size: 1.5em; font-weight: bold; color: #28a745; text-align: right; padding-top: 10px; border-top: 2px solid #28a745; margin-top: 20px; }
+        .actions-bar { display: flex; justify-content: space-between; align-items: center; }
+        button[type="button"] { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; transition: background-color 0.3s; margin-top: 15px; }
+        button[type="button"]:hover { background-color: #218838; }
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #007bff; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #0056b3; }
+    </style>
+</head>
+<body>
+    <a href="home.html" class="home-btn" title="Voltar para a Página Inicial">
+        <i class="fas fa-home"></i>
+    </a>
+    <div class="container">
+        <h1>Cadastro de Orçamento</h1>
+        <form id="orcamentoForm">
+            <fieldset>
+                <legend>Informações Gerais</legend>
+                <label for="cliente">Vincular Cliente:</label>
+                <select id="cliente" required>
+                    <option value="">Carregando Clientes...</option>
+                </select>
+                <label for="nomeOrcamento">Nome/Descrição do Orçamento:</label>
+                <input type="text" id="nomeOrcamento" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Produtos do Orçamento</legend>
+                <div id="produtosContainer">
+                    </div>
+                <div class="actions-bar">
+                    <button type="button" id="addProductBtn" onclick="adicionarLinhaProduto()">
+                        <i class="fas fa-plus"></i> Adicionar Produto
+                    </button>
+                    <div id="totalArea">Total: R$ 0,00</div>
+                </div>
+            </fieldset>
+
+            <button type="button" onclick="iniciarCadastro()">Salvar Orçamento</button>
+        </form>
+        <p id="feedback" class="feedback"></p>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+    
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+        
+        const CAMINHO_ORCAMENTOS = "orcamentos";
+        const CAMINHO_CONTADOR = "contador_orcamentos/proximoId";
+        const CAMINHO_CLIENTES = "clientes";
+        const CAMINHO_PRODUTOS = "produtos";
+        
+        let listaProdutos = {}; // Armazena produtos: {id: {nome, precoVenda}}
+        let idEmEdicao = null; // ID do orçamento se estiver em edição
+        
+        // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Redireciona se não estiver logado
+                window.location.href = 'login.html';
+            } else {
+                // Se estiver logado, inicia o carregamento sequencial dos dados
+                verificarCarregamentoInicial();
+            }
+        });
+        
+        // Função de inicialização chamada após o login
+        function verificarCarregamentoInicial() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+
+            // Garante que clientes e produtos sejam carregados antes de qualquer outra coisa
+            Promise.all([carregarClientes(), carregarProdutos()])
+                .then(() => {
+                    if (id) {
+                        // MODO EDIÇÃO
+                        idEmEdicao = id;
+                        carregarOrcamentoParaEdicao(id);
+                    } else {
+                        // MODO NOVO CADASTRO
+                        document.querySelector('h1').textContent = "Novo Orçamento";
+                        document.querySelector('button').textContent = "Salvar Orçamento";
+                        adicionarLinhaProduto(); // Adiciona uma linha inicial vazia
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('feedback').textContent = "Erro fatal ao carregar dados iniciais.";
+                    console.error("Erro no carregamento de dados:", error);
+                });
+        }
+        
+        // --- 3. FUNÇÕES DE UTILIDADE ---
+        function formatarMoeda(valor) {
+            return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+    
+        // --- 4. CARREGAMENTO DE DADOS E EDIÇÃO ---
+        
+        function carregarOrcamentoParaEdicao(id) {
+            document.getElementById('feedback').textContent = `Carregando Orçamento #${id}...`;
+            database.ref(CAMINHO_ORCAMENTOS + '/' + id).once('value')
+                .then((snapshot) => {
+                    if (snapshot.exists()) {
+                        preencherFormulario(snapshot.val());
+                    } else {
+                        document.getElementById('feedback').textContent = `Erro: Orçamento #${id} não encontrado.`;
+                    }
+                });
+        }
+    
+        function preencherFormulario(dados) {
+            document.querySelector('h1').textContent = `Editar Orçamento #${idEmEdicao}`;
+            document.querySelector('button').textContent = "Atualizar Orçamento";
+    
+            document.getElementById('cliente').value = dados.clienteId;
+            document.getElementById('nomeOrcamento').value = dados.nomeOrcamento;
+    
+            const container = document.getElementById('produtosContainer');
+            container.innerHTML = ''; // Limpa a linha inicial vazia
+    
+            // Preenche as linhas de produto dinamicamente
+            dados.itens.forEach(item => {
+                adicionarLinhaProduto(item.produtoId, item.quantidade);
+            });
+    
+            document.getElementById('feedback').textContent = `Orçamento #${idEmEdicao} carregado.`;
+        }
+    
+        function carregarClientes() {
+            return new Promise((resolve, reject) => {
+                database.ref(CAMINHO_CLIENTES).once('value')
+                    .then((snapshot) => {
+                        const selectCliente = document.getElementById('cliente');
+                        selectCliente.innerHTML = '<option value="" disabled selected>Selecione um Cliente</option>';
+                        
+                        if (snapshot.exists()) {
+                            snapshot.forEach((childSnapshot) => {
+                                const data = childSnapshot.val();
+                                const option = document.createElement('option');
+                                option.value = childSnapshot.key;
+                                option.textContent = `${childSnapshot.key} - ${data.nome}`;
+                                selectCliente.appendChild(option);
+                            });
+                        }
+                        resolve();
+                    }).catch(reject);
+            });
+        }
+    
+        function carregarProdutos() {
+            return new Promise((resolve, reject) => {
+                database.ref(CAMINHO_PRODUTOS).once('value')
+                    .then((snapshot) => {
+                        if (!snapshot.exists()) {
+                            reject("Nenhum produto cadastrado para orçar.");
+                            return;
+                        }
+                        snapshot.forEach((childSnapshot) => {
+                            const data = childSnapshot.val();
+                            listaProdutos[childSnapshot.key] = {
+                                nome: data.nomePeca,
+                                preco: data.precoVenda 
+                            };
+                        });
+                        resolve();
+                    }).catch(reject);
+            });
+        }
+        
+        function popularSelectProduto(selectElement, valorSelecionado = null) {
+            selectElement.innerHTML = '';
+            
+            const optionDefault = document.createElement('option');
+            optionDefault.value = '';
+            optionDefault.textContent = 'Selecione um Produto';
+            optionDefault.disabled = true;
+            
+            if (!valorSelecionado) {
+                optionDefault.selected = true;
+            }
+            selectElement.appendChild(optionDefault);
+            
+            for (const id in listaProdutos) {
+                const produto = listaProdutos[id];
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = `${produto.nome} (${formatarMoeda(produto.preco)})`;
+                if (valorSelecionado === id) {
+                    option.selected = true;
+                }
+                selectElement.appendChild(option);
+            }
+        }
+    
+        // --- 5. MANIPULAÇÃO DA LISTA DE PRODUTOS ---
+    
+        window.adicionarLinhaProduto = function(produtoIdInicial = null, quantidadeInicial = 1) {
+            const container = document.getElementById('produtosContainer');
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'product-item';
+            
+            const selectProduto = document.createElement('select');
+            selectProduto.className = 'select-produto';
+            selectProduto.required = true;
+            
+            popularSelectProduto(selectProduto, produtoIdInicial); 
+    
+            const inputQuantidade = document.createElement('input');
+            inputQuantidade.type = 'number';
+            inputQuantidade.className = 'input-quantidade';
+            inputQuantidade.placeholder = 'Qtd.';
+            inputQuantidade.min = 1;
+            inputQuantidade.value = quantidadeInicial;
+            inputQuantidade.required = true;
+    
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteBtn.onclick = function() {
+                itemDiv.remove();
+                calcularTotal();
+            };
+    
+            selectProduto.addEventListener('change', calcularTotal);
+            inputQuantidade.addEventListener('input', calcularTotal);
+    
+            itemDiv.appendChild(selectProduto);
+            itemDiv.appendChild(inputQuantidade);
+            itemDiv.appendChild(deleteBtn);
+            container.appendChild(itemDiv);
+            
+            calcularTotal();
+        }
+    
+        window.calcularTotal = function() {
+            const produtosSelecionados = document.querySelectorAll('.product-item');
+            let totalGeral = 0;
+    
+            produtosSelecionados.forEach(itemDiv => {
+                const select = itemDiv.querySelector('.select-produto');
+                const inputQtd = itemDiv.querySelector('.input-quantidade');
+                
+                const produtoId = select.value;
+                const quantidade = parseInt(inputQtd.value) || 0;
+                
+                if (produtoId && listaProdutos[produtoId] && quantidade > 0) {
+                    const precoUnitario = listaProdutos[produtoId].preco;
+                    totalGeral += precoUnitario * quantidade;
+                }
+            });
+    
+            document.getElementById('totalArea').textContent = `Total: ${formatarMoeda(totalGeral)}`;
+        }
+        
+        // --- 6. LÓGICA DE SALVAMENTO/ATUALIZAÇÃO UNIFICADA ---
+    
+        window.iniciarCadastro = function() {
+            const clienteId = document.getElementById('cliente').value;
+            const nomeOrcamento = document.getElementById('nomeOrcamento').value;
+            const produtosSelecionados = document.querySelectorAll('.product-item');
+    
+            if (!clienteId || !nomeOrcamento) {
+                alert("Por favor, preencha as informações gerais (Cliente e Nome do Orçamento).");
+                return;
+            }
+            
+            const itensOrcamento = [];
+            let totalOrcamento = 0;
+            let isValid = true;
+    
+            produtosSelecionados.forEach(itemDiv => {
+                const select = itemDiv.querySelector('.select-produto');
+                const inputQtd = itemDiv.querySelector('.input-quantidade');
+                
+                const produtoId = select.value;
+                const quantidade = parseInt(inputQtd.value) || 0;
+    
+                if (!produtoId || quantidade <= 0) {
+                    isValid = false;
+                }
+    
+                if (produtoId && quantidade > 0 && listaProdutos[produtoId]) {
+                    const produto = listaProdutos[produtoId];
+                    const subtotal = produto.preco * quantidade;
+                    totalOrcamento += subtotal;
+                    
+                    itensOrcamento.push({
+                        produtoId: produtoId,
+                        nomeProduto: produto.nome,
+                        precoUnitario: produto.preco,
+                        quantidade: quantidade,
+                        subtotal: subtotal
+                    });
+                }
+            });
+    
+            if (!isValid) {
+                 alert("Por favor, selecione produtos e defina quantidades válidas (maior que zero).");
+                 return;
+            }
+            if (itensOrcamento.length === 0) {
+                 alert("O orçamento deve ter pelo menos um produto.");
+                 return;
+            }
+    
+            const dadosParaSalvar = {
+                clienteId: clienteId,
+                nomeOrcamento: nomeOrcamento,
+                itens: itensOrcamento,
+                total: totalOrcamento,
+                dataCriacao: new Date().toISOString()
+            };
+            
+            if (idEmEdicao) {
+                salvarOrcamento(idEmEdicao, dadosParaSalvar, 'atualizado');
+            } else {
+                obterProximoId(dadosParaSalvar);
+            }
+        }
+    
+        function obterProximoId(dados) {
+            document.getElementById('feedback').textContent = "Buscando ID sequencial...";
+            database.ref(CAMINHO_CONTADOR).transaction((currentData) => {
+                let proximoId = currentData === null ? 1 : currentData + 1;
+                return proximoId;
+            })
+            .then(result => {
+                if (result.committed) {
+                    const idParaSalvar = result.snapshot.val();
+                    salvarOrcamento(idParaSalvar, { ...dados, idSequencial: idParaSalvar }, 'salvo');
+                } else {
+                    document.getElementById('feedback').textContent = "Falha temporária na transação. Tente novamente.";
+                }
+            })
+            .catch(error => {
+                document.getElementById('feedback').textContent = "Erro ao obter ID: " + error.message;
+                console.error("Erro transacional: ", error);
+            });
+        }
+    
+        function salvarOrcamento(id, dados, acao) {
+            database.ref(CAMINHO_ORCAMENTOS + '/' + id).set(dados)
+                .then(() => {
+                    document.getElementById('feedback').textContent = `Orçamento #${id} ${acao} com sucesso!`;
+                    
+                    if (acao === 'salvo') {
+                        document.getElementById('orcamentoForm').reset();
+                    }
+    
+                    setTimeout(() => {
+                        window.location.href = 'listagem_orcamentos.html';
+                    }, 1500);
+                })
+                .catch((error) => {
+                    document.getElementById('feedback').textContent = `Erro ao ${acao}r: ` + error.message;
+                    console.error(`Erro ao ${acao}r documento: `, error);
+                });
+        }
+    </script>
+</body>
+</html>

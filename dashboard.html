@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Orçamentos 3D</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            padding: 30px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #1e3c72;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        /* --- Métricas (Cards) --- */
+        .metrics-grid {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+        .metric-card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            flex: 1;
+            min-width: 200px;
+            border-left: 5px solid;
+        }
+        .metric-card.total-value { border-color: #28a745; }
+        .metric-card.avg-value { border-color: #007bff; }
+        .metric-card.total-count { border-color: #ffc107; }
+
+        .metric-title {
+            font-size: 0.9em;
+            color: #6a7c93;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        /* --- Controles e Filtros --- */
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .control-group {
+            flex: 1;
+            min-width: 150px;
+        }
+        label {
+            display: block;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* --- Gráficos e Detalhes --- */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        .chart-card {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Tabela de Média por Cliente */
+        #averageTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        #averageTable th, #averageTable td {
+            border: 1px solid #eee;
+            padding: 10px;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        #averageTable th {
+            background-color: #f8f9fa;
+        }
+        
+        /* Botão Home */
+        .home-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #007bff;
+            font-size: 1.8em;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .home-btn:hover {
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <a href="home.html" class="home-btn" title="Voltar para a Página Inicial">
+        <i class="fas fa-home"></i>
+    </a>
+    <div class="container">
+        <h1>Dashboard de Performance de Orçamentos</h1>
+        
+        <div class="metrics-grid">
+            <div class="metric-card total-count">
+                <div class="metric-title">TOTAL DE ORÇAMENTOS</div>
+                <div class="metric-value" id="totalOrcamentos">0</div>
+            </div>
+            <div class="metric-card total-value">
+                <div class="metric-title">VALOR TOTAL ORÇADO</div>
+                <div class="metric-value" id="valorTotal">R$ 0,00</div>
+            </div>
+            <div class="metric-card avg-value">
+                <div class="metric-title">MÉDIA POR ORÇAMENTO</div>
+                <div class="metric-value" id="mediaOrcamento">R$ 0,00</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="filterValorMin">Valor Total Mínimo (R$):</label>
+                <input type="number" id="filterValorMin" min="0" value="0" onchange="aplicarFiltros()">
+            </div>
+            <div class="control-group">
+                <label for="filterQtdItensMin">Qtd. Mínima de Itens:</label>
+                <input type="number" id="filterQtdItensMin" min="0" value="0" onchange="aplicarFiltros()">
+            </div>
+             <div class="control-group">
+                <label for="filterCliente">Filtrar por Cliente:</label>
+                <select id="filterCliente" onchange="aplicarFiltros()">
+                    <option value="all">Todos os Clientes</option>
+                </select>
+            </div>
+            <button onclick="aplicarFiltros()">Aplicar Filtros</button>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h2>Média de Valor por Cliente</h2>
+                <table id="averageTable">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Média por Orçamento</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        </tbody>
+                </table>
+            </div>
+            <div class="chart-card">
+                <h2>Distribuição de Itens</h2>
+                <canvas id="itemsChart"></canvas>
+            </div>
+        </div>
+
+        <p id="feedback" style="text-align: center; margin-top: 30px;"></p>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+        
+        let allOrcamentos = []; // Todos os orçamentos brutos
+        let clientesMap = {};   // {ID: Nome}
+        let totalizadorPorCliente = {}; // Para o cálculo de média
+        let itemsChartInstance = null; // Instância do Chart.js
+
+        // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Redireciona se não estiver logado
+                window.location.href = 'login.html';
+            } else {
+                // Se estiver logado, inicia o carregamento sequencial dos dados
+                carregarClientes()
+                    .then(carregarOrcamentos)
+                    .catch(error => {
+                        document.getElementById('feedback').textContent = "Erro fatal ao carregar dados. Verifique o console.";
+                        console.error("Erro no carregamento inicial:", error);
+                    });
+            }
+        });
+
+        // --- 3. FUNÇÕES DE UTILIDADE ---
+        function formatarMoeda(valor) {
+            return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+
+        // --- 4. CARREGAMENTO DE DADOS (SEQUENCIAL) ---
+
+        // Removido o window.onload antigo, pois o carregamento agora é feito em onAuthStateChanged
+        
+        function carregarClientes() {
+            return new Promise((resolve, reject) => {
+                database.ref("clientes").once('value')
+                    .then((snapshot) => {
+                        const selectCliente = document.getElementById('filterCliente');
+                        
+                        snapshot.forEach((childSnapshot) => {
+                            const data = childSnapshot.val();
+                            clientesMap[childSnapshot.key] = data.nome;
+                            
+                            // Popula o filtro de clientes
+                            const option = document.createElement('option');
+                            option.value = childSnapshot.key;
+                            option.textContent = data.nome;
+                            selectCliente.appendChild(option);
+                        });
+                        resolve();
+                    })
+                    .catch(reject);
+            });
+        }
+
+        function carregarOrcamentos() {
+            document.getElementById('feedback').textContent = "Carregando orçamentos...";
+            database.ref("orcamentos").once('value')
+                .then((snapshot) => {
+                    allOrcamentos = [];
+                    snapshot.forEach((childSnapshot) => {
+                        const data = childSnapshot.val();
+                        
+                        const items = Array.isArray(data.itens) ? data.itens : Object.values(data.itens || {});
+                        
+                        allOrcamentos.push({
+                            id: childSnapshot.key,
+                            total: data.total,
+                            clienteId: data.clienteId,
+                            qtdItens: items.length,
+                            itens: items
+                        });
+                    });
+                    
+                    document.getElementById('feedback').textContent = "";
+                    calcularEMostrarDashboard(allOrcamentos);
+                })
+                .catch(error => {
+                    document.getElementById('feedback').textContent = "Erro ao carregar orçamentos: " + error.message;
+                    console.error("Erro ao carregar orçamentos:", error);
+                });
+        }
+
+        // --- 5. CÁLCULO E ANÁLISE ---
+
+        function calcularEMostrarDashboard(orcamentos) {
+            let totalOrcamentos = 0;
+            let valorTotal = 0;
+            totalizadorPorCliente = {};
+
+            orcamentos.forEach(orc => {
+                totalOrcamentos++;
+                valorTotal += orc.total;
+
+                const clienteId = orc.clienteId;
+                if (!totalizadorPorCliente[clienteId]) {
+                    totalizadorPorCliente[clienteId] = { somaTotal: 0, contagem: 0 };
+                }
+                totalizadorPorCliente[clienteId].somaTotal += orc.total;
+                totalizadorPorCliente[clienteId].contagem++;
+            });
+
+            const mediaOrcamento = totalOrcamentos > 0 ? valorTotal / totalOrcamentos : 0;
+
+            document.getElementById('totalOrcamentos').textContent = totalOrcamentos;
+            document.getElementById('valorTotal').textContent = formatarMoeda(valorTotal);
+            document.getElementById('mediaOrcamento').textContent = formatarMoeda(mediaOrcamento);
+
+            renderizarMediaPorCliente();
+            renderizarGraficoItens(orcamentos);
+        }
+
+        function renderizarMediaPorCliente() {
+            const tbody = document.getElementById('averageTable').querySelector('tbody');
+            tbody.innerHTML = '';
+
+            let clientesComMedia = [];
+
+            for (const id in totalizadorPorCliente) {
+                const totalizador = totalizadorPorCliente[id];
+                const media = totalizador.somaTotal / totalizador.contagem;
+                
+                clientesComMedia.push({
+                    nome: clientesMap[id] || `ID ${id} (Não Encontrado)`,
+                    media: media
+                });
+            }
+
+            clientesComMedia.sort((a, b) => b.media - a.media);
+
+            clientesComMedia.forEach(cliente => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = cliente.nome;
+                row.insertCell().textContent = formatarMoeda(cliente.media);
+            });
+        }
+        
+        function renderizarGraficoItens(orcamentos) {
+            const contagemItens = { '1 Item': 0, '2 Itens': 0, '3 ou Mais': 0 };
+
+            orcamentos.forEach(orc => {
+                if (orc.qtdItens === 1) {
+                    contagemItens['1 Item']++;
+                } else if (orc.qtdItens === 2) {
+                    contagemItens['2 Itens']++;
+                } else if (orc.qtdItens >= 3) {
+                    contagemItens['3 ou Mais']++;
+                }
+            });
+            
+            const data = {
+                labels: Object.keys(contagemItens),
+                datasets: [{
+                    label: 'Orçamentos por Qtd. de Itens',
+                    data: Object.values(contagemItens),
+                    backgroundColor: ['#28a745', '#007bff', '#ffc107'],
+                    hoverOffset: 4
+                }]
+            };
+
+            const config = {
+                type: 'pie',
+                data: data,
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: false }
+                    }
+                }
+            };
+            
+            if (itemsChartInstance) {
+                itemsChartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('itemsChart').getContext('2d');
+            itemsChartInstance = new Chart(ctx, config);
+        }
+
+        // --- 6. LÓGICA DE FILTRO ---
+
+        window.aplicarFiltros = function() {
+            const valorMin = parseFloat(document.getElementById('filterValorMin').value) || 0;
+            const qtdItensMin = parseInt(document.getElementById('filterQtdItensMin').value) || 0;
+            const clienteIdFiltro = document.getElementById('filterCliente').value;
+
+            const orcamentosFiltrados = allOrcamentos.filter(orc => {
+                if (orc.total < valorMin) return false;
+                if (orc.qtdItens < qtdItensMin) return false;
+                if (clienteIdFiltro !== 'all' && orc.clienteId !== clienteIdFiltro) return false;
+
+                return true;
+            });
+
+            calcularEMostrarDashboard(orcamentosFiltrados);
+            document.getElementById('feedback').textContent = `Exibindo ${orcamentosFiltrados.length} de ${allOrcamentos.length} orçamentos.`;
+        }
+    </script>
+</body>
+</html>

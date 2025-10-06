@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema 3D</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e3c72; /* Cor de fundo escura, mais profissional */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .login-box {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #1e3c72;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .input-group input[type="email"],
+        .input-group input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-top: -10px;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .remember-me input {
+            margin-right: 8px;
+        }
+
+        #feedback {
+            color: #dc3545;
+            margin-top: 15px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>Kombinei</h1>
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="email">E-mail</label>
+                <input type="email" id="email" required placeholder="seu@email.com">
+            </div>
+            <div class="input-group">
+                <label for="password">Senha</label>
+                <input type="password" id="password" required placeholder="********">
+            </div>
+            
+            <div class="remember-me">
+                <input type="checkbox" id="remember">
+                <label for="remember">Manter-me conectado (30 dias)</label>
+            </div>
+
+            <button type="button" onclick="handleLogin()">Entrar</button>
+        </form>
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURAÇÃO DO FIREBASE (SUAS CHAVES REAIS) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        // Verifica o estado de autenticação ao carregar a página
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // Se o usuário já estiver logado, redireciona imediatamente para a home
+                window.location.href = 'home.html';
+            }
+        });
+
+        function handleLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            const feedback = document.getElementById('feedback');
+            feedback.textContent = '';
+            
+            // 1. Define a persistência (manter logado por 30 dias)
+            const persistence = remember 
+                ? firebase.auth.Auth.Persistence.LOCAL // Mantém logado por 30 dias (ou até logout)
+                : firebase.auth.Auth.Persistence.SESSION; // Mantém logado apenas até o fechamento do navegador
+
+            auth.setPersistence(persistence)
+                .then(() => {
+                    // 2. Tenta fazer login
+                    return auth.signInWithEmailAndPassword(email, password);
+                })
+                .then((userCredential) => {
+                    // Login bem-sucedido
+                    window.location.href = 'home.html';
+                })
+                .catch((error) => {
+                    // Trata erros de login
+                    let errorMessage = 'Erro ao fazer login. Verifique suas credenciais.';
+                    if (error.code === 'auth/user-not-found') {
+                        errorMessage = 'Usuário não encontrado.';
+                    } else if (error.code === 'auth/wrong-password') {
+                        errorMessage = 'Senha incorreta.';
+                    }
+                    feedback.textContent = errorMessage;
+                    console.error("Erro de login:", error);
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora 3D | Página Inicial</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #e9ecef; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            margin: 0; 
+        }
+        .container { 
+            background-color: #ffffff; 
+            padding: 50px; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15); 
+            max-width: 1100px; 
+            width: 90%; 
+            text-align: center; 
+        }
+        h1 { 
+            color: #1e3c72; 
+            margin-bottom: 5px; 
+            font-size: 2.5em; 
+        }
+        .subtitle { 
+            color: #6a7c93; 
+            margin-bottom: 50px; 
+            font-size: 1.2em; 
+        }
+        .action-groups { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px;
+            flex-wrap: wrap; 
+        }
+        .action-group { 
+            flex: 1; 
+            min-width: 200px; 
+            text-align: center; 
+            border: 1px solid #f0f0f0; 
+            border-radius: 8px;
+            background-color: #fafafa;
+            min-height: 250px; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding-bottom: 10px; 
+        }
+        .group-title { 
+            font-size: 1.4em;
+            color: #343a40; 
+            margin-bottom: 15px; 
+            padding: 10px 0;
+            border-bottom: 2px solid #ddd; 
+            font-weight: 600;
+        }
+        .group-content {
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            flex-grow: 1; 
+        }
+        .btn-link { 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            width: 100%; 
+            padding: 15px 10px; 
+            margin-bottom: 10px; 
+            border-radius: 8px; 
+            font-size: 1em; 
+            font-weight: bold; 
+            text-decoration: none; 
+            transition: transform 0.3s, box-shadow 0.3s; 
+            cursor: pointer; 
+            gap: 8px; 
+            box-sizing: border-box;
+        }
+        .btn-link:hover { 
+            transform: translateY(-3px); 
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1); 
+        }
+        .btn-green { background-color: #28a745; color: white; }
+        .btn-blue { background-color: #007bff; color: white; }
+        .btn-orange { background-color: #ffc107; color: #333; }
+        .btn-purple { background-color: #6f42c1; color: white; }
+        .btn-link i { 
+            font-size: 2em; 
+            margin-bottom: 5px; 
+        }
+        .single-btn-spacing {
+            margin-bottom: 20px; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sistema de Precificação 3D</h1>
+        <p class="subtitle">Gerencie Clientes, Produtos e Orçamentos de forma integrada.</p>
+        
+        <div class="action-groups">
+            
+            <div class="action-group">
+                <div class="group-title">Orçamentos <i class="fas fa-file-invoice-dollar"></i></div>
+                <div class="group-content">
+                    <a href="cadastro_orcamentos.html" class="btn-link btn-green">
+                        <i class="fas fa-file-signature"></i> Criar Orçamento
+                    </a>
+                    <a href="listagem_orcamentos.html" class="btn-link btn-green">
+                        <i class="fas fa-file-invoice"></i> Listar Orçamentos
+                    </a>
+                </div>
+            </div>
+
+            <div class="action-group">
+                <div class="group-title">Análise <i class="fas fa-chart-line"></i></div>
+                <div class="group-content">
+                    <a href="dashboard.html" class="btn-link btn-purple single-btn-spacing">
+                        <i class="fas fa-chart-pie"></i>
+                        Acessar Dashboard
+                    </a>
+                </div>
+            </div>
+            
+            <div class="action-group">
+                <div class="group-title">Clientes <i class="fas fa-users"></i></div>
+                <div class="group-content">
+                    <a href="cadastro_clientes.html" class="btn-link btn-blue">
+                        <i class="fas fa-user-plus"></i> Cadastrar Cliente
+                    </a>
+                    <a href="listagem_clientes.html" class="btn-link btn-blue">
+                        <i class="fas fa-list-ul"></i> Listar Clientes
+                    </a>
+                </div>
+            </div>
+            
+            <div class="action-group">
+                <div class="group-title">Produtos <i class="fas fa-cube"></i></div>
+                <div class="group-content">
+                    <a href="cadastro_produtos.html" class="btn-link btn-orange">
+                        <i class="fas fa-calculator"></i> Cadastrar Produto
+                    </a>
+                    <a href="listagem_produtos.html" class="btn-link btn-orange">
+                        <i class="fas fa-boxes"></i> Listar Produtos
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px;">
+            <button onclick="handleLogout()" style="background-color: #dc3545; max-width: 300px; margin: 0 auto; display: block;">
+                <i class="fas fa-sign-out-alt"></i> Sair do Sistema (Logout)
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+
+        // --- 2. PROTEÇÃO DE PÁGINA E LÓGICA DE LOGOUT ---
+
+        auth.onAuthStateChanged(user => {
+            if (!user) {
+                // Se não estiver logado, redireciona
+                window.location.href = 'login.html';
+            }
+            // Se estiver logado, a página continua (não precisa fazer nada, apenas garantir o acesso)
+        });
+
+        window.handleLogout = function() {
+            auth.signOut()
+                .then(() => {
+                    window.location.href = 'login.html';
+                })
+                .catch((error) => {
+                    console.error("Erro ao fazer logout:", error);
+                    alert("Erro ao sair. Tente novamente.");
+                });
+        }
+    </script>
+</body>
+</html>
