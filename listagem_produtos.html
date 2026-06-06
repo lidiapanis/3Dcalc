@@ -7,6 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="tags.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         body {
@@ -71,6 +72,17 @@
             width: 60px;
             text-align: center;
             padding: 6px;
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 9px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin: 2px 2px;
+            white-space: nowrap;
         }
 
         td.col-imagem img {
@@ -144,6 +156,7 @@
                     <th>Imagem</th>
                     <th>ID</th>
                     <th>Nome da Peça</th>
+                    <th>Tags</th>
                     <th>Custo Total</th>
                     <th>Preço de Venda</th>
                     <th>Data</th>
@@ -177,6 +190,7 @@
         
         let produtosData = [];
         let currentSort = 'id';
+        let tagsGlobais = {};
     
         // --- 2. FUNÇÕES DE UTILIDADE E RENDERIZAÇÃO (MOVIDAS PARA CIMA) ---
     
@@ -216,7 +230,7 @@
             tbody.innerHTML = ''; 
     
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
                 return;
             }
 
@@ -234,6 +248,13 @@
 
                 row.insertCell().textContent = item.id;
                 row.insertCell().textContent = item.nomePeca;
+
+                const tagsCell = row.insertCell();
+                (item.tags || []).forEach(slug => {
+                    const info = tagsGlobais[slug];
+                    const nome = info ? info.nome : slug;
+                    tagsCell.appendChild(renderChip(nome, slug, false, null));
+                });
                 row.insertCell().textContent = formatarMoeda(item.custoTotal);
                 row.insertCell().textContent = formatarMoeda(item.precoVenda);
                 row.insertCell().textContent = formatarData(item.dataCriacao);
@@ -272,7 +293,8 @@
                         custoTotal: data.custoTotal,
                         precoVenda: data.precoVenda,
                         dataCriacao: data.dataCriacao,
-                        imagemUrl: data.imagemUrl || null
+                        imagemUrl: data.imagemUrl || null,
+                        tags: Array.isArray(data.tags) ? data.tags : (data.tags ? Object.values(data.tags) : [])
                     });
                 });
                 
@@ -305,7 +327,10 @@
             if (!user) {
                 window.location.href = 'login.html';
             } else {
-                carregarProdutos(); // Inicia o carregamento
+                database.ref('tags').once('value').then(snap => {
+                    snap.forEach(child => { tagsGlobais[child.key] = child.val(); });
+                    carregarProdutos();
+                });
                 document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
             }
         });

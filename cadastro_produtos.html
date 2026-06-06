@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    <script src="tags.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         /* Estilos CSS (inalterados) */
@@ -145,19 +146,99 @@
             margin-bottom: 10px;
         }
 
+        /* ── Tags ── */
+        .tag-input-wrapper {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 6px 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+            min-height: 42px;
+            background: #fff;
+            cursor: text;
+            margin-top: 5px;
+            margin-bottom: 4px;
+            position: relative;
+        }
+        .tag-input-wrapper input {
+            border: none !important;
+            outline: none !important;
+            padding: 2px 4px !important;
+            margin: 0 !important;
+            flex: 1;
+            min-width: 120px;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.78em;
+            font-weight: 600;
+            white-space: nowrap;
+            gap: 5px;
+        }
+        .tag-x {
+            cursor: pointer;
+            font-size: 1.1em;
+            line-height: 1;
+            opacity: 0.6;
+        }
+        .tag-x:hover { opacity: 1; }
+        .tag-sugestoes {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-height: 180px;
+            overflow-y: auto;
+            display: none;
+        }
+        .tag-sugestao-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.88em;
+        }
+        .tag-sugestao-item:hover { background: #f5f5f5; }
+        .tag-nova-hint {
+            padding: 8px 12px;
+            font-size: 0.82em;
+            color: #888;
+            border-top: 1px solid #eee;
+        }
+
+        html[data-theme="dark"] .tag-input-wrapper {
+            background: #2a2a3e !important;
+            border-color: #555 !important;
+        }
+        html[data-theme="dark"] .tag-sugestoes {
+            background: #2a2a3e !important;
+            border-color: #555 !important;
+        }
+        html[data-theme="dark"] .tag-sugestao-item:hover { background: #333 !important; }
+
         .home-btn {
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #007bff; /* Azul */
+            color: #007bff;
             font-size: 1.8em;
             text-decoration: none;
             transition: color 0.3s;
         }
-
-        .home-btn:hover {
-            color: #0056b3;
-        }
+        .home-btn:hover { color: #0056b3; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
@@ -170,6 +251,14 @@
                 <legend>Material (Filamento)</legend>
                 <label for="nomePeca">Nome do Produto:</label>
                 <input type="text" id="nomePeca" required>
+
+                <label>Tags:</label>
+                <div class="tag-input-wrapper" id="tagWrapper" onclick="document.getElementById('tagInput').focus()">
+                    <div id="tagsSelecionadas" style="display:contents;"></div>
+                    <input type="text" id="tagInput" placeholder="Digite e pressione Enter...">
+                    <div class="tag-sugestoes" id="tagSugestoes"></div>
+                </div>
+                <small style="color:#999;">Pressione Enter ou vírgula para adicionar. Clique em uma sugestão para reusar.</small>
 
                 <label for="nomeResumido">Nome Resumido: <small style="color:#999;font-weight:normal;">(usado no gráfico, máx. 30 chars)</small></label>
                 <input type="text" id="nomeResumido" maxlength="30" placeholder="Ex: Chaveiro Dragão">
@@ -305,6 +394,13 @@
         function preencherFormulario(dados) {
             document.getElementById('nomePeca').value = dados.nomePeca || '';
             document.getElementById('nomeResumido').value = dados.nomeResumido || '';
+            tagsSelecionadas = Array.isArray(dados.tags) ? dados.tags : (dados.tags ? Object.values(dados.tags) : []);
+            // Aguarda tagsGlobais carregar antes de renderizar
+            const tentarRender = () => {
+                if (Object.keys(tagsGlobais).length > 0 || !dados.tags) { renderizarTagsSelecionadas(); }
+                else setTimeout(tentarRender, 150);
+            };
+            tentarRender();
             document.getElementById('precoRolo').value = dados.precoRolo || 0;
             document.getElementById('pesoPeca').value = dados.pesoPeca || 0;
             document.getElementById('taxaKWh').value = dados.taxaKWh || 0;
@@ -435,6 +531,7 @@
                     idSequencial: idParaSalvar,
                     nomePeca: nomePeca,
                     nomeResumido: nomeResumido || nomePeca.split(' - ')[0].substring(0, 30),
+                    tags: tagsSelecionadas,
                     custoMaterial: custoMaterial,
                     custoEnergia: custoEnergia,
                     custoTotal: custoTotal,
@@ -471,6 +568,108 @@
             }
         }
     
+        // ── SISTEMA DE TAGS ──
+
+        let tagsSelecionadas = []; // slugs das tags do produto atual
+        let tagsGlobais = {};      // { slug: { nome, slug } }
+
+        function carregarTagsGlobais() {
+            database.ref('tags').once('value').then(snap => {
+                tagsGlobais = {};
+                snap.forEach(child => { tagsGlobais[child.key] = child.val(); });
+            });
+        }
+
+        function salvarTagGlobal(slug, nome) {
+            if (!tagsGlobais[slug]) {
+                tagsGlobais[slug] = { slug, nome };
+                database.ref('tags/' + slug).set({ slug, nome });
+            }
+        }
+
+        function adicionarTag(nome) {
+            nome = nome.trim().replace(/,/g, '');
+            if (!nome) return;
+            const slug = tagSlug(nome);
+            if (!slug || tagsSelecionadas.includes(slug)) return;
+            tagsSelecionadas.push(slug);
+            salvarTagGlobal(slug, nome);
+            renderizarTagsSelecionadas();
+            document.getElementById('tagInput').value = '';
+            fecharSugestoes();
+        }
+
+        function removerTag(slug) {
+            tagsSelecionadas = tagsSelecionadas.filter(s => s !== slug);
+            renderizarTagsSelecionadas();
+        }
+
+        function renderizarTagsSelecionadas() {
+            const container = document.getElementById('tagsSelecionadas');
+            container.innerHTML = '';
+            tagsSelecionadas.forEach(slug => {
+                const nome = tagsGlobais[slug]?.nome || slug;
+                const chip = renderChip(nome, slug, true, removerTag);
+                container.appendChild(chip);
+            });
+        }
+
+        function mostrarSugestoes(texto) {
+            const box = document.getElementById('tagSugestoes');
+            box.innerHTML = '';
+            const termos = texto.toLowerCase();
+            const matches = Object.values(tagsGlobais)
+                .filter(t => !tagsSelecionadas.includes(t.slug) && t.nome.toLowerCase().includes(termos));
+
+            if (matches.length === 0 && !texto) { box.style.display = 'none'; return; }
+
+            matches.forEach(t => {
+                const cor = tagCor(t.slug);
+                const item = document.createElement('div');
+                item.className = 'tag-sugestao-item';
+                item.innerHTML = `<span class="tag-chip" style="background:${cor.bg};color:${cor.text};border:1px solid ${cor.text}44;">${t.nome}</span>`;
+                item.addEventListener('click', () => adicionarTag(t.nome));
+                box.appendChild(item);
+            });
+
+            if (texto && !matches.find(t => t.nome.toLowerCase() === termos)) {
+                const hint = document.createElement('div');
+                hint.className = 'tag-nova-hint';
+                hint.textContent = `➕ Criar tag "${texto}"`;
+                hint.style.cursor = 'pointer';
+                hint.addEventListener('click', () => adicionarTag(texto));
+                box.appendChild(hint);
+            }
+
+            box.style.display = box.children.length ? 'block' : 'none';
+        }
+
+        function fecharSugestoes() {
+            document.getElementById('tagSugestoes').style.display = 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarTagsGlobais();
+
+            const input = document.getElementById('tagInput');
+            input.addEventListener('input', () => mostrarSugestoes(input.value));
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    adicionarTag(input.value);
+                } else if (e.key === 'Backspace' && !input.value && tagsSelecionadas.length) {
+                    removerTag(tagsSelecionadas[tagsSelecionadas.length - 1]);
+                }
+            });
+            input.addEventListener('focus', () => mostrarSugestoes(input.value));
+            document.addEventListener('click', e => {
+                if (!document.getElementById('tagWrapper').contains(e.target)) fecharSugestoes();
+            });
+        });
+
+        // Sobrescreve preencherFormulario para carregar tags ao editar
+        const _preencherOriginal = preencherFormulario;
+
         function salvarNoFirebase(id, dados) {
             const acao = idEmEdicao !== null ? 'atualizado' : 'salvo';
 
