@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Busca no Mercado Livre</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="dark-mode.css">
+  <script src="theme.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg, #f4f7f6);
+      color: var(--text, #333);
+      margin: 0;
+      padding: 20px 24px;
+    }
+
+    h1 { font-size: 1.3em; margin-bottom: 2px; color: var(--text, #1e3c72); }
+    .subtitle { color: #888; font-size: 0.85em; margin-bottom: 20px; }
+
+    /* ── Painel de busca ── */
+    .search-panel {
+      background: var(--card-bg, #fff);
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .search-bar input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid var(--border, #ddd);
+      border-radius: 8px;
+      font-size: 1em;
+      background: var(--input-bg, #fff);
+      color: var(--text, #333);
+      transition: border-color 0.2s;
+    }
+    .search-bar input:focus { outline: none; border-color: #e66a2e; }
+    .btn-search {
+      padding: 12px 24px;
+      background: #e66a2e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1em;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.2s;
+    }
+    .btn-search:hover { opacity: 0.88; }
+    .btn-search:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Filtros */
+    .filters {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filter-group label {
+      font-size: 0.75em;
+      font-weight: 700;
+      color: var(--text-muted, #888);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .filter-group input,
+    .filter-group select {
+      padding: 7px 11px;
+      border: 1px solid var(--border, #ccc);
+      border-radius: 6px;
+      font-size: 0.88em;
+      background: var(--input-bg, #fff);
+      color: var(--text, #333);
+      min-width: 110px;
+    }
+    .filter-group input:focus,
+    .filter-group select:focus { outline: 2px solid #e66a2e; border-color: transparent; }
+
+    .filter-toggle {
+      background: none;
+      border: 1px solid var(--border, #ccc);
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 0.82em;
+      cursor: pointer;
+      color: var(--text, #555);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: auto;
+      transition: background 0.2s;
+    }
+    .filter-toggle:hover { background: var(--hover-bg, #f0f0f0); }
+    .filter-toggle.active { background: #fff3e0; border-color: #e66a2e; color: #e66a2e; font-weight: 700; }
+
+    /* ── Barra de resultado ── */
+    .results-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .results-info { font-size: 0.88em; color: var(--text-muted, #888); }
+    .sort-bar { display: flex; gap: 8px; }
+    .sort-btn {
+      padding: 5px 12px;
+      border: 1px solid var(--border, #ccc);
+      border-radius: 6px;
+      background: var(--card-bg, #fff);
+      color: var(--text, #555);
+      font-size: 0.8em;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sort-btn.active { background: #e66a2e; color: #fff; border-color: #e66a2e; font-weight: 700; }
+
+    /* ── Grid de resultados ── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .result-card {
+      background: var(--card-bg, #fff);
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: box-shadow 0.2s, transform 0.2s;
+      border: 1px solid var(--border, #eee);
+    }
+    .result-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.12); transform: translateY(-2px); }
+
+    .card-img-wrap {
+      position: relative;
+      height: 160px;
+      background: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .card-img-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .card-img-placeholder { color: #ccc; font-size: 2.5em; }
+
+    .card-discount {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: #e53935;
+      color: #fff;
+      font-size: 0.72em;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .card-free-ship {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #2e7d32;
+      color: #fff;
+      font-size: 0.68em;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 4px;
+    }
+    .card-condition {
+      position: absolute;
+      bottom: 6px;
+      right: 8px;
+      background: rgba(0,0,0,0.45);
+      color: #fff;
+      font-size: 0.65em;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .card-body {
+      padding: 12px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card-title {
+      font-size: 0.85em;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--text, #333);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card-seller { font-size: 0.75em; color: var(--text-muted, #999); }
+    .card-price-area { margin-top: auto; padding-top: 6px; }
+    .card-original { font-size: 0.78em; color: #aaa; text-decoration: line-through; }
+    .card-price {
+      font-size: 1.25em;
+      font-weight: 700;
+      color: #1a7f37;
+    }
+
+    .card-footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border, #eee);
+      display: flex;
+      gap: 8px;
+    }
+    .btn-ml {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.8em;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .btn-ml:hover { opacity: 0.85; }
+    .btn-ver { background: #e66a2e; color: #fff; }
+    .btn-monitor { background: #1565c0; color: #fff; }
+
+    /* ── Estados ── */
+    .state-box {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted, #aaa);
+    }
+    .state-box i { font-size: 3em; margin-bottom: 14px; display: block; }
+    .state-box p { font-size: 1em; margin: 0; }
+    .state-box small { font-size: 0.82em; color: #bbb; }
+
+    /* ── Spinner ── */
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #323232;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.88em;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.3s;
+      z-index: 999;
+      max-width: 320px;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: #2e7d32; }
+    #toast.error { background: #c62828; }
+
+    /* ── Modal adicionar ao monitoramento ── */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 500;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--card-bg, #fff);
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+      transform: scale(0.95);
+      transition: transform 0.2s;
+    }
+    .modal-backdrop.open .modal { transform: scale(1); }
+    .modal h3 { margin: 0 0 16px; font-size: 1em; }
+    .modal .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+    .modal label { font-size: 0.8em; font-weight: 700; color: var(--text-muted, #888); }
+    .modal input, .modal select {
+      padding: 9px 12px; border: 1px solid var(--border, #ccc);
+      border-radius: 6px; font-size: 0.9em;
+      background: var(--input-bg, #fff); color: var(--text, #333);
+    }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+    .btn-cancel { padding: 9px 18px; border: 1px solid var(--border, #ccc); border-radius: 6px; background: none; cursor: pointer; font-size: 0.88em; color: var(--text, #555); }
+    .btn-confirm { padding: 9px 18px; background: #1565c0; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.88em; font-weight: 700; }
+
+    @media (max-width: 600px) {
+      .filters { flex-direction: column; }
+      .results-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Modal: Adicionar ao Monitoramento -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3><i class="fa fa-bell" style="color:#1565c0;margin-right:8px"></i>Adicionar ao Monitoramento</h3>
+    <div class="form-group">
+      <label>Nome interno</label>
+      <input id="mName" type="text" placeholder="Ex: Filamento PLA preto">
+    </div>
+    <div class="form-group">
+      <label>Termo de busca (já preenchido)</label>
+      <input id="mQuery" type="text" readonly style="background:#f5f5f5;color:#888">
+    </div>
+    <div class="form-group">
+      <label>Desconto mínimo para alertar (%)</label>
+      <input id="mDiscount" type="number" value="10" min="0" max="100">
+    </div>
+    <div class="form-group">
+      <label>Resultados por verificação</label>
+      <input id="mLimit" type="number" value="10" min="1" max="50">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-confirm" onclick="confirmarMonitoramento()"><i class="fa fa-check"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Conteúdo principal -->
+<div>
+  <h1><i class="fa fa-search" style="color:#e66a2e;margin-right:8px"></i>Busca no Mercado Livre</h1>
+  <p class="subtitle">Pesquise produtos diretamente no ML com filtros avançados.</p>
+
+  <!-- Painel de busca -->
+  <div class="search-panel">
+    <div class="search-bar">
+      <input id="queryInput" type="text" placeholder="Ex: filamento pla 1kg impressora 3d..." onkeydown="if(event.key==='Enter')buscar()">
+      <button class="btn-search" id="btnBuscar" onclick="buscar()">
+        <i class="fa fa-search"></i> Buscar
+      </button>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label>Resultados</label>
+        <select id="fLimit">
+          <option value="10">10</option>
+          <option value="20" selected>20</option>
+          <option value="30">30</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Condição</label>
+        <select id="fCondition">
+          <option value="">Qualquer</option>
+          <option value="new">Novo</option>
+          <option value="used">Usado</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Preço mín. (R$)</label>
+        <input id="fPriceMin" type="number" placeholder="0" min="0">
+      </div>
+
+      <div class="filter-group">
+        <label>Preço máx. (R$)</label>
+        <input id="fPriceMax" type="number" placeholder="9999" min="0">
+      </div>
+
+      <div class="filter-group">
+        <label>Só com desconto</label>
+        <select id="fDiscount">
+          <option value="">Qualquer</option>
+          <option value="5">≥ 5%</option>
+          <option value="10">≥ 10%</option>
+          <option value="20">≥ 20%</option>
+          <option value="30">≥ 30%</option>
+          <option value="50">≥ 50%</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Frete grátis</label>
+        <select id="fFreeShip">
+          <option value="">Qualquer</option>
+          <option value="true">Sim</option>
+        </select>
+      </div>
+
+      <button class="filter-toggle" id="btnMonitorarBusca" onclick="abrirModalComQuery()" title="Monitorar este termo automaticamente">
+        <i class="fa fa-bell"></i> Monitorar busca
+      </button>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div id="resultsBar" class="results-bar" style="display:none">
+    <span class="results-info" id="resultsInfo"></span>
+    <div class="sort-bar">
+      <button class="sort-btn active" id="sortPrice" onclick="sortBy('price')"><i class="fa fa-sort-amount-up"></i> Menor preço</button>
+      <button class="sort-btn" id="sortDiscount" onclick="sortBy('discount')"><i class="fa fa-tag"></i> Maior desconto</button>
+      <button class="sort-btn" id="sortRelevance" onclick="sortBy('relevance')"><i class="fa fa-star"></i> Relevância</button>
+    </div>
+  </div>
+
+  <div id="stateBox" class="state-box">
+    <i class="fa fa-search"></i>
+    <p>Digite um termo e clique em <strong>Buscar</strong></p>
+    <small>Os resultados vêm diretamente da API do Mercado Livre</small>
+  </div>
+
+  <div id="resultsGrid" class="results-grid" style="display:none"></div>
+</div>
+
+<script>
+  // ── Firebase Auth ────────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+    authDomain: "calculo3d.firebaseapp.com",
+    databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+    projectId: "calculo3d",
+    storageBucket: "calculo3d.firebasestorage.app",
+    messagingSenderId: "372705279593",
+    appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+  };
+  firebase.initializeApp(firebaseConfig);
+  firebase.auth().onAuthStateChanged(user => {
+    if (!user) window.location.href = "login.html";
+  });
+
+  const API_BASE = "/api/monitor";
+
+  // ── Estado ──────────────────────────────────────────────────────────────────
+  let allResults = [];   // todos os itens retornados (pós-filtro local)
+  let rawResults = [];   // todos os itens originais da API
+  let currentSort = "price";
+
+  // ── Busca ────────────────────────────────────────────────────────────────────
+  async function buscar() {
+    const query = document.getElementById("queryInput").value.trim();
+    if (!query) { toast("Digite um termo de busca.", "error"); return; }
+
+    const btn = document.getElementById("btnBuscar");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Buscando...';
+
+    mostrarEstado("loading");
+
+    try {
+      const limit = document.getElementById("fLimit").value;
+      const resp = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error);
+
+      rawResults = json.data;
+      aplicarFiltros();
+    } catch (err) {
+      mostrarEstado("error", err.message);
+      toast("Erro: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-search"></i> Buscar';
+    }
+  }
+
+  // ── Filtros locais ───────────────────────────────────────────────────────────
+  function aplicarFiltros() {
+    const condition = document.getElementById("fCondition").value;
+    const priceMin  = parseFloat(document.getElementById("fPriceMin").value) || 0;
+    const priceMax  = parseFloat(document.getElementById("fPriceMax").value) || Infinity;
+    const minDisc   = parseInt(document.getElementById("fDiscount").value) || 0;
+    const freeShip  = document.getElementById("fFreeShip").value;
+
+    allResults = rawResults.filter(item => {
+      if (condition && item.condition !== condition) return false;
+      if (item.current_price < priceMin || item.current_price > priceMax) return false;
+      if (minDisc > 0 && item.discount_percent < minDisc) return false;
+      if (freeShip === "true" && !item.free_shipping) return false;
+      return true;
+    });
+
+    ordenar();
+  }
+
+  // ── Ordenação ────────────────────────────────────────────────────────────────
+  function sortBy(key) {
+    currentSort = key;
+    document.querySelectorAll(".sort-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("sort" + key.charAt(0).toUpperCase() + key.slice(1)).classList.add("active");
+    ordenar();
+  }
+
+  function ordenar() {
+    const sorted = [...allResults];
+    if (currentSort === "price") sorted.sort((a, b) => a.current_price - b.current_price);
+    else if (currentSort === "discount") sorted.sort((a, b) => b.discount_percent - a.discount_percent);
+    // "relevance" = ordem original da API
+    renderizar(sorted);
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+  function renderizar(items) {
+    const grid = document.getElementById("resultsGrid");
+    const bar  = document.getElementById("resultsBar");
+    const info = document.getElementById("resultsInfo");
+    const total = rawResults.length;
+    const shown = items.length;
+
+    if (!items.length) {
+      mostrarEstado("empty");
+      bar.style.display = "none";
+      return;
+    }
+
+    bar.style.display = "flex";
+    info.textContent = shown === total
+      ? `${total} resultado(s) encontrado(s)`
+      : `${shown} de ${total} resultado(s) (filtros aplicados)`;
+
+    grid.style.display = "grid";
+    document.getElementById("stateBox").style.display = "none";
+
+    grid.innerHTML = "";
+    items.forEach(item => {
+      const card = document.createElement("div");
+      card.className = "result-card";
+
+      const priceStr = "R$ " + item.current_price.toFixed(2).replace(".", ",");
+      const origStr  = item.original_price
+        ? "R$ " + item.original_price.toFixed(2).replace(".", ",")
+        : null;
+
+      card.innerHTML = `
+        <div class="card-img-wrap">
+          ${item.thumbnail
+            ? `<img src="${item.thumbnail.replace('http://','https://')}" alt="" loading="lazy">`
+            : `<i class="fa fa-image card-img-placeholder"></i>`}
+          ${item.discount_percent > 0 ? `<span class="card-discount">-${item.discount_percent}%</span>` : ""}
+          ${item.free_shipping ? `<span class="card-free-ship"><i class="fa fa-truck"></i> Grátis</span>` : ""}
+          <span class="card-condition">${item.condition === 'new' ? 'Novo' : 'Usado'}</span>
+        </div>
+        <div class="card-body">
+          <div class="card-title" title="${esc(item.title)}">${esc(item.title)}</div>
+          <div class="card-seller"><i class="fa fa-store" style="margin-right:4px"></i>${esc(item.seller_name || "Vendedor")}</div>
+          <div class="card-price-area">
+            ${origStr ? `<div class="card-original">${origStr}</div>` : ""}
+            <div class="card-price">${priceStr}</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <a href="${item.url}" target="_blank" class="btn-ml btn-ver">
+            <i class="fa fa-external-link-alt"></i> Ver no ML
+          </a>
+          <button class="btn-ml btn-monitor" onclick='abrirModalComItem(${JSON.stringify(item)})'>
+            <i class="fa fa-bell"></i> Monitorar
+          </button>
+        </div>`;
+      grid.appendChild(card);
+    });
+  }
+
+  // ── Estados visuais ──────────────────────────────────────────────────────────
+  function mostrarEstado(tipo, msg) {
+    const box = document.getElementById("stateBox");
+    const grid = document.getElementById("resultsGrid");
+    const bar  = document.getElementById("resultsBar");
+
+    grid.style.display = "none";
+    bar.style.display  = "none";
+    box.style.display  = "block";
+
+    if (tipo === "loading") {
+      box.innerHTML = `<i class="fa fa-spinner fa-spin"></i><p>Buscando no Mercado Livre...</p>`;
+    } else if (tipo === "empty") {
+      box.innerHTML = `<i class="fa fa-inbox"></i><p>Nenhum resultado com esses filtros.</p><small>Tente alterar os filtros ou o termo de busca.</small>`;
+    } else if (tipo === "error") {
+      box.innerHTML = `<i class="fa fa-exclamation-circle" style="color:#e53935"></i><p style="color:#e53935">${esc(msg)}</p><small>Verifique se o deploy das Cloud Functions foi feito.</small>`;
+    }
+  }
+
+  // ── Modal Monitoramento ──────────────────────────────────────────────────────
+  let modalQuery = "";
+
+  function abrirModalComQuery() {
+    const q = document.getElementById("queryInput").value.trim();
+    if (!q) { toast("Digite um termo de busca primeiro.", "error"); return; }
+    modalQuery = q;
+    document.getElementById("mName").value = "";
+    document.getElementById("mQuery").value = q;
+    document.getElementById("mDiscount").value = "10";
+    document.getElementById("mLimit").value = document.getElementById("fLimit").value;
+    document.getElementById("modalBackdrop").classList.add("open");
+  }
+
+  function abrirModalComItem(item) {
+    // Usar o título do item como sugestão de nome e o título como query
+    modalQuery = document.getElementById("queryInput").value.trim() || item.title;
+    document.getElementById("mName").value = item.title.substring(0, 60);
+    document.getElementById("mQuery").value = modalQuery;
+    document.getElementById("mDiscount").value = item.discount_percent > 0 ? Math.max(item.discount_percent - 5, 5) : "10";
+    document.getElementById("mLimit").value = document.getElementById("fLimit").value;
+    document.getElementById("modalBackdrop").classList.add("open");
+  }
+
+  function fecharModal() {
+    document.getElementById("modalBackdrop").classList.remove("open");
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById("modalBackdrop")) fecharModal();
+  }
+
+  async function confirmarMonitoramento() {
+    const name  = document.getElementById("mName").value.trim();
+    const query = document.getElementById("mQuery").value.trim();
+    const discount = parseInt(document.getElementById("mDiscount").value) || 10;
+    const limit    = parseInt(document.getElementById("mLimit").value) || 10;
+
+    if (!name) { toast("Informe um nome interno.", "error"); return; }
+
+    try {
+      const resp = await fetch(`${API_BASE}/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, query, limit, min_discount_percent: discount, active: true }),
+      });
+      const json = await resp.json();
+      if (!json.success) throw new Error(json.error);
+      fecharModal();
+      toast(`"${name}" adicionado ao monitoramento!`, "success");
+    } catch (err) {
+      toast("Erro: " + err.message, "error");
+    }
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg, type = "info") {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = "show " + (type || "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = ""; }, 3500);
+  }
+
+  // ── Escape ───────────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  // Atalho: re-filtrar ao mudar selects sem precisar re-buscar
+  ["fCondition","fDiscount","fFreeShip"].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      if (rawResults.length) aplicarFiltros();
+    });
+  });
+  ["fPriceMin","fPriceMax"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+      if (rawResults.length) aplicarFiltros();
+    });
+  });
+</script>
+</body>
+</html>
