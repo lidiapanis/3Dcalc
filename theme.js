@@ -1,10 +1,14 @@
-// Aplica o tema imediatamente ao carregar
+// Lê o tema: prioriza URL param (?theme=dark), depois localStorage
 (function () {
-    const theme = localStorage.getItem('theme') || 'light';
+    var params = new URLSearchParams(window.location.search);
+    var theme = params.get('theme') || localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', theme);
+    if (params.get('theme')) {
+        localStorage.setItem('theme', theme);
+    }
 })();
 
-// Escuta mensagem do frame pai (home.html) e aplica o tema em tempo real
+// Também escuta postMessage do pai como fallback
 window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'SET_THEME') {
         document.documentElement.setAttribute('data-theme', e.data.theme);

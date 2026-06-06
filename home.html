@@ -289,20 +289,14 @@
             return document.documentElement.getAttribute('data-theme') || 'light';
         }
 
-        function enviarTemaPraIframe() {
-            const frame = document.getElementById('contentFrame');
-            if (frame && frame.contentWindow) {
-                frame.contentWindow.postMessage({ type: 'SET_THEME', theme: getTheme() }, '*');
-            }
+        function urlComTema(pagina) {
+            return pagina + '?theme=' + getTheme();
         }
-
-        // Sempre que o iframe terminar de carregar, envia o tema atual
-        document.getElementById('contentFrame').addEventListener('load', enviarTemaPraIframe);
 
         function navegar(pagina, btn, titulo) {
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             btn.classList.add('active');
-            document.getElementById('contentFrame').src = pagina;
+            document.getElementById('contentFrame').src = urlComTema(pagina);
             document.getElementById('topbarTitle').textContent = titulo;
         }
 
@@ -310,8 +304,19 @@
             const theme = checkbox.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
-            enviarTemaPraIframe();
+
+            // Recarrega o iframe atual com o novo tema na URL
+            const frame = document.getElementById('contentFrame');
+            const paginaAtual = frame.src.split('?')[0];
+            frame.src = paginaAtual + '?theme=' + theme;
         }
+
+        // Carrega o dashboard inicial já com o tema correto
+        (function() {
+            const frame = document.getElementById('contentFrame');
+            const tema = localStorage.getItem('theme') || 'light';
+            frame.src = 'dashboard.html?theme=' + tema;
+        })();
 
         // Restaurar tema salvo
         const savedTheme = localStorage.getItem('theme') || 'light';
