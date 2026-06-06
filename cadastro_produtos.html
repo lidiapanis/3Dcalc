@@ -171,6 +171,9 @@
                 <label for="nomePeca">Nome do Produto:</label>
                 <input type="text" id="nomePeca" required>
 
+                <label for="nomeResumido">Nome Resumido: <small style="color:#999;font-weight:normal;">(usado no gráfico, máx. 30 chars)</small></label>
+                <input type="text" id="nomeResumido" maxlength="30" placeholder="Ex: Chaveiro Dragão">
+
                 <label for="imagemProduto">Imagem do Produto:</label>
                 <img id="previewImagem" alt="Preview da imagem">
                 <input type="file" id="imagemProduto" accept="image/*" onchange="previewar(this)">
@@ -301,6 +304,7 @@
 
         function preencherFormulario(dados) {
             document.getElementById('nomePeca').value = dados.nomePeca || '';
+            document.getElementById('nomeResumido').value = dados.nomeResumido || '';
             document.getElementById('precoRolo').value = dados.precoRolo || 0;
             document.getElementById('pesoPeca').value = dados.pesoPeca || 0;
             document.getElementById('taxaKWh').value = dados.taxaKWh || 0;
@@ -402,6 +406,7 @@
         function processarCalculo(idParaSalvar) {
             // Obter Inputs
             const nomePeca = document.getElementById('nomePeca').value;
+            const nomeResumido = document.getElementById('nomeResumido').value.trim();
             const precoRolo = parseFloat(document.getElementById('precoRolo').value);
             const pesoPeca = parseFloat(document.getElementById('pesoPeca').value);
             const taxaKWh = parseFloat(document.getElementById('taxaKWh').value);
@@ -429,6 +434,7 @@
                 const dadosParaSalvar = {
                     idSequencial: idParaSalvar,
                     nomePeca: nomePeca,
+                    nomeResumido: nomeResumido || nomePeca.split(' - ')[0].substring(0, 30),
                     custoMaterial: custoMaterial,
                     custoEnergia: custoEnergia,
                     custoTotal: custoTotal,
