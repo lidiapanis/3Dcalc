@@ -9,7 +9,10 @@
     "rewrites": [
       {
         "source": "/api/monitor/**",
-        "function": "monitorApi"
+        "run": {
+          "serviceId": "monitorapi",
+          "region": "us-central1"
+        }
       },
       {
         "source": "**",
