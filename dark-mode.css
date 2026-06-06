@@ -1,0 +1,123 @@
+/* ── Dark Mode global para todas as páginas internas ── */
+[data-theme="dark"] body {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+[data-theme="dark"] .container {
+    background-color: #1e1e2e !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4) !important;
+}
+
+[data-theme="dark"] h1,
+[data-theme="dark"] h2,
+[data-theme="dark"] h3 {
+    color: #90caf9 !important;
+}
+
+[data-theme="dark"] label {
+    color: #b0bec5 !important;
+}
+
+[data-theme="dark"] fieldset {
+    border-color: #333 !important;
+}
+
+[data-theme="dark"] legend {
+    color: #90caf9 !important;
+}
+
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] input[type="file"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+    background-color: #2a2a3e !important;
+    color: #e0e0e0 !important;
+    border-color: #444 !important;
+}
+
+[data-theme="dark"] input[type="text"]::placeholder,
+[data-theme="dark"] input[type="number"]::placeholder,
+[data-theme="dark"] #searchBar::placeholder {
+    color: #777 !important;
+}
+
+[data-theme="dark"] table {
+    border-color: #333 !important;
+}
+
+[data-theme="dark"] th {
+    background-color: #2a2a3e !important;
+    color: #90caf9 !important;
+    border-color: #444 !important;
+}
+
+[data-theme="dark"] td {
+    border-color: #333 !important;
+    color: #e0e0e0 !important;
+}
+
+[data-theme="dark"] tr:hover td {
+    background-color: #252535 !important;
+}
+
+[data-theme="dark"] .controls,
+[data-theme="dark"] .chart-card,
+[data-theme="dark"] .metric-card {
+    background-color: #1e1e2e !important;
+    border-color: #333 !important;
+}
+
+[data-theme="dark"] .metric-title {
+    color: #90a4ae !important;
+}
+
+[data-theme="dark"] .metric-value {
+    color: #e0e0e0 !important;
+}
+
+[data-theme="dark"] #searchBar {
+    background-color: #2a2a3e !important;
+    color: #e0e0e0 !important;
+    border-color: #444 !important;
+}
+
+[data-theme="dark"] .resultados {
+    border-top-color: #333 !important;
+}
+
+[data-theme="dark"] .resultados p,
+[data-theme="dark"] .resultados span {
+    color: #e0e0e0 !important;
+}
+
+[data-theme="dark"] .total-venda {
+    color: #66bb6a !important;
+}
+
+[data-theme="dark"] .total-custo {
+    color: #ef9a9a !important;
+}
+
+[data-theme="dark"] #averageTable th {
+    background-color: #2a2a3e !important;
+}
+
+[data-theme="dark"] #averageTable td {
+    border-color: #333 !important;
+}
+
+[data-theme="dark"] .product-item {
+    border-bottom-color: #333 !important;
+}
+
+[data-theme="dark"] #totalArea {
+    color: #66bb6a !important;
+    border-top-color: #66bb6a !important;
+}
+
+[data-theme="dark"] img#previewImagem {
+    border-color: #444 !important;
+}

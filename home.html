@@ -293,8 +293,14 @@
         }
 
         function toggleDark(checkbox) {
-            document.documentElement.setAttribute('data-theme', checkbox.checked ? 'dark' : 'light');
-            localStorage.setItem('theme', checkbox.checked ? 'dark' : 'light');
+            const theme = checkbox.checked ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            // Propaga o tema para a página carregada no iframe
+            const frame = document.getElementById('contentFrame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.postMessage({ type: 'SET_THEME', theme }, '*');
+            }
         }
 
         // Restaurar tema salvo
