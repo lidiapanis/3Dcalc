@@ -57,7 +57,7 @@ app.use((req, res) => {
 
 // ─── HTTP Function (Gen 2) ───────────────────────────────────────────────────
 
-exports.monitorApi = onRequest(
+exports.monitorApiV2 = onRequest(
   {
     region: "us-central1",
     memory: "256MiB",

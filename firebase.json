@@ -10,7 +10,7 @@
       {
         "source": "/api/monitor/**",
         "run": {
-          "serviceId": "monitorapi",
+          "serviceId": "monitorapiv2",
           "region": "us-central1"
         }
       },
