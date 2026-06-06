@@ -271,15 +271,7 @@
                 const nomes = [], precos = [], custos = [];
                 snapshot.forEach(child => {
                     const d = child.val();
-                    // Quebra o nome em até 2 linhas de ~20 chars para caber no eixo
-                    const nome = d.nomePeca || child.key;
-                    const palavras = nome.split(' ');
-                    let linha1 = '', linha2 = '';
-                    for (const p of palavras) {
-                        if ((linha1 + ' ' + p).trim().length <= 20) linha1 = (linha1 + ' ' + p).trim();
-                        else linha2 = (linha2 + ' ' + p).trim();
-                    }
-                    nomes.push(linha2 ? [linha1, linha2] : linha1);
+                    nomes.push(d.nomeResumido || d.nomePeca || child.key);
                     precos.push(parseFloat(d.precoVenda) || 0);
                     custos.push(parseFloat(d.custoTotal) || 0);
                 });
