@@ -69,7 +69,7 @@ exports.monitorApiV2 = onRequest(
 
 // ─── Scheduled Function (Gen 2) ─────────────────────────────────────────────
 
-exports.priceMonitorJob = onSchedule(
+exports.priceMonitorJobV2 = onSchedule(
   {
     schedule: "every 1 hours",
     timeZone: "America/Sao_Paulo",
