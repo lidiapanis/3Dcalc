@@ -49,7 +49,10 @@ app.use(express.json());
 // ─── Rotas ───────────────────────────────────────────────────────────────────
 
 const crawlerRoutes = require("./src/routes/crawler.routes");
-app.use("/", crawlerRoutes);
+
+// Monta com o prefixo completo que o Firebase Hosting repassa
+app.use("/api/monitor", crawlerRoutes);
+app.use("/", crawlerRoutes); // fallback para chamadas diretas à Function URL
 
 // Rota raiz de health-check
 app.get("/health", (req, res) => {
@@ -58,7 +61,7 @@ app.get("/health", (req, res) => {
 
 // Handler 404
 app.use((req, res) => {
-  res.status(404).json({ success: false, error: "Rota não encontrada." });
+  res.status(404).json({ success: false, error: "Rota não encontrada. Path: " + req.path });
 });
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
