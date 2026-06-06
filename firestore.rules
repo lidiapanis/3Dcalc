@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Somente usuários autenticados podem ler/escrever
+    // (as Cloud Functions usam o Admin SDK e ignoram essas regras)
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    match /tracked_products/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    match /price_history/{docId} {
+      allow read: if isAuth();
+      // Escrita somente via Cloud Functions (Admin SDK)
+      allow write: if false;
+    }
+
+    match /deals/{docId} {
+      allow read: if isAuth();
+      // Escrita somente via Cloud Functions (Admin SDK)
+      allow write: if false;
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "price_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tracked_product_id", "order": "ASCENDING" },
+        { "fieldPath": "fetched_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "price_history",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ml_id", "order": "ASCENDING" },
+        { "fieldPath": "fetched_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tracked_product_id", "order": "ASCENDING" },
+        { "fieldPath": "detected_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "deals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_read", "order": "ASCENDING" },
+        { "fieldPath": "detected_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

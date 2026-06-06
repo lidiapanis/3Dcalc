@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoramento de Preços — ML</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="dark-mode.css">
+  <script src="theme.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg, #f4f7f6);
+      color: var(--text, #333);
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    h1 { color: var(--text, #1e3c72); margin-bottom: 4px; }
+    .subtitle { color: #888; margin-bottom: 24px; font-size: 0.9em; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border, #ddd);
+      padding-bottom: 0;
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 0.95em;
+      color: var(--text, #555);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: #e66a2e;
+      border-bottom-color: #e66a2e;
+      font-weight: bold;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg, #fff);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    /* Formulário */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 0.85em; font-weight: 600; color: var(--text, #555); }
+    input, select {
+      padding: 9px 12px;
+      border: 1px solid var(--border, #ccc);
+      border-radius: 6px;
+      font-size: 0.95em;
+      background: var(--input-bg, #fff);
+      color: var(--text, #333);
+    }
+    input:focus, select:focus { outline: 2px solid #e66a2e; border-color: transparent; }
+    .hint { font-size: 0.78em; color: #999; }
+
+    /* Botões */
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9em;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #e66a2e; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-success { background: #28a745; color: #fff; }
+    .btn-sm { padding: 5px 12px; font-size: 0.8em; }
+
+    /* Tabela */
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--border, #eee); text-align: left; vertical-align: middle; font-size: 0.9em; }
+    th { background: var(--th-bg, #f2f2f2); font-weight: 700; font-size: 0.82em; text-transform: uppercase; letter-spacing: 0.04em; }
+    tr:hover td { background: var(--hover-bg, #fafafa); }
+
+    /* Badge status */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.78em;
+      font-weight: 700;
+    }
+    .badge-green { background: #d4edda; color: #155724; }
+    .badge-red { background: #f8d7da; color: #721c24; }
+    .badge-orange { background: #fff3cd; color: #856404; }
+    .badge-blue { background: #d1ecf1; color: #0c5460; }
+
+    /* Deal card */
+    .deal-card {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      padding: 16px;
+      border: 1px solid var(--border, #eee);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: var(--card-bg, #fff);
+      transition: box-shadow 0.2s;
+    }
+    .deal-card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    .deal-card.unread { border-left: 4px solid #e66a2e; }
+    .deal-thumb { width: 70px; height: 70px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .deal-thumb-placeholder { width: 70px; height: 70px; background: #eee; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 1.5em; flex-shrink: 0; }
+    .deal-info { flex: 1; min-width: 0; }
+    .deal-title { font-weight: 600; font-size: 0.95em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .deal-price { font-size: 1.2em; font-weight: 700; color: #28a745; }
+    .deal-original { text-decoration: line-through; color: #999; font-size: 0.85em; margin-left: 8px; }
+    .deal-reasons { margin-top: 6px; }
+    .deal-reason-chip { display: inline-block; background: #fff3cd; color: #856404; border-radius: 4px; padding: 2px 8px; font-size: 0.75em; margin: 2px; }
+    .deal-meta { font-size: 0.78em; color: #999; margin-top: 4px; }
+    .deal-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex-shrink: 0; }
+
+    /* Preview busca ML */
+    .preview-list { margin-top: 16px; }
+    .preview-item {
+      display: flex; gap: 12px; align-items: center;
+      padding: 10px; border-bottom: 1px solid var(--border, #eee);
+      font-size: 0.88em;
+    }
+    .preview-item img { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; }
+    .preview-item-info { flex: 1; }
+    .preview-price { font-weight: 700; color: #28a745; }
+
+    /* Feedback/status */
+    .status-bar {
+      background: var(--card-bg, #f8f9fa);
+      border: 1px solid var(--border, #dee2e6);
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 0.88em;
+      color: var(--text, #555);
+      margin-bottom: 16px;
+    }
+    .status-bar.error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+    .status-bar.success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+
+    /* Log do job */
+    .job-log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.82em;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+
+    /* Spinner */
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Responsivo */
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .deal-card { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1><i class="fa fa-tags" style="color:#e66a2e"></i> Monitoramento de Preços</h1>
+  <p class="subtitle">Rastreie produtos no Mercado Livre e detecte ofertas automaticamente.</p>
+
+  <div id="statusBar" class="status-bar" style="display:none"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('products')"><i class="fa fa-list"></i> Produtos Monitorados</button>
+    <button class="tab-btn" onclick="switchTab('deals')"><i class="fa fa-bolt"></i> Ofertas</button>
+    <button class="tab-btn" onclick="switchTab('job')"><i class="fa fa-play-circle"></i> Executar Job</button>
+  </div>
+
+  <!-- ─── Tab: Produtos Monitorados ─── -->
+  <div id="tab-products" class="tab-panel active">
+    <!-- Formulário de cadastro -->
+    <div class="card">
+      <h3 style="margin-top:0" id="formTitle">+ Novo Produto Monitorado</h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nome interno</label>
+          <input id="fName" type="text" placeholder="Ex: Filamento PLA 1kg">
+        </div>
+        <div class="form-group">
+          <label>Desconto mínimo (%)</label>
+          <input id="fDiscount" type="number" value="10" min="0" max="100">
+        </div>
+        <div class="form-group full">
+          <label>Termo de busca no ML</label>
+          <input id="fQuery" type="text" placeholder="Ex: filamento pla 1kg impressora 3d">
+          <span class="hint">Exatamente como você pesquisaria no Mercado Livre.</span>
+        </div>
+        <div class="form-group">
+          <label>Quantidade de resultados</label>
+          <input id="fLimit" type="number" value="10" min="1" max="50">
+        </div>
+        <div class="form-group">
+          <label>Categoria ML (opcional)</label>
+          <input id="fCategory" type="text" placeholder="Ex: MLB1000">
+          <span class="hint">ID da categoria no ML. Deixe vazio para qualquer categoria.</span>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="fActive">
+            <option value="true">Ativo</option>
+            <option value="false">Inativo</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="previewML()"><i class="fa fa-search"></i> Pré-visualizar busca no ML</button>
+        <button class="btn btn-primary" id="saveBtn" onclick="saveProduct()"><i class="fa fa-save"></i> Salvar</button>
+        <button class="btn btn-secondary" id="cancelEditBtn" style="display:none" onclick="cancelEdit()">Cancelar</button>
+      </div>
+
+      <div id="previewList" class="preview-list" style="display:none"></div>
+    </div>
+
+    <!-- Lista de produtos -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h3 style="margin:0">Produtos cadastrados</h3>
+        <button class="btn btn-secondary btn-sm" onclick="loadProducts()"><i class="fa fa-sync"></i> Atualizar</button>
+      </div>
+      <div id="productsLoading" style="text-align:center;padding:20px;color:#999"><i class="fa fa-spinner fa-spin"></i> Carregando...</div>
+      <div id="productsTable" style="display:none">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Query</th>
+              <th>Desconto Mín.</th>
+              <th>Resultados</th>
+              <th>Último Check</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="productsTbody"></tbody>
+        </table>
+      </div>
+      <div id="productsEmpty" style="display:none;text-align:center;padding:30px;color:#aaa">
+        <i class="fa fa-inbox fa-2x"></i><br><br>Nenhum produto cadastrado ainda.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Tab: Ofertas ─── -->
+  <div id="tab-deals" class="tab-panel">
+    <div class="card" style="padding-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+        <h3 style="margin:0">Ofertas detectadas</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85em">
+            <input type="checkbox" id="onlyUnread" onchange="loadDeals()"> Somente não lidas
+          </label>
+          <button class="btn btn-secondary btn-sm" onclick="loadDeals()"><i class="fa fa-sync"></i> Atualizar</button>
+        </div>
+      </div>
+    </div>
+    <div id="dealsLoading" style="text-align:center;padding:30px;color:#999"><i class="fa fa-spinner fa-spin"></i> Carregando...</div>
+    <div id="dealsList"></div>
+    <div id="dealsEmpty" style="display:none;text-align:center;padding:40px;color:#aaa">
+      <i class="fa fa-tag fa-2x"></i><br><br>Nenhuma oferta encontrada ainda.<br>
+      <small>Execute o job de monitoramento para detectar ofertas.</small>
+    </div>
+  </div>
+
+  <!-- ─── Tab: Executar Job ─── -->
+  <div id="tab-job" class="tab-panel">
+    <div class="card">
+      <h3 style="margin-top:0"><i class="fa fa-robot"></i> Execução Manual do Job</h3>
+      <p style="color:var(--text,#555);font-size:0.9em">
+        O job de monitoramento é executado automaticamente <strong>toda hora</strong> pela Cloud Function agendada.<br>
+        Use o botão abaixo para disparar manualmente durante testes ou sob demanda.
+      </p>
+      <div style="background:var(--card-bg,#f8f9fa);border-radius:8px;padding:16px;margin-bottom:16px;font-size:0.85em;border:1px solid var(--border,#eee)">
+        <strong>O que o job faz:</strong>
+        <ul style="margin:8px 0 0 0;padding-left:20px;color:var(--text,#555)">
+          <li>Busca todos os produtos ativos no Firestore</li>
+          <li>Faz a busca de cada produto na API do Mercado Livre</li>
+          <li>Salva snapshot de preços no histórico (<code>price_history</code>)</li>
+          <li>Detecta ofertas por desconto, novo mínimo ou promoção ativa</li>
+          <li>Salva ofertas detectadas na coleção <code>deals</code></li>
+        </ul>
+      </div>
+      <button class="btn btn-primary" id="runJobBtn" onclick="runJob()">
+        <i class="fa fa-play"></i> Executar Job Agora
+      </button>
+      <div id="jobLog" class="job-log" style="display:none"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0"><i class="fa fa-clock"></i> Agendamento Automático</h3>
+      <p style="font-size:0.9em;color:var(--text,#555)">
+        A Cloud Function <code>priceMonitorJob</code> está agendada para rodar <strong>toda hora</strong> no fuso de Brasília.<br>
+        Para alterar a frequência, edite <code>functions/index.js</code> e faça um novo deploy.
+      </p>
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;font-size:0.85em;color:#856404">
+        <i class="fa fa-exclamation-triangle"></i>
+        <strong>Atenção:</strong> Cloud Functions com chamadas a APIs externas e Scheduled Functions
+        requerem o <strong>plano Blaze</strong> (pay-as-you-go) do Firebase. O uso dentro dos limites
+        gratuitos mensais não gera cobrança.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── Config Firebase ────────────────────────────────────────────────────────
+  const firebaseConfig = {
+    apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+    authDomain: "calculo3d.firebaseapp.com",
+    databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+    projectId: "calculo3d",
+    storageBucket: "calculo3d.firebasestorage.app",
+    messagingSenderId: "372705279593",
+    appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  // Base URL da API — usa o Hosting rewrite que aponta para a Cloud Function
+  const API_BASE = "/api/monitor";
+
+  // ─── Auth ────────────────────────────────────────────────────────────────────
+  auth.onAuthStateChanged((user) => {
+    if (!user) { window.location.href = "login.html"; return; }
+    loadProducts();
+    loadDeals();
+  });
+
+  // ─── Tabs ────────────────────────────────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("tab-" + name).classList.add("active");
+    event.currentTarget.classList.add("active");
+  }
+
+  // ─── Status bar ─────────────────────────────────────────────────────────────
+  function showStatus(msg, type = "info") {
+    const bar = document.getElementById("statusBar");
+    bar.textContent = msg;
+    bar.className = "status-bar" + (type === "error" ? " error" : type === "success" ? " success" : "");
+    bar.style.display = "block";
+    if (type !== "error") setTimeout(() => { bar.style.display = "none"; }, 4000);
+  }
+
+  // ─── API helper ─────────────────────────────────────────────────────────────
+  async function api(path, method = "GET", body = null) {
+    const opts = { method, headers: { "Content-Type": "application/json" } };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(API_BASE + path, opts);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Erro desconhecido");
+    return json.data;
+  }
+
+  // ─── Produtos ────────────────────────────────────────────────────────────────
+  let editingId = null;
+
+  async function loadProducts() {
+    document.getElementById("productsLoading").style.display = "block";
+    document.getElementById("productsTable").style.display = "none";
+    document.getElementById("productsEmpty").style.display = "none";
+    try {
+      const products = await api("/products");
+      const tbody = document.getElementById("productsTbody");
+      tbody.innerHTML = "";
+      if (!products.length) {
+        document.getElementById("productsLoading").style.display = "none";
+        document.getElementById("productsEmpty").style.display = "block";
+        return;
+      }
+      products.forEach(p => {
+        const tr = document.createElement("tr");
+        const lastCheck = p.last_checked_at
+          ? new Date(p.last_checked_at._seconds * 1000).toLocaleString("pt-BR")
+          : "Nunca";
+        tr.innerHTML = `
+          <td><strong>${esc(p.name)}</strong></td>
+          <td><small>${esc(p.query)}</small></td>
+          <td>${p.min_discount_percent}%</td>
+          <td>${p.limit}</td>
+          <td><small>${lastCheck}</small></td>
+          <td><span class="badge ${p.active ? 'badge-green' : 'badge-red'}">${p.active ? 'Ativo' : 'Inativo'}</span></td>
+          <td>
+            <button class="btn btn-secondary btn-sm" onclick="startEdit('${p.id}')"><i class="fa fa-pen"></i></button>
+            <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteProduct('${p.id}','${esc(p.name)}')"><i class="fa fa-trash"></i></button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById("productsLoading").style.display = "none";
+      document.getElementById("productsTable").style.display = "block";
+    } catch (err) {
+      document.getElementById("productsLoading").style.display = "none";
+      showStatus("Erro ao carregar produtos: " + err.message, "error");
+    }
+  }
+
+  async function saveProduct() {
+    const name = document.getElementById("fName").value.trim();
+    const query = document.getElementById("fQuery").value.trim();
+    const limit = document.getElementById("fLimit").value;
+    const discount = document.getElementById("fDiscount").value;
+    const category = document.getElementById("fCategory").value.trim();
+    const active = document.getElementById("fActive").value === "true";
+
+    if (!name || !query) { showStatus("Nome e Query são obrigatórios.", "error"); return; }
+
+    const btn = document.getElementById("saveBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Salvando...';
+
+    try {
+      const body = { name, query, limit: parseInt(limit), min_discount_percent: parseInt(discount), category: category || null, active };
+      if (editingId) {
+        await api("/products/" + editingId, "PUT", body);
+        showStatus("Produto atualizado!", "success");
+      } else {
+        await api("/products", "POST", body);
+        showStatus("Produto cadastrado!", "success");
+      }
+      clearForm();
+      loadProducts();
+    } catch (err) {
+      showStatus("Erro: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-save"></i> Salvar';
+    }
+  }
+
+  async function startEdit(id) {
+    try {
+      const p = await api("/products/" + id);
+      editingId = id;
+      document.getElementById("fName").value = p.name;
+      document.getElementById("fQuery").value = p.query;
+      document.getElementById("fLimit").value = p.limit;
+      document.getElementById("fDiscount").value = p.min_discount_percent;
+      document.getElementById("fCategory").value = p.category || "";
+      document.getElementById("fActive").value = p.active ? "true" : "false";
+      document.getElementById("formTitle").textContent = "✏️ Editar Produto Monitorado";
+      document.getElementById("cancelEditBtn").style.display = "inline-flex";
+      document.querySelector(".card").scrollIntoView({ behavior: "smooth" });
+    } catch (err) {
+      showStatus("Erro ao carregar produto: " + err.message, "error");
+    }
+  }
+
+  function cancelEdit() { editingId = null; clearForm(); }
+
+  function clearForm() {
+    ["fName","fQuery","fCategory"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("fLimit").value = "10";
+    document.getElementById("fDiscount").value = "10";
+    document.getElementById("fActive").value = "true";
+    document.getElementById("formTitle").textContent = "+ Novo Produto Monitorado";
+    document.getElementById("cancelEditBtn").style.display = "none";
+    document.getElementById("previewList").style.display = "none";
+    editingId = null;
+  }
+
+  async function deleteProduct(id, name) {
+    if (!confirm(`Deletar "${name}"? O histórico de preços e ofertas não será apagado.`)) return;
+    try {
+      await api("/products/" + id, "DELETE");
+      showStatus(`"${name}" removido.`, "success");
+      loadProducts();
+    } catch (err) {
+      showStatus("Erro ao deletar: " + err.message, "error");
+    }
+  }
+
+  // ─── Preview ML ──────────────────────────────────────────────────────────────
+  async function previewML() {
+    const query = document.getElementById("fQuery").value.trim();
+    const limit = document.getElementById("fLimit").value;
+    if (!query) { showStatus("Preencha o campo Query antes de pré-visualizar.", "error"); return; }
+
+    const container = document.getElementById("previewList");
+    container.style.display = "block";
+    container.innerHTML = '<p style="color:#999"><i class="fa fa-spinner fa-spin"></i> Buscando no ML...</p>';
+
+    try {
+      const items = await api(`/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      if (!items.length) { container.innerHTML = '<p style="color:#999">Nenhum resultado encontrado.</p>'; return; }
+
+      container.innerHTML = `<strong style="font-size:0.85em;color:#888">${items.length} resultado(s) do Mercado Livre:</strong>`;
+      items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "preview-item";
+        div.innerHTML = `
+          ${item.thumbnail ? `<img src="${item.thumbnail}" alt="">` : '<div style="width:50px;height:50px;background:#eee;border-radius:4px"></div>'}
+          <div class="preview-item-info">
+            <div>${esc(item.title)}</div>
+            <div class="preview-price">R$ ${item.current_price.toFixed(2).replace(".",",")}
+              ${item.original_price ? `<span style="text-decoration:line-through;color:#999;font-size:0.85em;margin-left:6px">R$ ${item.original_price.toFixed(2).replace(".",",")}</span>` : ""}
+              ${item.discount_percent > 0 ? `<span class="badge badge-green" style="margin-left:6px">${item.discount_percent}% OFF</span>` : ""}
+            </div>
+            <div style="font-size:0.78em;color:#aaa">${esc(item.seller_name || "")} · ${item.condition === 'new' ? 'Novo' : 'Usado'} ${item.free_shipping ? '· <span style="color:#28a745">Frete grátis</span>' : ""}</div>
+          </div>
+          <a href="${item.url}" target="_blank" class="btn btn-secondary btn-sm"><i class="fa fa-external-link-alt"></i></a>`;
+        container.appendChild(div);
+      });
+    } catch (err) {
+      container.innerHTML = `<p style="color:#dc3545">Erro: ${err.message}</p>`;
+    }
+  }
+
+  // ─── Deals ───────────────────────────────────────────────────────────────────
+  async function loadDeals() {
+    document.getElementById("dealsLoading").style.display = "block";
+    document.getElementById("dealsList").innerHTML = "";
+    document.getElementById("dealsEmpty").style.display = "none";
+
+    const onlyUnread = document.getElementById("onlyUnread").checked;
+    try {
+      const deals = await api(`/deals?limit=30&onlyUnread=${onlyUnread}`);
+      document.getElementById("dealsLoading").style.display = "none";
+
+      if (!deals.length) {
+        document.getElementById("dealsEmpty").style.display = "block";
+        return;
+      }
+
+      const list = document.getElementById("dealsList");
+      deals.forEach(deal => {
+        const detectedAt = deal.detected_at
+          ? new Date(deal.detected_at._seconds * 1000).toLocaleString("pt-BR")
+          : "";
+
+        const card = document.createElement("div");
+        card.className = "deal-card" + (deal.is_read ? "" : " unread");
+        card.innerHTML = `
+          ${deal.thumbnail
+            ? `<img class="deal-thumb" src="${deal.thumbnail}" alt="">`
+            : `<div class="deal-thumb-placeholder"><i class="fa fa-tag"></i></div>`}
+          <div class="deal-info">
+            <div class="deal-title" title="${esc(deal.title)}">${esc(deal.title)}</div>
+            <div>
+              <span class="deal-price">R$ ${deal.current_price.toFixed(2).replace(".",",")}</span>
+              ${deal.original_price ? `<span class="deal-original">R$ ${deal.original_price.toFixed(2).replace(".",",")}</span>` : ""}
+              ${deal.discount_percent > 0 ? `<span class="badge badge-green" style="margin-left:8px">${deal.discount_percent}% OFF</span>` : ""}
+            </div>
+            <div class="deal-reasons">
+              ${(deal.reasons || []).map(r => `<span class="deal-reason-chip">${esc(r)}</span>`).join("")}
+            </div>
+            <div class="deal-meta">
+              <i class="fa fa-store"></i> ${esc(deal.seller_name || "—")} ·
+              <i class="fa fa-tag"></i> ${esc(deal.tracked_product_name || "—")} ·
+              <i class="fa fa-clock"></i> ${detectedAt}
+              ${deal.free_shipping ? ' · <span style="color:#28a745"><i class="fa fa-truck"></i> Frete grátis</span>' : ""}
+            </div>
+          </div>
+          <div class="deal-actions">
+            <a href="${deal.url}" target="_blank" class="btn btn-primary btn-sm"><i class="fa fa-external-link-alt"></i> Ver no ML</a>
+            ${!deal.is_read
+              ? `<button class="btn btn-secondary btn-sm" onclick="markRead('${deal.id}',this)"><i class="fa fa-check"></i> Marcar lida</button>`
+              : `<span style="font-size:0.78em;color:#aaa"><i class="fa fa-check-circle"></i> Lida</span>`}
+          </div>`;
+        list.appendChild(card);
+      });
+    } catch (err) {
+      document.getElementById("dealsLoading").style.display = "none";
+      showStatus("Erro ao carregar ofertas: " + err.message, "error");
+    }
+  }
+
+  async function markRead(id, btn) {
+    try {
+      await api("/deals/" + id + "/read", "PATCH");
+      const card = btn.closest(".deal-card");
+      card.classList.remove("unread");
+      btn.outerHTML = '<span style="font-size:0.78em;color:#aaa"><i class="fa fa-check-circle"></i> Lida</span>';
+    } catch (err) {
+      showStatus("Erro: " + err.message, "error");
+    }
+  }
+
+  // ─── Job Manual ──────────────────────────────────────────────────────────────
+  async function runJob() {
+    const btn = document.getElementById("runJobBtn");
+    const logEl = document.getElementById("jobLog");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Executando...';
+    logEl.style.display = "block";
+    logEl.textContent = "Aguardando resposta da Cloud Function...\n";
+
+    try {
+      const result = await api("/run", "POST");
+      logEl.textContent = result.log ? result.log.join("\n") : result.message;
+      showStatus("Job executado com sucesso!", "success");
+      loadDeals();
+    } catch (err) {
+      logEl.textContent = "ERRO: " + err.message;
+      showStatus("Erro no job: " + err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa fa-play"></i> Executar Job Agora';
+    }
+  }
+
+  // ─── Util ────────────────────────────────────────────────────────────────────
+  function esc(str) {
+    if (!str) return "";
+    return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+</script>
+</body>
+</html>
