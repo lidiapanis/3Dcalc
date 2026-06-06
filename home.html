@@ -285,6 +285,20 @@
             }
         });
 
+        function getTheme() {
+            return document.documentElement.getAttribute('data-theme') || 'light';
+        }
+
+        function enviarTemaPraIframe() {
+            const frame = document.getElementById('contentFrame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.postMessage({ type: 'SET_THEME', theme: getTheme() }, '*');
+            }
+        }
+
+        // Sempre que o iframe terminar de carregar, envia o tema atual
+        document.getElementById('contentFrame').addEventListener('load', enviarTemaPraIframe);
+
         function navegar(pagina, btn, titulo) {
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             btn.classList.add('active');
@@ -296,11 +310,7 @@
             const theme = checkbox.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
-            // Propaga o tema para a página carregada no iframe
-            const frame = document.getElementById('contentFrame');
-            if (frame && frame.contentWindow) {
-                frame.contentWindow.postMessage({ type: 'SET_THEME', theme }, '*');
-            }
+            enviarTemaPraIframe();
         }
 
         // Restaurar tema salvo
