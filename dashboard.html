@@ -157,6 +157,10 @@
                 <div class="metric-title">TOTAL DE ORÇAMENTOS</div>
                 <div class="metric-value" id="totalOrcamentos">0</div>
             </div>
+            <div class="metric-card" style="border-color:#e66a2e;">
+                <div class="metric-title">TOTAL DE PRODUTOS</div>
+                <div class="metric-value" id="totalProdutos" style="color:#e66a2e;">0</div>
+            </div>
             <div class="metric-card total-value">
                 <div class="metric-title">VALOR TOTAL ORÇADO</div>
                 <div class="metric-value" id="valorTotal">R$ 0,00</div>
@@ -186,6 +190,10 @@
         </div>
 
         <div class="charts-grid">
+            <div class="chart-card">
+                <h2>Produtos Cadastrados</h2>
+                <canvas id="produtosChart"></canvas>
+            </div>
             <div class="chart-card">
                 <h2>Média de Valor por Cliente</h2>
                 <table id="averageTable">
@@ -225,10 +233,11 @@
         const database = firebase.database();
         const auth = firebase.auth(); // Variável 'auth' definida aqui!
         
-        let allOrcamentos = []; // Todos os orçamentos brutos
-        let clientesMap = {};   // {ID: Nome}
-        let totalizadorPorCliente = {}; // Para o cálculo de média
-        let itemsChartInstance = null; // Instância do Chart.js
+        let allOrcamentos = [];
+        let clientesMap = {};
+        let totalizadorPorCliente = {};
+        let itemsChartInstance = null;
+        let produtosChartInstance = null;
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
 
@@ -238,6 +247,7 @@
                 window.location.href = 'login.html';
             } else {
                 // Se estiver logado, inicia o carregamento sequencial dos dados
+                carregarProdutos();
                 carregarClientes()
                     .then(carregarOrcamentos)
                     .catch(error => {
@@ -253,6 +263,45 @@
         }
 
         // --- 4. CARREGAMENTO DE DADOS (SEQUENCIAL) ---
+
+        function carregarProdutos() {
+            database.ref("produtos").once('value').then(snapshot => {
+                const nomes = [], precos = [];
+                snapshot.forEach(child => {
+                    const d = child.val();
+                    nomes.push(d.nomePeca || child.key);
+                    precos.push(parseFloat(d.precoVenda) || 0);
+                });
+                document.getElementById('totalProdutos').textContent = nomes.length;
+                renderizarGraficoProdutos(nomes, precos);
+            });
+        }
+
+        function renderizarGraficoProdutos(nomes, precos) {
+            if (produtosChartInstance) produtosChartInstance.destroy();
+            const ctx = document.getElementById('produtosChart').getContext('2d');
+            produtosChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: nomes,
+                    datasets: [{
+                        label: 'Preço de Venda (R$)',
+                        data: precos,
+                        backgroundColor: 'rgba(230, 106, 46, 0.7)',
+                        borderColor: '#e66a2e',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(2) } }
+                    }
+                }
+            });
+        }
 
         // Removido o window.onload antigo, pois o carregamento agora é feito em onAuthStateChanged
         
