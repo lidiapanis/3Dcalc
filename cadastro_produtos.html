@@ -7,6 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         /* Estilos CSS (inalterados) */
@@ -122,6 +123,28 @@
             font-weight: bold;
             color: #007bff;
         }
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: #fafafa;
+            cursor: pointer;
+        }
+
+        #previewImagem {
+            display: none;
+            width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
         .home-btn {
             position: absolute;
             top: 20px;
@@ -148,6 +171,10 @@
                 <legend>Material (Filamento)</legend>
                 <label for="nomePeca">Nome do Produto:</label>
                 <input type="text" id="nomePeca" required>
+
+                <label for="imagemProduto">Imagem do Produto:</label>
+                <img id="previewImagem" alt="Preview da imagem">
+                <input type="file" id="imagemProduto" accept="image/*" onchange="previewar(this)">
 
                 <label for="precoRolo">Preço Médio do Rolo (1kg) - R$:</label>
                 <input type="number" id="precoRolo" min="0" step="0.01" value="100.00" required>
@@ -203,7 +230,8 @@
     
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
-        const auth = firebase.auth(); // Variável 'auth' definida aqui!
+        const auth = firebase.auth();
+        const storage = firebase.storage();
         const CAMINHO_RTDB = "produtos"; 
         const CAMINHO_CONTADOR = "contador_produtos/proximoId"; 
     
@@ -239,6 +267,37 @@
         }
     
         // Função que preenche o formulário com os dados carregados do Firebase
+        function previewar(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const img = new Image();
+            const reader = new FileReader();
+            reader.onload = e => {
+                img.onload = () => {
+                    const MAX = 500;
+                    let w = img.width, h = img.height;
+                    if (w > MAX || h > MAX) {
+                        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                        else       { w = Math.round(w * MAX / h); h = MAX; }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    canvas.toBlob(blob => {
+                        const resized = new File([blob], file.name, { type: file.type });
+                        const dt = new DataTransfer();
+                        dt.items.add(resized);
+                        input.files = dt.files;
+                        const preview = document.getElementById('previewImagem');
+                        preview.src = canvas.toDataURL(file.type);
+                        preview.style.display = 'block';
+                    }, file.type);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
         function preencherFormulario(dados) {
             document.getElementById('nomePeca').value = dados.nomePeca || '';
             document.getElementById('precoRolo').value = dados.precoRolo || 0;
@@ -247,6 +306,12 @@
             document.getElementById('consumoImpressora').value = dados.consumoImpressora || 0;
             document.getElementById('tempoImpressao').value = dados.tempoImpressao || 0;
             document.getElementById('margemLucro').value = dados.margemLucro || 0;
+
+            if (dados.imagemUrl) {
+                const preview = document.getElementById('previewImagem');
+                preview.src = dados.imagemUrl;
+                preview.style.display = 'block';
+            }
     
             document.querySelector('h1').textContent = `Editar Produto #${idEmEdicao}`;
             document.querySelector('button').textContent = "Atualizar Produto";
@@ -371,7 +436,24 @@
                     tempoImpressao: tempoImpressao,
                     margemLucro: margemLucro,
                 };
-                salvarNoFirebase(idParaSalvar, dadosParaSalvar);
+                const arquivoImagem = document.getElementById('imagemProduto').files[0];
+                if (arquivoImagem) {
+                    document.getElementById('feedback').textContent = "Enviando imagem...";
+                    const ref = storage.ref(`produtos/${idParaSalvar}_${arquivoImagem.name}`);
+                    ref.put(arquivoImagem)
+                        .then(snapshot => snapshot.ref.getDownloadURL())
+                        .then(url => {
+                            dadosParaSalvar.imagemUrl = url;
+                            salvarNoFirebase(idParaSalvar, dadosParaSalvar);
+                        })
+                        .catch(error => {
+                            document.getElementById('feedback').textContent = "Erro ao enviar imagem: " + error.message;
+                        });
+                } else {
+                    const previewSrc = document.getElementById('previewImagem').src;
+                    if (previewSrc && previewSrc.startsWith('http')) dadosParaSalvar.imagemUrl = previewSrc;
+                    salvarNoFirebase(idParaSalvar, dadosParaSalvar);
+                }
             } else {
                 document.getElementById('feedback').textContent = idEmEdicao ? `Pronto para atualizar Produto #${idEmEdicao}.` : "Modo: Novo Cadastro.";
             }

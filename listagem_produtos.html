@@ -64,6 +64,22 @@
             border: 1px solid #ddd;
             padding: 12px;
             text-align: left;
+            vertical-align: middle;
+        }
+
+        td.col-imagem {
+            width: 60px;
+            text-align: center;
+            padding: 6px;
+        }
+
+        td.col-imagem img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 4px;
+            display: block;
+            margin: auto;
         }
         th {
             background-color: #f2f2f2;
@@ -126,6 +142,7 @@
         <table id="produtosTable">
             <thead>
                 <tr>
+                    <th>Imagem</th>
                     <th>ID</th>
                     <th>Nome da Peça</th>
                     <th>Custo Total</th>
@@ -200,12 +217,22 @@
             tbody.innerHTML = ''; 
     
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
                 return;
             }
-    
+
             data.forEach(item => {
                 const row = tbody.insertRow();
+
+                const imgCell = row.insertCell();
+                imgCell.className = 'col-imagem';
+                if (item.imagemUrl) {
+                    const img = document.createElement('img');
+                    img.src = item.imagemUrl;
+                    img.alt = item.nomePeca;
+                    imgCell.appendChild(img);
+                }
+
                 row.insertCell().textContent = item.id;
                 row.insertCell().textContent = item.nomePeca;
                 row.insertCell().textContent = formatarMoeda(item.custoTotal);
@@ -241,11 +268,12 @@
                     
                     produtosData.push({
                         id: parseInt(id),
-                        chaveFirebase: id, 
-                        nomePeca: data.nomePeca, 
+                        chaveFirebase: id,
+                        nomePeca: data.nomePeca,
                         custoTotal: data.custoTotal,
                         precoVenda: data.precoVenda,
-                        dataCriacao: data.dataCriacao
+                        dataCriacao: data.dataCriacao,
+                        imagemUrl: data.imagemUrl || null
                     });
                 });
                 
