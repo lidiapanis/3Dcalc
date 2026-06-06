@@ -113,6 +113,9 @@
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
         
         /* Tabela de Média por Cliente */
         #averageTable {
@@ -189,8 +192,8 @@
         </div>
 
         <div class="charts-grid">
-            <div class="chart-card">
-                <h2>Produtos Cadastrados</h2>
+            <div class="chart-card chart-full">
+                <h2>Produtos Cadastrados — Preço de Venda vs Custo Total</h2>
                 <canvas id="produtosChart"></canvas>
             </div>
             <div class="chart-card">
@@ -265,38 +268,84 @@
 
         function carregarProdutos() {
             database.ref("produtos").once('value').then(snapshot => {
-                const nomes = [], precos = [];
+                const nomes = [], precos = [], custos = [];
                 snapshot.forEach(child => {
                     const d = child.val();
-                    nomes.push(d.nomePeca || child.key);
+                    // Quebra o nome em até 2 linhas de ~20 chars para caber no eixo
+                    const nome = d.nomePeca || child.key;
+                    const palavras = nome.split(' ');
+                    let linha1 = '', linha2 = '';
+                    for (const p of palavras) {
+                        if ((linha1 + ' ' + p).trim().length <= 20) linha1 = (linha1 + ' ' + p).trim();
+                        else linha2 = (linha2 + ' ' + p).trim();
+                    }
+                    nomes.push(linha2 ? [linha1, linha2] : linha1);
                     precos.push(parseFloat(d.precoVenda) || 0);
+                    custos.push(parseFloat(d.custoTotal) || 0);
                 });
                 document.getElementById('totalProdutos').textContent = nomes.length;
-                renderizarGraficoProdutos(nomes, precos);
+                renderizarGraficoProdutos(nomes, precos, custos);
             });
         }
 
-        function renderizarGraficoProdutos(nomes, precos) {
+        function renderizarGraficoProdutos(nomes, precos, custos) {
             if (produtosChartInstance) produtosChartInstance.destroy();
             const ctx = document.getElementById('produtosChart').getContext('2d');
             produtosChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: nomes,
-                    datasets: [{
-                        label: 'Preço de Venda (R$)',
-                        data: precos,
-                        backgroundColor: 'rgba(230, 106, 46, 0.7)',
-                        borderColor: '#e66a2e',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
+                    datasets: [
+                        {
+                            label: 'Preço de Venda',
+                            data: precos,
+                            backgroundColor: 'rgba(230, 106, 46, 0.7)',
+                            borderColor: '#e66a2e',
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            order: 2
+                        },
+                        {
+                            label: 'Custo Total',
+                            data: custos,
+                            type: 'line',
+                            borderColor: '#007bff',
+                            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#007bff',
+                            fill: false,
+                            tension: 0.3,
+                            order: 1
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { font: { size: 12 }, boxWidth: 14 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ctx.dataset.label + ': R$ ' + ctx.parsed.y.toFixed(2).replace('.', ',')
+                            }
+                        }
+                    },
                     scales: {
-                        y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v.toFixed(2) } }
+                        x: {
+                            ticks: {
+                                font: { size: 11 },
+                                maxRotation: 45,
+                                minRotation: 30
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: v => 'R$ ' + v.toFixed(2).replace('.', ',') }
+                        }
                     }
                 }
             });
