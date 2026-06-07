@@ -64,9 +64,9 @@ async function exchangeCode(code) {
 
   const tokens = {
     access_token:    data.access_token,
-    refresh_token:   data.refresh_token,
+    refresh_token:   data.refresh_token || null,
     expires_at:      Date.now() + (data.expires_in || 21600) * 1000,
-    ml_user_id:      data.user_id,
+    ml_user_id:      data.user_id || null,
     authorized_at:   admin.firestore.FieldValue.serverTimestamp(),
   };
   await admin.firestore().collection("config").doc("ml_tokens").set(tokens);
