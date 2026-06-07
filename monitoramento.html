@@ -589,7 +589,7 @@
     container.innerHTML = '<p style="color:#999"><i class="fa fa-spinner fa-spin"></i> Buscando no ML...</p>';
 
     try {
-      const data = await mlFetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      const data = await mlFetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`); // retorna { results: [...] }
       const items = (data.results || []).map(normalizeML);
 
       if (!items.length) { container.innerHTML = '<p style="color:#999">Nenhum resultado encontrado.</p>'; return; }
@@ -721,7 +721,7 @@
         try {
           // Busca na API do ML direto do browser
           const url  = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}`;
-          const data = await mlFetch(url);
+          const data = await mlFetch(url); // retorna { results: [...] }
           const items = (data.results || []).map(normalizeML);
           appendLog(`  ${items.length} item(s) encontrado(s)`);
 

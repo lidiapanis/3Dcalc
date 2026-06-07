@@ -511,7 +511,7 @@
     try {
       const limit = document.getElementById("fLimit").value;
       const url  = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
-      const json = await mlFetch(url);
+      const json = await mlFetch(url); // retorna { results: [...] }
 
       rawResults = (json.results || []).map(normalizeItem);
       aplicarFiltros();

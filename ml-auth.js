@@ -1,55 +1,26 @@
 /**
- * ml-auth.js — Gerenciador de token OAuth do Mercado Livre
- * Busca token via client_credentials, cacheia no localStorage por 6h.
+ * ml-auth.js
+ * Utilitário de busca ML — chama a Cloud Function que autentica e faz o proxy.
+ * Endpoint: /api/monitor/search?q=...&limit=...
  */
 
-const ML_CLIENT_ID     = "1479387515607586";
-const ML_CLIENT_SECRET = "LdtTfXqDOnAzCNwcHnfncDbnKxlejUys";
-const ML_TOKEN_URL     = "https://api.mercadolibre.com/oauth/token";
-const ML_TOKEN_KEY     = "ml_access_token";
-const ML_EXPIRY_KEY    = "ml_token_expiry";
-
-async function getMLToken() {
-  // Retorna token cacheado se ainda válido (com 2 min de margem)
-  const cached = localStorage.getItem(ML_TOKEN_KEY);
-  const expiry  = parseInt(localStorage.getItem(ML_EXPIRY_KEY) || "0");
-  if (cached && Date.now() < expiry - 120000) return cached;
-
-  // Busca novo token
-  const resp = await fetch(ML_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept": "application/json",
-    },
-    body: `grant_type=client_credentials&client_id=${ML_CLIENT_ID}&client_secret=${ML_CLIENT_SECRET}`,
-  });
-
-  if (!resp.ok) {
-    const err = await resp.text().catch(() => resp.status);
-    throw new Error(`Token ML: HTTP ${resp.status} — ${err}`);
-  }
-
-  const data = await resp.json();
-  const token     = data.access_token;
-  const expiresIn = data.expires_in || 21600; // 6h padrão
-
-  localStorage.setItem(ML_TOKEN_KEY, token);
-  localStorage.setItem(ML_EXPIRY_KEY, String(Date.now() + expiresIn * 1000));
-
-  return token;
-}
+const ML_API_BASE = "/api/monitor";
 
 /**
- * Faz fetch autenticado na API do ML.
- * @param {string} url - URL completa da API
- * @returns {Promise<Object>} JSON da resposta
+ * Faz uma busca de produtos via Cloud Function (que autentica com o ML).
+ * @param {string} url - URL completa do endpoint /api/monitor/search?q=...
+ * @returns {Promise<Array>} Array de itens normalizados
  */
 async function mlFetch(url) {
-  const token = await getMLToken();
-  const resp  = await fetch(url, {
-    headers: { "Authorization": `Bearer ${token}` },
-  });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.json();
+  // Converte a URL completa do ML para a rota da Cloud Function
+  // Ex: https://api.mercadolibre.com/sites/MLB/search?q=x → /api/monitor/search?q=x
+  const searchParams = url.split("?")[1] || "";
+  const resp = await fetch(`${ML_API_BASE}/search?${searchParams}`);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${resp.status}`);
+  }
+  const json = await resp.json();
+  if (!json.success) throw new Error(json.error || "Erro na busca");
+  return { results: json.data };
 }
