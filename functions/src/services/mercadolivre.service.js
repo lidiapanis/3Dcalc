@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const ML_BASE = "https://api.mercadolivre.com";
+const ML_BASE = "https://api.mercadolibre.com";
 const SITE = "MLB";
 
 /**
