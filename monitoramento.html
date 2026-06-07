@@ -7,6 +7,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="ml-auth.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="dark-mode.css">
   <script src="theme.js"></script>
@@ -361,8 +362,7 @@
   const db   = firebase.firestore();
 
   const API_BASE = "/api/monitor";
-  const ML_API    = "https://api.mercadolibre.com/sites/MLB";
-  const ML_APP_ID = "1479387515607586";
+  const ML_API = "https://api.mercadolibre.com/sites/MLB";
 
   // ─── Auth ────────────────────────────────────────────────────────────────────
   auth.onAuthStateChanged((user) => {
@@ -589,9 +589,7 @@
     container.innerHTML = '<p style="color:#999"><i class="fa fa-spinner fa-spin"></i> Buscando no ML...</p>';
 
     try {
-      const resp = await fetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}&app_id=${ML_APP_ID}`);
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      const data = await resp.json();
+      const data = await mlFetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
       const items = (data.results || []).map(normalizeML);
 
       if (!items.length) { container.innerHTML = '<p style="color:#999">Nenhum resultado encontrado.</p>'; return; }
@@ -722,10 +720,8 @@
         appendLog(`\n▶ ${product.name} — buscando "${product.query}"...`);
         try {
           // Busca na API do ML direto do browser
-          const url = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}&app_id=${ML_APP_ID}`;
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const data = await resp.json();
+          const url  = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}`;
+          const data = await mlFetch(url);
           const items = (data.results || []).map(normalizeML);
           appendLog(`  ${items.length} item(s) encontrado(s)`);
 

@@ -6,6 +6,7 @@
   <title>Busca no Mercado Livre</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="ml-auth.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="dark-mode.css">
   <script src="theme.js"></script>
@@ -466,8 +467,7 @@
   });
 
   const API_BASE = "/api/monitor";
-  const ML_API    = "https://api.mercadolibre.com/sites/MLB";
-  const ML_APP_ID = "1479387515607586";
+  const ML_API = "https://api.mercadolibre.com/sites/MLB";
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let allResults = [];
@@ -510,10 +510,8 @@
 
     try {
       const limit = document.getElementById("fLimit").value;
-      const url = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}&app_id=${ML_APP_ID}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error("Erro HTTP " + resp.status);
-      const json = await resp.json();
+      const url  = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+      const json = await mlFetch(url);
 
       rawResults = (json.results || []).map(normalizeItem);
       aplicarFiltros();
