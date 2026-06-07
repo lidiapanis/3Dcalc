@@ -466,13 +466,38 @@
   });
 
   const API_BASE = "/api/monitor";
+  const ML_API   = "https://api.mercadolivre.com/sites/MLB";
 
   // ── Estado ──────────────────────────────────────────────────────────────────
-  let allResults = [];   // todos os itens retornados (pós-filtro local)
-  let rawResults = [];   // todos os itens originais da API
+  let allResults = [];
+  let rawResults = [];
   let currentSort = "price";
 
-  // ── Busca ────────────────────────────────────────────────────────────────────
+  // ── Normaliza item bruto da API do ML ────────────────────────────────────────
+  function normalizeItem(item) {
+    const currentPrice  = item.price || 0;
+    const originalPrice = item.original_price || null;
+    let discountPercent = 0;
+    if (originalPrice && originalPrice > currentPrice) {
+      discountPercent = Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+    }
+    return {
+      ml_id:            item.id,
+      title:            item.title,
+      url:              item.permalink,
+      thumbnail:        item.thumbnail,
+      seller_id:        item.seller ? item.seller.id : null,
+      seller_name:      item.seller ? (item.seller.nickname || null) : null,
+      current_price:    currentPrice,
+      original_price:   originalPrice,
+      discount_percent: discountPercent,
+      has_sale_price:   discountPercent > 0 || !!(item.promotions && item.promotions.length),
+      free_shipping:    !!(item.shipping && item.shipping.free_shipping),
+      condition:        item.condition || "unknown",
+    };
+  }
+
+  // ── Busca direto na API pública do ML (sem passar pela Cloud Function) ───────
   async function buscar() {
     const query = document.getElementById("queryInput").value.trim();
     if (!query) { toast("Digite um termo de busca.", "error"); return; }
@@ -480,19 +505,19 @@
     const btn = document.getElementById("btnBuscar");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span>Buscando...';
-
     mostrarEstado("loading");
 
     try {
       const limit = document.getElementById("fLimit").value;
-      const resp = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      const url = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Erro HTTP " + resp.status);
       const json = await resp.json();
-      if (!json.success) throw new Error(json.error);
 
-      rawResults = json.data;
+      rawResults = (json.results || []).map(normalizeItem);
       aplicarFiltros();
     } catch (err) {
-      mostrarEstado("error", err.message);
+      mostrarEstado("error", "Não foi possível conectar ao Mercado Livre: " + err.message);
       toast("Erro: " + err.message, "error");
     } finally {
       btn.disabled = false;
@@ -611,7 +636,7 @@
     } else if (tipo === "empty") {
       box.innerHTML = `<i class="fa fa-inbox"></i><p>Nenhum resultado com esses filtros.</p><small>Tente alterar os filtros ou o termo de busca.</small>`;
     } else if (tipo === "error") {
-      box.innerHTML = `<i class="fa fa-exclamation-circle" style="color:#e53935"></i><p style="color:#e53935">${esc(msg)}</p><small>Verifique se o deploy das Cloud Functions foi feito.</small>`;
+      box.innerHTML = `<i class="fa fa-exclamation-circle" style="color:#e53935"></i><p style="color:#e53935">${esc(msg)}</p><small>Verifique sua conexão ou tente novamente.</small>`;
     }
   }
 

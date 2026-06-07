@@ -6,6 +6,7 @@
   <title>Monitoramento de Preços — ML</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="dark-mode.css">
   <script src="theme.js"></script>
@@ -357,9 +358,10 @@
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+  const db   = firebase.firestore();
 
-  // Base URL da API — usa o Hosting rewrite que aponta para a Cloud Function
   const API_BASE = "/api/monitor";
+  const ML_API   = "https://api.mercadolivre.com/sites/MLB";
 
   // ─── Auth ────────────────────────────────────────────────────────────────────
   auth.onAuthStateChanged((user) => {
@@ -385,7 +387,7 @@
     if (type !== "error") setTimeout(() => { bar.style.display = "none"; }, 4000);
   }
 
-  // ─── API helper ─────────────────────────────────────────────────────────────
+  // ─── API helper (Cloud Function — usado apenas para CRUD de produtos e deals) ─
   async function api(path, method = "GET", body = null) {
     const opts = { method, headers: { "Content-Type": "application/json" } };
     if (body) opts.body = JSON.stringify(body);
@@ -395,6 +397,61 @@
     return json.data;
   }
 
+  // ─── Firestore helpers (usados pelo job client-side) ─────────────────────────
+  function fsNow() { return firebase.firestore.Timestamp.now(); }
+
+  async function fsGetProducts() {
+    const snap = await db.collection("tracked_products").where("active", "==", true).get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  }
+
+  async function fsGetRecentPrices(productId, mlId) {
+    const since = new Date();
+    since.setDate(since.getDate() - 7);
+    const snap = await db.collection("price_history")
+      .where("tracked_product_id", "==", productId)
+      .where("ml_id", "==", mlId)
+      .where("fetched_at", ">=", firebase.firestore.Timestamp.fromDate(since))
+      .orderBy("fetched_at", "asc")
+      .get();
+    return snap.docs.map(d => d.data().price);
+  }
+
+  // ─── Normaliza item bruto do ML ───────────────────────────────────────────────
+  function normalizeML(item) {
+    const cur = item.price || 0;
+    const orig = item.original_price || null;
+    let disc = 0;
+    if (orig && orig > cur) disc = Math.round(((orig - cur) / orig) * 100);
+    return {
+      ml_id: item.id, title: item.title, url: item.permalink,
+      thumbnail: item.thumbnail,
+      seller_id: item.seller ? item.seller.id : null,
+      seller_name: item.seller ? (item.seller.nickname || null) : null,
+      current_price: cur, original_price: orig, discount_percent: disc,
+      has_sale_price: disc > 0 || !!(item.promotions && item.promotions.length),
+      free_shipping: !!(item.shipping && item.shipping.free_shipping),
+      condition: item.condition || "unknown",
+    };
+  }
+
+  // ─── Detecção de oferta (replicada do deal-detector.service.js) ───────────────
+  function detectDeal(item, product, recentPrices) {
+    const reasons = [];
+    const minDisc = product.min_discount_percent || 10;
+    if (item.discount_percent >= minDisc)
+      reasons.push(`Desconto de ${item.discount_percent}% (mín: ${minDisc}%)`);
+    if (recentPrices.length > 0) {
+      const min7d = Math.min(...recentPrices);
+      if (item.current_price < min7d)
+        reasons.push(`Novo mínimo: R$ ${item.current_price.toFixed(2)} (mín 7d: R$ ${min7d.toFixed(2)})`);
+    }
+    if (item.has_sale_price) reasons.push("Promoção ativa no ML");
+    return { isDeal: reasons.length > 0, reasons };
+  }
+
+  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
   // ─── Produtos ────────────────────────────────────────────────────────────────
   let editingId = null;
 
@@ -403,7 +460,8 @@
     document.getElementById("productsTable").style.display = "none";
     document.getElementById("productsEmpty").style.display = "none";
     try {
-      const products = await api("/products");
+      const snap = await db.collection("tracked_products").orderBy("created_at", "desc").get();
+      const products = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const tbody = document.getElementById("productsTbody");
       tbody.innerHTML = "";
       if (!products.length) {
@@ -414,7 +472,7 @@
       products.forEach(p => {
         const tr = document.createElement("tr");
         const lastCheck = p.last_checked_at
-          ? new Date(p.last_checked_at._seconds * 1000).toLocaleString("pt-BR")
+          ? p.last_checked_at.toDate().toLocaleString("pt-BR")
           : "Nunca";
         tr.innerHTML = `
           <td><strong>${esc(p.name)}</strong></td>
@@ -438,12 +496,12 @@
   }
 
   async function saveProduct() {
-    const name = document.getElementById("fName").value.trim();
-    const query = document.getElementById("fQuery").value.trim();
-    const limit = document.getElementById("fLimit").value;
-    const discount = document.getElementById("fDiscount").value;
-    const category = document.getElementById("fCategory").value.trim();
-    const active = document.getElementById("fActive").value === "true";
+    const name     = document.getElementById("fName").value.trim();
+    const query    = document.getElementById("fQuery").value.trim();
+    const limit    = parseInt(document.getElementById("fLimit").value) || 10;
+    const discount = parseInt(document.getElementById("fDiscount").value) || 10;
+    const category = document.getElementById("fCategory").value.trim() || null;
+    const active   = document.getElementById("fActive").value === "true";
 
     if (!name || !query) { showStatus("Nome e Query são obrigatórios.", "error"); return; }
 
@@ -452,12 +510,18 @@
     btn.innerHTML = '<span class="spinner"></span>Salvando...';
 
     try {
-      const body = { name, query, limit: parseInt(limit), min_discount_percent: parseInt(discount), category: category || null, active };
+      const docData = { name, query, limit, min_discount_percent: discount, category, active };
       if (editingId) {
-        await api("/products/" + editingId, "PUT", body);
+        await db.collection("tracked_products").doc(editingId).update({
+          ...docData, updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+        });
         showStatus("Produto atualizado!", "success");
       } else {
-        await api("/products", "POST", body);
+        await db.collection("tracked_products").add({
+          ...docData,
+          created_at: firebase.firestore.FieldValue.serverTimestamp(),
+          last_checked_at: null, last_items_found: 0,
+        });
         showStatus("Produto cadastrado!", "success");
       }
       clearForm();
@@ -472,7 +536,8 @@
 
   async function startEdit(id) {
     try {
-      const p = await api("/products/" + id);
+      const doc = await db.collection("tracked_products").doc(id).get();
+      const p = doc.data();
       editingId = id;
       document.getElementById("fName").value = p.name;
       document.getElementById("fQuery").value = p.query;
@@ -504,7 +569,7 @@
   async function deleteProduct(id, name) {
     if (!confirm(`Deletar "${name}"? O histórico de preços e ofertas não será apagado.`)) return;
     try {
-      await api("/products/" + id, "DELETE");
+      await db.collection("tracked_products").doc(id).delete();
       showStatus(`"${name}" removido.`, "success");
       loadProducts();
     } catch (err) {
@@ -512,7 +577,7 @@
     }
   }
 
-  // ─── Preview ML ──────────────────────────────────────────────────────────────
+  // ─── Preview ML (direto no browser) ─────────────────────────────────────────
   async function previewML() {
     const query = document.getElementById("fQuery").value.trim();
     const limit = document.getElementById("fLimit").value;
@@ -523,7 +588,11 @@
     container.innerHTML = '<p style="color:#999"><i class="fa fa-spinner fa-spin"></i> Buscando no ML...</p>';
 
     try {
-      const items = await api(`/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      const resp = await fetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      const data = await resp.json();
+      const items = (data.results || []).map(normalizeML);
+
       if (!items.length) { container.innerHTML = '<p style="color:#999">Nenhum resultado encontrado.</p>'; return; }
 
       container.innerHTML = `<strong style="font-size:0.85em;color:#888">${items.length} resultado(s) do Mercado Livre:</strong>`;
@@ -531,7 +600,7 @@
         const div = document.createElement("div");
         div.className = "preview-item";
         div.innerHTML = `
-          ${item.thumbnail ? `<img src="${item.thumbnail}" alt="">` : '<div style="width:50px;height:50px;background:#eee;border-radius:4px"></div>'}
+          ${item.thumbnail ? `<img src="${item.thumbnail.replace('http://','https://')}" alt="">` : '<div style="width:50px;height:50px;background:#eee;border-radius:4px"></div>'}
           <div class="preview-item-info">
             <div>${esc(item.title)}</div>
             <div class="preview-price">R$ ${item.current_price.toFixed(2).replace(".",",")}
@@ -544,11 +613,11 @@
         container.appendChild(div);
       });
     } catch (err) {
-      container.innerHTML = `<p style="color:#dc3545">Erro: ${err.message}</p>`;
+      container.innerHTML = `<p style="color:#dc3545">Erro ao buscar: ${err.message}</p>`;
     }
   }
 
-  // ─── Deals ───────────────────────────────────────────────────────────────────
+  // ─── Deals (lidos do Firestore direto) ──────────────────────────────────────
   async function loadDeals() {
     document.getElementById("dealsLoading").style.display = "block";
     document.getElementById("dealsList").innerHTML = "";
@@ -556,7 +625,11 @@
 
     const onlyUnread = document.getElementById("onlyUnread").checked;
     try {
-      const deals = await api(`/deals?limit=30&onlyUnread=${onlyUnread}`);
+      let query = db.collection("deals").orderBy("detected_at", "desc").limit(30);
+      if (onlyUnread) query = db.collection("deals").where("is_read", "==", false).orderBy("detected_at", "desc").limit(30);
+
+      const snap = await query.get();
+      const deals = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       document.getElementById("dealsLoading").style.display = "none";
 
       if (!deals.length) {
@@ -566,15 +639,13 @@
 
       const list = document.getElementById("dealsList");
       deals.forEach(deal => {
-        const detectedAt = deal.detected_at
-          ? new Date(deal.detected_at._seconds * 1000).toLocaleString("pt-BR")
-          : "";
+        const detectedAt = deal.detected_at ? deal.detected_at.toDate().toLocaleString("pt-BR") : "";
 
         const card = document.createElement("div");
         card.className = "deal-card" + (deal.is_read ? "" : " unread");
         card.innerHTML = `
           ${deal.thumbnail
-            ? `<img class="deal-thumb" src="${deal.thumbnail}" alt="">`
+            ? `<img class="deal-thumb" src="${deal.thumbnail.replace('http://','https://')}" alt="">`
             : `<div class="deal-thumb-placeholder"><i class="fa fa-tag"></i></div>`}
           <div class="deal-info">
             <div class="deal-title" title="${esc(deal.title)}">${esc(deal.title)}</div>
@@ -609,7 +680,9 @@
 
   async function markRead(id, btn) {
     try {
-      await api("/deals/" + id + "/read", "PATCH");
+      await db.collection("deals").doc(id).update({
+        is_read: true, read_at: firebase.firestore.FieldValue.serverTimestamp(),
+      });
       const card = btn.closest(".deal-card");
       card.classList.remove("unread");
       btn.outerHTML = '<span style="font-size:0.78em;color:#aaa"><i class="fa fa-check-circle"></i> Lida</span>';
@@ -618,22 +691,105 @@
     }
   }
 
-  // ─── Job Manual ──────────────────────────────────────────────────────────────
+  // ─── Job Manual (executado no browser — chama ML direto, salva no Firestore) ──
   async function runJob() {
-    const btn = document.getElementById("runJobBtn");
+    const btn   = document.getElementById("runJobBtn");
     const logEl = document.getElementById("jobLog");
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Executando...';
     logEl.style.display = "block";
-    logEl.textContent = "Aguardando resposta da Cloud Function...\n";
+    const log = [];
+
+    function appendLog(msg) {
+      log.push(msg);
+      logEl.textContent = log.join("\n");
+      logEl.scrollTop = logEl.scrollHeight;
+    }
 
     try {
-      const result = await api("/run", "POST");
-      logEl.textContent = result.log ? result.log.join("\n") : result.message;
+      const products = await fsGetProducts();
+      if (!products.length) {
+        appendLog("Nenhum produto ativo para monitorar.");
+        showStatus("Nenhum produto ativo.", "info");
+        return;
+      }
+      appendLog(`Monitorando ${products.length} produto(s)...`);
+      const now = fsNow();
+      let totalDeals = 0;
+
+      for (const product of products) {
+        appendLog(`\n▶ ${product.name} — buscando "${product.query}"...`);
+        try {
+          // Busca na API do ML direto do browser
+          const url = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const data = await resp.json();
+          const items = (data.results || []).map(normalizeML);
+          appendLog(`  ${items.length} item(s) encontrado(s)`);
+
+          const batch = db.batch();
+          let deals = 0;
+
+          for (const item of items) {
+            // Histórico recente para detecção de mínimo
+            const recentPrices = await fsGetRecentPrices(product.id, item.ml_id);
+
+            // Salvar snapshot
+            const histRef = db.collection("price_history").doc();
+            batch.set(histRef, {
+              tracked_product_id: product.id,
+              tracked_product_name: product.name,
+              ml_id: item.ml_id, title: item.title,
+              price: item.current_price, original_price: item.original_price,
+              discount_percent: item.discount_percent,
+              has_sale_price: item.has_sale_price,
+              seller_id: item.seller_id, seller_name: item.seller_name,
+              free_shipping: item.free_shipping, condition: item.condition,
+              url: item.url, thumbnail: item.thumbnail, fetched_at: now,
+            });
+
+            // Detectar oferta
+            const { isDeal, reasons } = detectDeal(item, product, recentPrices);
+            if (isDeal) {
+              deals++;
+              totalDeals++;
+              const dealRef = db.collection("deals").doc();
+              batch.set(dealRef, {
+                tracked_product_id: product.id,
+                tracked_product_name: product.name,
+                ml_id: item.ml_id, title: item.title,
+                current_price: item.current_price, original_price: item.original_price,
+                discount_percent: item.discount_percent,
+                seller_id: item.seller_id, seller_name: item.seller_name,
+                free_shipping: item.free_shipping, url: item.url,
+                thumbnail: item.thumbnail, reasons, detected_at: now, is_read: false,
+              });
+              appendLog(`  ⚡ Oferta: "${item.title}" — R$ ${item.current_price.toFixed(2)}`);
+              appendLog(`     ${reasons.join(" | ")}`);
+            }
+          }
+
+          await batch.commit();
+
+          // Atualizar last_checked_at
+          await db.collection("tracked_products").doc(product.id).update({
+            last_checked_at: now, last_items_found: items.length,
+          });
+          appendLog(`  ✅ ${deals} oferta(s) detectada(s)`);
+        } catch (err) {
+          appendLog(`  ❌ Erro: ${err.message}`);
+        }
+
+        await delay(300);
+      }
+
+      appendLog(`\nJob finalizado. Total de ofertas: ${totalDeals}`);
       showStatus("Job executado com sucesso!", "success");
       loadDeals();
+      loadProducts();
     } catch (err) {
-      logEl.textContent = "ERRO: " + err.message;
+      appendLog("ERRO GERAL: " + err.message);
       showStatus("Erro no job: " + err.message, "error");
     } finally {
       btn.disabled = false;
