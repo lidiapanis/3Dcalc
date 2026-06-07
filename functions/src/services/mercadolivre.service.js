@@ -20,13 +20,26 @@ async function searchProducts(query, limit = 10, category = null) {
   const params = { q: query, limit: Math.min(limit, 50) };
   if (category) params.category = category;
 
-  const { data } = await axios.get(`${ML_BASE}/sites/${SITE}/search`, {
-    params,
-    headers: ML_HEADERS,
-    timeout: 10000,
-  });
+  try {
+    // Tentativa 1: com headers de browser
+    const { data } = await axios.get(`${ML_BASE}/sites/${SITE}/search`, {
+      params,
+      headers: ML_HEADERS,
+      timeout: 10000,
+    });
+    return (data.results || []).map(normalizeItem);
+  } catch (err1) {
+    const status1 = err1.response ? err1.response.status : "sem resposta";
+    const body1   = err1.response ? JSON.stringify(err1.response.data).substring(0, 200) : "";
+    console.warn(`ML busca com headers falhou (${status1}): ${body1}`);
 
-  return (data.results || []).map(normalizeItem);
+    // Tentativa 2: sem headers (plain request)
+    const { data } = await axios.get(`${ML_BASE}/sites/${SITE}/search`, {
+      params,
+      timeout: 10000,
+    });
+    return (data.results || []).map(normalizeItem);
+  }
 }
 
 /**

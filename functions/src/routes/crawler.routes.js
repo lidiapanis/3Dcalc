@@ -58,8 +58,10 @@ router.get("/search", async (req, res) => {
     const items = await searchProducts(q, parseInt(limit) || 5);
     return ok(res, items);
   } catch (err) {
-    console.error("Erro na busca ML:", err.message);
-    return fail(res, "Erro ao consultar Mercado Livre: " + err.message, 502);
+    const mlStatus = err.response ? err.response.status : null;
+    const mlBody   = err.response ? JSON.stringify(err.response.data).substring(0, 300) : "";
+    console.error("Erro na busca ML:", err.message, "| status:", mlStatus, "| body:", mlBody);
+    return fail(res, `Erro ML (${mlStatus || "sem resposta"}): ${err.message} — ${mlBody}`, 502);
   }
 });
 
