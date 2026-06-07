@@ -318,6 +318,21 @@
 
   <!-- ─── Tab: Executar Job ─── -->
   <div id="tab-job" class="tab-panel">
+
+    <!-- Status de autorização ML -->
+    <div class="card" id="mlAuthCard">
+      <h3 style="margin-top:0"><i class="fab fa-mercadopago" style="color:#ffe600"></i> Autorização do Mercado Livre</h3>
+      <div id="mlAuthStatus" style="font-size:0.9em;color:var(--text,#555);margin-bottom:14px">
+        <i class="fa fa-spinner fa-spin"></i> Verificando...
+      </div>
+      <button class="btn btn-primary" onclick="autorizarML()">
+        <i class="fa fa-key"></i> Autorizar Mercado Livre
+      </button>
+      <p style="font-size:0.78em;color:#999;margin-top:8px">
+        Necessário para que a busca e o job funcionem. Você será redirecionado para o ML e voltará automaticamente.
+      </p>
+    </div>
+
     <div class="card">
       <h3 style="margin-top:0"><i class="fa fa-robot"></i> Execução Manual do Job</h3>
       <p style="color:var(--text,#555);font-size:0.9em">
@@ -379,6 +394,7 @@
     if (!user) { window.location.href = "login.html"; return; }
     loadProducts();
     loadDeals();
+    checkMLStatus();
   });
 
   // ─── Tabs ────────────────────────────────────────────────────────────────────
@@ -802,6 +818,35 @@
       btn.disabled = false;
       btn.innerHTML = '<i class="fa fa-play"></i> Executar Job Agora';
     }
+  }
+
+  // ─── Autorização ML ──────────────────────────────────────────────────────────
+  const ML_AUTH_URL = "https://auth.mercadolibre.com.br/authorization"
+    + "?response_type=code"
+    + "&client_id=1479387515607586"
+    + "&redirect_uri=https://calculo3d.web.app/ml-callback.html";
+
+  async function checkMLStatus() {
+    try {
+      const resp = await fetch("/api/monitor/ml-status");
+      const json = await resp.json();
+      const el   = document.getElementById("mlAuthStatus");
+      if (json.success && json.data.authorized) {
+        const exp = json.data.expires_at
+          ? new Date(json.data.expires_at).toLocaleString("pt-BR")
+          : "—";
+        el.innerHTML = `<span style="color:#2e7d32"><i class="fa fa-check-circle"></i> Autorizado</span> — token válido até ${exp}`;
+      } else {
+        el.innerHTML = `<span style="color:#c62828"><i class="fa fa-times-circle"></i> Não autorizado</span> — clique no botão abaixo para autorizar.`;
+      }
+    } catch (err) {
+      document.getElementById("mlAuthStatus").textContent = "Não foi possível verificar: " + err.message;
+    }
+  }
+
+  function autorizarML() {
+    window.open(ML_AUTH_URL, "_blank", "width=600,height=700");
+    setTimeout(checkMLStatus, 5000); // re-verifica após 5s
   }
 
   // ─── Util ────────────────────────────────────────────────────────────────────

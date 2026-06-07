@@ -26,7 +26,7 @@
 const express = require("express");
 const admin = require("firebase-admin");
 const { runPriceMonitor } = require("../jobs/price-monitor.job");
-const { searchProducts } = require("../services/mercadolivre.service");
+const { searchProducts, exchangeCode } = require("../services/mercadolivre.service");
 
 const router = express.Router();
 const db = () => admin.firestore();
@@ -263,6 +263,47 @@ router.patch("/deals/:id/read", async (req, res) => {
 
     await ref.update({ is_read: true, read_at: admin.firestore.FieldValue.serverTimestamp() });
     return ok(res, { id: req.params.id, is_read: true });
+  } catch (err) {
+    return fail(res, err.message, 500);
+  }
+});
+
+// ─── OAuth ML ────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/monitor/ml-auth  { code: "..." }
+ * Troca o authorization_code pelo access_token + refresh_token.
+ * Chamado pela ml-callback.html após o redirect do ML.
+ */
+router.post("/ml-auth", async (req, res) => {
+  const { code } = req.body;
+  if (!code) return fail(res, "Parâmetro 'code' é obrigatório.");
+  try {
+    await exchangeCode(code);
+    return ok(res, { message: "Mercado Livre autorizado com sucesso! Pode fechar esta aba." });
+  } catch (err) {
+    const detail = err.response ? JSON.stringify(err.response.data) : err.message;
+    console.error("Erro ao trocar código ML:", detail);
+    return fail(res, "Erro na autorização: " + detail, 500);
+  }
+});
+
+/**
+ * GET /api/monitor/ml-status
+ * Verifica se o ML está autorizado.
+ */
+router.get("/ml-status", async (req, res) => {
+  try {
+    const admin = require("firebase-admin");
+    const doc = await admin.firestore().collection("config").doc("ml_tokens").get();
+    if (!doc.exists) return ok(res, { authorized: false });
+    const d = doc.data();
+    return ok(res, {
+      authorized: true,
+      ml_user_id: d.ml_user_id,
+      expires_at: d.expires_at,
+      authorized_at: d.authorized_at,
+    });
   } catch (err) {
     return fail(res, err.message, 500);
   }
