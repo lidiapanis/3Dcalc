@@ -1,43 +1,28 @@
 const axios = require("axios");
 
-const ML_BASE      = "https://api.mercadolibre.com";
-const SITE         = "MLB";
-const ML_CLIENT_ID = "1479387515607586";
-const ML_SECRET    = "LdtTfXqDOnAzCNwcHnfncDbnKxlejUys";
+const ML_BASE = "https://api.mercadolibre.com";
+const SITE    = "MLB";
 
-// Cache do token em memória (válido enquanto a instância viver)
-let _cachedToken   = null;
-let _tokenExpiry   = 0;
-
-/**
- * Retorna um access_token via client_credentials.
- * Cacheia em memória e renova 2 min antes de vencer.
- */
-async function getToken() {
-  if (_cachedToken && Date.now() < _tokenExpiry - 120000) return _cachedToken;
-
-  const { data } = await axios.post(
-    `${ML_BASE}/oauth/token`,
-    `grant_type=client_credentials&client_id=${ML_CLIENT_ID}&client_secret=${ML_SECRET}`,
-    { headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" }, timeout: 8000 }
-  );
-
-  _cachedToken = data.access_token;
-  _tokenExpiry = Date.now() + (data.expires_in || 21600) * 1000;
-  return _cachedToken;
-}
+// Headers que simulam um browser — necessário para o ML aceitar requisições server-side
+const ML_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept": "application/json, text/plain, */*",
+  "Accept-Language": "pt-BR,pt;q=0.9",
+  "Referer": "https://www.mercadolivre.com.br/",
+  "Origin": "https://www.mercadolivre.com.br",
+};
 
 /**
  * Busca produtos no Mercado Livre pela query.
+ * A API pública de busca não requer autenticação — só headers corretos.
  */
 async function searchProducts(query, limit = 10, category = null) {
-  const token  = await getToken();
   const params = { q: query, limit: Math.min(limit, 50) };
   if (category) params.category = category;
 
   const { data } = await axios.get(`${ML_BASE}/sites/${SITE}/search`, {
     params,
-    headers: { "Authorization": `Bearer ${token}` },
+    headers: ML_HEADERS,
     timeout: 10000,
   });
 
@@ -48,9 +33,8 @@ async function searchProducts(query, limit = 10, category = null) {
  * Busca um item específico pelo ID do ML.
  */
 async function getItemById(itemId) {
-  const token    = await getToken();
   const { data } = await axios.get(`${ML_BASE}/items/${itemId}`, {
-    headers: { "Authorization": `Bearer ${token}` },
+    headers: ML_HEADERS,
     timeout: 10000,
   });
   return normalizeItem(data);
