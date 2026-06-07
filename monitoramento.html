@@ -361,7 +361,8 @@
   const db   = firebase.firestore();
 
   const API_BASE = "/api/monitor";
-  const ML_API   = "https://api.mercadolibre.com/sites/MLB";
+  const ML_API    = "https://api.mercadolibre.com/sites/MLB";
+  const ML_APP_ID = "1479387515607586";
 
   // ─── Auth ────────────────────────────────────────────────────────────────────
   auth.onAuthStateChanged((user) => {
@@ -588,7 +589,7 @@
     container.innerHTML = '<p style="color:#999"><i class="fa fa-spinner fa-spin"></i> Buscando no ML...</p>';
 
     try {
-      const resp = await fetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      const resp = await fetch(`${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}&app_id=${ML_APP_ID}`);
       if (!resp.ok) throw new Error("HTTP " + resp.status);
       const data = await resp.json();
       const items = (data.results || []).map(normalizeML);
@@ -721,7 +722,7 @@
         appendLog(`\n▶ ${product.name} — buscando "${product.query}"...`);
         try {
           // Busca na API do ML direto do browser
-          const url = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}`;
+          const url = `${ML_API}/search?q=${encodeURIComponent(product.query)}&limit=${product.limit || 10}&app_id=${ML_APP_ID}`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const data = await resp.json();

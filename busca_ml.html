@@ -466,7 +466,8 @@
   });
 
   const API_BASE = "/api/monitor";
-  const ML_API   = "https://api.mercadolibre.com/sites/MLB";
+  const ML_API    = "https://api.mercadolibre.com/sites/MLB";
+  const ML_APP_ID = "1479387515607586";
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let allResults = [];
@@ -509,7 +510,7 @@
 
     try {
       const limit = document.getElementById("fLimit").value;
-      const url = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}`;
+      const url = `${ML_API}/search?q=${encodeURIComponent(query)}&limit=${limit}&app_id=${ML_APP_ID}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error("Erro HTTP " + resp.status);
       const json = await resp.json();
