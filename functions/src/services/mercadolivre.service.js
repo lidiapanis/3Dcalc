@@ -81,4 +81,4 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-module.exports = { searchProducts, getItemById, delay, getToken };
+module.exports = { searchProducts, getItemById, delay };
