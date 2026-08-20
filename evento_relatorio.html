@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório do Evento</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { background-color:#fff; padding:28px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.1); max-width:1000px; margin:0 auto; }
+        h1 { color:#333; margin:6px 0 4px; font-size:1.4em; }
+        .sub { color:#888; font-size:0.9em; margin-bottom:20px; }
+        .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px; }
+        .metric-card { background:#f8fafb; border:1px solid #e8eef1; border-radius:10px; padding:16px; }
+        .metric-title { font-size:0.8em; color:#90a4ae; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+        .metric-value { font-size:1.5em; font-weight:bold; color:#28a745; }
+        .metric-value.azul { color:#4A93B0; }
+        .metric-value.escuro { color:#333; }
+        h2 { color:#333; font-size:1.1em; margin:22px 0 10px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { border:1px solid #ddd; padding:10px; text-align:left; }
+        th { background:#f2f2f2; color:#333; }
+        td.num, th.num { text-align:right; }
+        .sobra-zero { color:#28a745; font-weight:600; }
+        .sobra-pos { color:#e66a2e; font-weight:600; }
+        #feedback { text-align:center; color:#e66a2e; font-weight:bold; margin-top:14px; }
+        html[data-theme="dark"] .metric-card { background:#1e1e2e !important; border-color:#333 !important; }
+        html[data-theme="dark"] .metric-value.escuro { color:#e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 id="titulo">Relatório do Evento</h1>
+        <p class="sub" id="subtitulo"></p>
+
+        <div class="cards">
+            <div class="metric-card"><div class="metric-title">Faturamento total</div><div class="metric-value" id="mFaturamento">R$ 0,00</div></div>
+            <div class="metric-card"><div class="metric-title">Vendas (transações)</div><div class="metric-value escuro" id="mVendas">0</div></div>
+            <div class="metric-card"><div class="metric-title">Ticket médio</div><div class="metric-value azul" id="mTicket">R$ 0,00</div></div>
+            <div class="metric-card"><div class="metric-title">Produto mais vendido</div><div class="metric-value escuro" id="mTop" style="font-size:1.05em;">—</div></div>
+        </div>
+
+        <h2>Por produto — levado × vendido × sobra</h2>
+        <table id="tabelaProdutos">
+            <thead>
+                <tr>
+                    <th>Produto</th>
+                    <th class="num">Levado</th>
+                    <th class="num">Vendido</th>
+                    <th class="num">Sobra</th>
+                    <th class="num">Faturamento</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <h2>Faturamento por forma de pagamento</h2>
+        <table id="tabelaPagamento">
+            <thead><tr><th>Forma</th><th class="num">Faturamento</th><th class="num">%</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const eventoId = new URLSearchParams(window.location.search).get('id');
+        const ROTULO_PG = { dinheiro:'Dinheiro', pix:'Pix', credito:'Crédito', debito:'Débito' };
+
+        function formatarMoeda(v) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            if (!eventoId) { document.getElementById('feedback').textContent = 'Evento não informado.'; return; }
+
+            const [evSnap, prodSnap] = await Promise.all([
+                empresaRef('eventos/' + eventoId).once('value'),
+                empresaRef('produtos').once('value')
+            ]);
+            if (!evSnap.exists()) { document.getElementById('feedback').textContent = 'Evento não encontrado.'; return; }
+            const ev = evSnap.val();
+            const prodNome = {};
+            if (prodSnap.exists()) prodSnap.forEach(c => { prodNome[c.key] = (c.val() || {}).nomePeca || ('#' + c.key); });
+
+            document.getElementById('titulo').textContent = 'Relatório — ' + (ev.nome || ('Evento #' + eventoId));
+            const periodo = [ev.local, ev.dataInicio, ev.status].filter(Boolean).join(' · ');
+            document.getElementById('subtitulo').textContent = periodo;
+
+            gerarRelatorio(ev, prodNome);
+        })();
+
+        function chaveEstoque(produtoId, corId) { return String(produtoId) + '|' + (corId || ''); }
+
+        function gerarRelatorio(ev, prodNome) {
+            const estoqueRaw = ev.estoque || {};
+            const vendas = ev.vendas || {};
+
+            // Estoque do evento, reagrupado por chave produto+cor (retrocompat: linha antiga sem
+            // corId vira "sem cor definida", mesma chave que as vendas antigas sem corId).
+            const estoque = {};   // chave -> { produtoId, corId, corNome, qtdLevada }
+            Object.keys(estoqueRaw).forEach(estoqueId => {
+                const e = estoqueRaw[estoqueId] || {};
+                const produtoId = e.produtoId != null ? e.produtoId : estoqueId;
+                const chave = chaveEstoque(produtoId, e.corId);
+                estoque[chave] = { produtoId, corId: e.corId || null, corNome: e.corNome || null, qtdLevada: (estoque[chave] ? estoque[chave].qtdLevada : 0) + (Number(e.qtdLevada) || 0) };
+            });
+
+            // Acumuladores
+            const vendidoQtd = {};      // chave -> qtd
+            const fatProduto = {};      // chave -> R$
+            const fatPagamento = {};    // forma -> R$
+            const transacoes = new Set();
+            let faturamento = 0;
+
+            Object.keys(vendas).forEach(k => {
+                const v = vendas[k] || {};
+                if (v.status === 'cancelada') return;   // estornadas não contam no relatório
+                const chave = chaveEstoque(v.produtoId, v.corId);
+                const qtd = Number(v.qtd) || 0;
+                const sub = (Number(v.precoUnit) || 0) * qtd;
+                vendidoQtd[chave] = (vendidoQtd[chave] || 0) + qtd;
+                fatProduto[chave] = (fatProduto[chave] || 0) + sub;
+                fatPagamento[v.pagamento || '—'] = (fatPagamento[v.pagamento || '—'] || 0) + sub;
+                faturamento += sub;
+                if (v.dataHora) transacoes.add(v.dataHora);
+                if (!estoque[chave]) estoque[chave] = { produtoId: v.produtoId, corId: v.corId || null, corNome: v.corNome || null, qtdLevada: 0 };
+            });
+
+            const numTransacoes = transacoes.size;
+            const ticket = numTransacoes ? faturamento / numTransacoes : 0;
+
+            // Nome de exibição de uma chave: "Produto — Cor" (ou só o produto, sem cor)
+            function nomeChave(chave) {
+                const e = estoque[chave] || {};
+                const base = prodNome[e.produtoId] || ('#' + e.produtoId);
+                return e.corNome ? `${base} — ${e.corNome}` : base;
+            }
+
+            // Produto mais vendido (por quantidade)
+            let topChave = null, topQtd = 0;
+            Object.keys(vendidoQtd).forEach(chave => { if (vendidoQtd[chave] > topQtd) { topQtd = vendidoQtd[chave]; topChave = chave; } });
+
+            document.getElementById('mFaturamento').textContent = formatarMoeda(faturamento);
+            document.getElementById('mVendas').textContent = numTransacoes;
+            document.getElementById('mTicket').textContent = formatarMoeda(ticket);
+            document.getElementById('mTop').textContent = topChave ? `${nomeChave(topChave)} (${topQtd})` : '—';
+
+            // Tabela por produto+cor: usa o conjunto de chaves do estoque (levados) + quaisquer vendidos
+            const chaves = new Set([...Object.keys(estoque), ...Object.keys(vendidoQtd)]);
+            const tbody = document.querySelector('#tabelaProdutos tbody');
+            tbody.innerHTML = '';
+            if (!chaves.size) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Sem estoque designado.</td></tr>';
+            } else {
+                [...chaves].sort((a, b) => nomeChave(a).localeCompare(nomeChave(b))).forEach(chave => {
+                    const levado = (estoque[chave] && Number(estoque[chave].qtdLevada)) || 0;
+                    const vend = vendidoQtd[chave] || 0;
+                    const sobra = levado - vend;
+                    const row = tbody.insertRow();
+                    row.insertCell().textContent = nomeChave(chave);
+                    const cL = row.insertCell(); cL.textContent = levado; cL.className = 'num';
+                    const cV = row.insertCell(); cV.textContent = vend; cV.className = 'num';
+                    const cS = row.insertCell(); cS.textContent = sobra; cS.className = 'num ' + (sobra === 0 ? 'sobra-zero' : 'sobra-pos');
+                    const cF = row.insertCell(); cF.textContent = formatarMoeda(fatProduto[chave] || 0); cF.className = 'num';
+                });
+            }
+
+            // Faturamento por forma de pagamento
+            const tbPg = document.querySelector('#tabelaPagamento tbody');
+            tbPg.innerHTML = '';
+            const formas = Object.keys(fatPagamento);
+            if (!formas.length) {
+                tbPg.innerHTML = '<tr><td colspan="3" style="text-align:center;">Nenhuma venda registrada.</td></tr>';
+            } else {
+                formas.sort((a, b) => fatPagamento[b] - fatPagamento[a]).forEach(f => {
+                    const val = fatPagamento[f];
+                    const pct = faturamento ? (val / faturamento * 100) : 0;
+                    const row = tbPg.insertRow();
+                    row.insertCell().textContent = ROTULO_PG[f] || f;
+                    const cV = row.insertCell(); cV.textContent = formatarMoeda(val); cV.className = 'num';
+                    const cP = row.insertCell(); cP.textContent = pct.toFixed(1) + '%'; cP.className = 'num';
+                });
+            }
+        }
+    </script>
+</body>
+</html>

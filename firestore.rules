@@ -23,5 +23,33 @@ service cloud.firestore {
       // Escrita somente via Cloud Functions (Admin SDK)
       allow write: if false;
     }
+
+    // Tokens de API — leitura para usuários autenticados, escrita só via Cloud Functions
+    match /config/ml_tokens {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    match /config/me_tokens {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    // Multi-tenant: empresas e usuários — escrita exclusiva via Admin SDK (Cloud Functions),
+    // EXCETO o campo `branding`, que o admin da própria empresa pode personalizar.
+    match /empresas/{empresaId} {
+      allow read: if isAuth();
+      allow write: if request.auth != null
+        && request.auth.token.empresaId == empresaId
+        && (request.auth.token.role == 'admin' || request.auth.token.role == 'superadmin')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['branding']);
+    }
+
+    match /usuarios/{uid} {
+      // Usuário lê só o próprio doc; superadmin lê todos
+      allow read: if request.auth != null &&
+                     (request.auth.uid == uid || request.auth.token.role == "superadmin");
+      allow write: if false;
+    }
   }
 }

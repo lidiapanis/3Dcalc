@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transferir Produtos entre Eventos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px 12px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 720px; width: 100%; margin: 0 auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 6px; }
+        .sub { text-align: center; color: #666; margin: 0 0 20px; }
+        .sub b { color: #4A93B0; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; background: #fff; }
+
+        .checklist-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .checklist-head label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; color: #333; cursor: pointer; }
+        .checklist-head input[type=checkbox] { width: 17px; height: 17px; cursor: pointer; }
+
+        .item-linha { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+        .item-linha.esgotado { opacity: .5; }
+        .item-linha .item-check input { width: 18px; height: 18px; cursor: pointer; }
+        .item-linha .item-info { flex: 1; min-width: 0; }
+        .item-linha .item-nome { font-weight: 600; color: #333; }
+        .item-linha .item-meta { font-size: 0.8em; color: #888; margin-top: 2px; }
+        .item-linha .item-qtd { flex: 0 0 90px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; }
+        .item-linha .item-qtd:disabled { background: #f0f0f0; color: #aaa; }
+        .vazio { color: #999; font-size: 0.9em; text-align: center; padding: 16px 0; }
+
+        button.confirmar { background-color: #28a745; color: #fff; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 6px; }
+        button.confirmar:hover:not(:disabled) { background-color: #218838; }
+        button.confirmar:disabled { background: #aaa; cursor: not-allowed; }
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #dc3545; min-height: 1.2em; }
+
+        .resumo-box { border: 1px solid #d4edda; background: #f4fbf6; border-radius: 8px; padding: 16px 18px; margin-top: 20px; }
+        .resumo-box h3 { margin: 0 0 10px; color: #218838; }
+        .resumo-box ul { margin: 0; padding-left: 20px; color: #333; }
+        .resumo-box li { margin-bottom: 4px; }
+        .btn-voltar { display: inline-block; margin-top: 14px; background: #4A93B0; color: #fff; text-decoration: none; padding: 9px 16px; border-radius: 5px; font-weight: 600; }
+        .btn-voltar:hover { background: #3A7A96; }
+
+        html[data-theme="dark"] .item-linha { border-bottom-color: #333 !important; }
+        html[data-theme="dark"] .item-linha .item-nome { color: #e0e0e0 !important; }
+        html[data-theme="dark"] .checklist-head label { color: #e0e0e0 !important; }
+        html[data-theme="dark"] .resumo-box { background: #10301d !important; border-color: #1f5a36 !important; }
+        html[data-theme="dark"] .resumo-box h3 { color: #4fd377 !important; }
+        html[data-theme="dark"] .resumo-box ul { color: #e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Transferir Produtos</h1>
+        <p class="sub">Do evento <b id="origemNome">...</b></p>
+
+        <fieldset>
+            <legend>Evento de destino</legend>
+            <label for="destinoSelect">Para qual evento transferir?</label>
+            <select id="destinoSelect" onchange="onDestinoChange()">
+                <option value="">Selecione o evento de destino...</option>
+            </select>
+        </fieldset>
+
+        <fieldset id="checklistFieldset">
+            <legend>Itens do estoque de origem</legend>
+            <div class="checklist-head">
+                <label><input type="checkbox" id="selAllChk" onchange="toggleSelAll(this.checked)"> Selecionar todos</label>
+            </div>
+            <div id="itensLista"></div>
+            <p class="vazio" id="itensVazio" style="display:none;">Nenhum item com estoque disponível para transferir neste evento.</p>
+        </fieldset>
+
+        <button type="button" class="confirmar" id="btnConfirmar" onclick="confirmarTransferencia()" disabled>Transferir itens selecionados</button>
+        <p id="feedback" class="feedback"></p>
+
+        <div class="resumo-box" id="resumoBox" style="display:none;">
+            <h3><i class="fas fa-circle-check"></i> Transferência concluída</h3>
+            <ul id="resumoLista"></ul>
+            <a href="listagem_eventos.html" class="btn-voltar">Voltar para Eventos</a>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        const origemId = new URLSearchParams(window.location.search).get('id');
+        let produtosMap = {};   // { produtoId: nome }
+        let itens = [];         // [{ estoqueId, produtoId, corId, corNome, qtdLevada, precoEvento, filamentoId, vendido, disponivel }]
+        let concluido = false;
+
+        function chaveEstoque(produtoId, corId) { return String(produtoId) + '|' + (corId || ''); }
+        function formatarMoeda(v) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            if (!origemId) { document.getElementById('feedback').textContent = 'Evento de origem não informado.'; return; }
+            await carregarDados();
+        })();
+
+        async function carregarDados() {
+            const fb = document.getElementById('feedback');
+            fb.textContent = '';
+            const origemSnap = await empresaRef('eventos/' + origemId).once('value');
+            if (!origemSnap.exists()) { fb.textContent = 'Evento de origem não encontrado.'; return; }
+            const origem = origemSnap.val();
+            document.getElementById('origemNome').textContent = origem.nome || ('Evento #' + origemId);
+
+            const [prodSnap, eventosSnap] = await Promise.all([
+                empresaRef('produtos').once('value'),
+                empresaRef('eventos').once('value')
+            ]);
+            produtosMap = {};
+            if (prodSnap.exists()) prodSnap.forEach(c => { produtosMap[c.key] = (c.val() || {}).nomePeca || ('#' + c.key); });
+
+            popularDestinos(eventosSnap, origem.nome || ('Evento #' + origemId));
+            await montarItens(origem);
+            renderChecklist();
+        }
+
+        function popularDestinos(eventosSnap, origemNome) {
+            const sel = document.getElementById('destinoSelect');
+            sel.innerHTML = '<option value="">Selecione o evento de destino...</option>';
+            const lista = [];
+            eventosSnap.forEach(c => {
+                if (String(c.key) === String(origemId)) return;
+                const d = c.val() || {};
+                lista.push({ id: c.key, nome: d.nome || ('Evento #' + c.key), status: d.status || 'planejado' });
+            });
+            lista.sort((a, b) => Number(b.id) - Number(a.id));
+            if (!lista.length) {
+                sel.innerHTML = '<option value="">Nenhum outro evento cadastrado</option>';
+                sel.disabled = true;
+                return;
+            }
+            lista.forEach(ev => {
+                const opt = document.createElement('option');
+                opt.value = ev.id;
+                opt.textContent = `#${ev.id} — ${ev.nome} (${ev.status})`;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function montarItens(origem) {
+            const vendidoMap = {};
+            const vsSnap = await empresaRef('eventos/' + origemId + '/vendas').once('value');
+            vsSnap.forEach(c => {
+                const v = c.val() || {};
+                if (v.status === 'cancelada') return;
+                const chave = chaveEstoque(v.produtoId, v.corId);
+                vendidoMap[chave] = (vendidoMap[chave] || 0) + (Number(v.qtd) || 0);
+            });
+
+            itens = [];
+            const estoque = origem.estoque || {};
+            Object.keys(estoque).forEach(estoqueId => {
+                const e = estoque[estoqueId] || {};
+                const produtoId = e.produtoId != null ? e.produtoId : estoqueId;
+                const corId = e.corId || null;
+                const corNome = e.corNome || null;
+                const vendido = Number(vendidoMap[chaveEstoque(produtoId, corId)]) || 0;
+                const qtdLevada = Number(e.qtdLevada) || 0;
+                itens.push({
+                    estoqueId, produtoId, corId, corNome,
+                    qtdLevada, precoEvento: Number(e.precoEvento) || 0, filamentoId: e.filamentoId || null,
+                    vendido, disponivel: Math.max(0, qtdLevada - vendido)
+                });
+            });
+            itens.sort((a, b) => (produtosMap[a.produtoId] || '').localeCompare(produtosMap[b.produtoId] || ''));
+        }
+
+        function renderChecklist() {
+            const cont = document.getElementById('itensLista');
+            cont.innerHTML = '';
+            document.getElementById('itensVazio').style.display = itens.length ? 'none' : 'block';
+            itens.forEach(it => {
+                const nome = produtosMap[it.produtoId] || ('#' + it.produtoId);
+                const esgotado = it.disponivel <= 0;
+                const div = document.createElement('div');
+                div.className = 'item-linha' + (esgotado ? ' esgotado' : '');
+                div.dataset.estoqueId = it.estoqueId;
+                div.innerHTML = `
+                    <label class="item-check"><input type="checkbox" class="chk-item" ${esgotado ? 'disabled' : ''} onchange="onItemCheck(this)"></label>
+                    <div class="item-info">
+                        <div class="item-nome">${nome}${it.corNome ? ' · ' + it.corNome : ''}</div>
+                        <div class="item-meta">Disponível: ${it.disponivel}${it.vendido ? ' · vendido: ' + it.vendido : ''} · Preço no evento: ${formatarMoeda(it.precoEvento)}${esgotado ? ' · esgotado' : ''}</div>
+                    </div>
+                    <input type="number" class="item-qtd" min="1" max="${it.disponivel}" value="${it.disponivel}" disabled oninput="onQtdInput(this)">`;
+                cont.appendChild(div);
+            });
+            atualizarBotaoConfirmar();
+        }
+
+        window.onItemCheck = function (chk) {
+            const linha = chk.closest('.item-linha');
+            const qtdInput = linha.querySelector('.item-qtd');
+            qtdInput.disabled = !chk.checked;
+            atualizarBotaoConfirmar();
+        };
+
+        window.onQtdInput = function (input) {
+            const max = Number(input.max) || 0;
+            let v = parseInt(input.value, 10);
+            if (isNaN(v) || v < 1) v = 1;
+            if (v > max) v = max;
+            input.value = v;
+            atualizarBotaoConfirmar();
+        };
+
+        window.toggleSelAll = function (checked) {
+            document.querySelectorAll('#itensLista .chk-item:not(:disabled)').forEach(chk => {
+                chk.checked = checked;
+                onItemCheck(chk);
+            });
+        };
+
+        window.onDestinoChange = function () { atualizarBotaoConfirmar(); };
+
+        function itensSelecionados() {
+            return [...document.querySelectorAll('#itensLista .item-linha')]
+                .filter(l => l.querySelector('.chk-item').checked)
+                .map(l => ({
+                    estoqueId: l.dataset.estoqueId,
+                    qtd: parseInt(l.querySelector('.item-qtd').value, 10) || 0
+                }))
+                .filter(x => x.qtd > 0);
+        }
+
+        function atualizarBotaoConfirmar() {
+            const destino = document.getElementById('destinoSelect').value;
+            const sel = itensSelecionados();
+            document.getElementById('btnConfirmar').disabled = concluido || !destino || sel.length === 0;
+        }
+
+        window.confirmarTransferencia = async function () {
+            const fb = document.getElementById('feedback');
+            fb.textContent = '';
+            const destinoId = document.getElementById('destinoSelect').value;
+            const selecionados = itensSelecionados();
+            if (!destinoId || !selecionados.length) return;
+
+            const btn = document.getElementById('btnConfirmar');
+            btn.disabled = true;
+            fb.style.color = '#4A93B0';
+            fb.textContent = 'Transferindo...';
+
+            try {
+                // Releitura "a quente" pra evitar transferir mais do que o disponível real (concorrência).
+                const [origemFreshSnap, vendasFreshSnap, destinoFreshSnap] = await Promise.all([
+                    empresaRef('eventos/' + origemId + '/estoque').once('value'),
+                    empresaRef('eventos/' + origemId + '/vendas').once('value'),
+                    empresaRef('eventos/' + destinoId + '/estoque').once('value')
+                ]);
+                const origemFresh = origemFreshSnap.val() || {};
+                const destinoFresh = destinoFreshSnap.val() || {};
+                const vendidoFresh = {};
+                vendasFreshSnap.forEach(c => {
+                    const v = c.val() || {};
+                    if (v.status === 'cancelada') return;
+                    const chave = chaveEstoque(v.produtoId, v.corId);
+                    vendidoFresh[chave] = (vendidoFresh[chave] || 0) + (Number(v.qtd) || 0);
+                });
+                // índice de linhas já existentes no destino, por produtoId+corId
+                const destinoPorChave = {};
+                Object.keys(destinoFresh).forEach(k => {
+                    const d = destinoFresh[k] || {};
+                    destinoPorChave[chaveEstoque(d.produtoId, d.corId)] = k;
+                });
+
+                const updates = {};
+                const resumo = [];
+                for (const sel of selecionados) {
+                    const origLinha = origemFresh[sel.estoqueId];
+                    if (!origLinha) continue;   // linha removida/alterada desde o carregamento
+                    const produtoId = origLinha.produtoId != null ? origLinha.produtoId : sel.estoqueId;
+                    const corId = origLinha.corId || null;
+                    const corNome = origLinha.corNome || null;
+                    const chave = chaveEstoque(produtoId, corId);
+                    const qtdLevadaAtual = Number(origLinha.qtdLevada) || 0;
+                    const vendidoAtual = Number(vendidoFresh[chave]) || 0;
+                    const dispAtual = Math.max(0, qtdLevadaAtual - vendidoAtual);
+                    const transferir = Math.min(sel.qtd, dispAtual);
+                    if (transferir <= 0) continue;
+
+                    updates['eventos/' + origemId + '/estoque/' + sel.estoqueId + '/qtdLevada'] = qtdLevadaAtual - transferir;
+
+                    const destExistenteKey = destinoPorChave[chave];
+                    if (destExistenteKey) {
+                        const destAtual = Number((destinoFresh[destExistenteKey] || {}).qtdLevada) || 0;
+                        updates['eventos/' + destinoId + '/estoque/' + destExistenteKey + '/qtdLevada'] = destAtual + transferir;
+                        destinoFresh[destExistenteKey].qtdLevada = destAtual + transferir;
+                    } else {
+                        const novaKey = empresaRef('eventos/' + destinoId + '/estoque').push().key;
+                        updates['eventos/' + destinoId + '/estoque/' + novaKey] = {
+                            produtoId, corId, corNome,
+                            qtdLevada: transferir,
+                            precoEvento: Number(origLinha.precoEvento) || 0,
+                            filamentoId: origLinha.filamentoId || null
+                        };
+                        destinoFresh[novaKey] = { produtoId, corId };
+                        destinoPorChave[chave] = novaKey;
+                    }
+
+                    resumo.push({ nome: produtosMap[produtoId] || ('#' + produtoId), corNome, qtd: transferir });
+                }
+
+                if (!resumo.length) { fb.style.color = '#dc3545'; fb.textContent = 'Nada foi transferido — o estoque desses itens mudou. Recarregue e tente de novo.'; btn.disabled = false; return; }
+
+                await empresaRef('').update(updates);
+
+                concluido = true;
+                document.getElementById('checklistFieldset').style.display = 'none';
+                document.querySelector('fieldset').style.display = 'none';
+                fb.textContent = '';
+                const destinoNome = document.querySelector('#destinoSelect option:checked').textContent;
+                document.getElementById('resumoLista').innerHTML = resumo.map(r =>
+                    `<li>${r.nome}${r.corNome ? ' · ' + r.corNome : ''} — <b>${r.qtd}</b> transferido(s) para ${destinoNome}</li>`
+                ).join('');
+                document.getElementById('resumoBox').style.display = 'block';
+            } catch (e) {
+                fb.style.color = '#dc3545';
+                fb.textContent = 'Erro ao transferir: ' + e.message;
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

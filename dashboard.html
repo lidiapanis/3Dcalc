@@ -9,6 +9,8 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="empresa.js"></script>
+    <script src="vendas.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -25,11 +27,20 @@
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         h1 {
-            color: #1e3c72;
-            text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.5em;
+            color: #2E7496;
+            margin-bottom: 26px;
+            font-size: 1.45em;
+            font-weight: 700;
         }
+        .chart-empty {
+            display: none;
+            text-align: center;
+            color: #999;
+            padding: 44px 12px;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }
+        .chart-empty i { font-size: 2em; opacity: .35; display: block; margin-bottom: 8px; }
 
         /* --- Métricas (Cards) --- */
         .metrics-grid {
@@ -48,7 +59,7 @@
             border-left: 5px solid;
         }
         .metric-card.total-value { border-color: #28a745; }
-        .metric-card.avg-value { border-color: #007bff; }
+        .metric-card.avg-value { border-color: #4A93B0; }
         .metric-card.total-count { border-color: #ffc107; }
 
         .metric-title {
@@ -90,7 +101,7 @@
         }
         button {
             padding: 10px 15px;
-            background-color: #007bff;
+            background-color: #4A93B0;
             color: white;
             border: none;
             border-radius: 4px;
@@ -98,7 +109,7 @@
             transition: background-color 0.3s;
         }
         button:hover {
-            background-color: #0056b3;
+            background-color: #3A7A96;
         }
 
         /* --- Gráficos e Detalhes --- */
@@ -138,7 +149,7 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #007bff;
+            color: #4A93B0;
             font-size: 1.8em;
             text-decoration: none;
             transition: color 0.3s;
@@ -152,7 +163,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Dashboard de Performance de Orçamentos</h1>
+        <h1>Performance de Orçamentos</h1>
         
         <div class="metrics-grid">
             <div class="metric-card total-count">
@@ -216,6 +227,78 @@
         </div>
 
         <p id="feedback" style="text-align: center; margin-top: 30px;"></p>
+
+        <!-- ══════════════ SEÇÃO: VENDAS ══════════════ -->
+        <h1 style="margin-top: 50px;">Vendas</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="vPeriodo">Período:</label>
+                <select id="vPeriodo" onchange="aplicarFiltrosVendas()">
+                    <option value="7">Últimos 7 dias</option>
+                    <option value="30" selected>Últimos 30 dias</option>
+                    <option value="90">Últimos 90 dias</option>
+                    <option value="all">Tudo</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="vEvento">Evento:</label>
+                <select id="vEvento" onchange="aplicarFiltrosVendas()">
+                    <option value="all">Todos os eventos</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="vOrigem">Origem:</label>
+                <select id="vOrigem" onchange="aplicarFiltrosVendas()">
+                    <option value="all">Todas</option>
+                    <option value="evento">Evento / Feira</option>
+                    <option value="online">Online (Shopee)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card total-value">
+                <div class="metric-title">TOTAL VENDIDO</div>
+                <div class="metric-value" id="vTotal">R$ 0,00</div>
+            </div>
+            <div class="metric-card total-count">
+                <div class="metric-title">Nº DE VENDAS</div>
+                <div class="metric-value" id="vQtd">0</div>
+            </div>
+            <div class="metric-card avg-value">
+                <div class="metric-title">TICKET MÉDIO</div>
+                <div class="metric-value" id="vTicket">R$ 0,00</div>
+            </div>
+            <div class="metric-card" style="border-color:#6741D9;">
+                <div class="metric-title">CLIENTES DISTINTOS</div>
+                <div class="metric-value" id="vClientes" style="color:#6741D9;">0</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card chart-full">
+                <h2>Vendas por período</h2>
+                <canvas id="vendasPeriodoChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Top produtos por receita</h2>
+                <canvas id="vendasProdutosChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Por forma de pagamento</h2>
+                <canvas id="vendasPagamentoChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Vendas por evento</h2>
+                <canvas id="vendasEventoChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h2>Top clientes por receita</h2>
+                <canvas id="vendasClientesChart"></canvas>
+            </div>
+        </div>
+        <p id="vendasFeedback" style="text-align: center; margin-top: 20px; color:#6a7c93;"></p>
     </div>
 
     <script>
@@ -240,24 +323,50 @@
         let totalizadorPorCliente = {};
         let itemsChartInstance = null;
         let produtosChartInstance = null;
+        // Guarda os últimos dados para re-renderizar os gráficos ao trocar o tema
+        let ultProdutos = null;     // { nomes, precos, custos }
+        let ultOrcamentos = null;   // array de orçamentos
+
+        // ── Cores dos gráficos conforme o tema (eixos/legendas/grade) ──
+        function coresGrafico() {
+            const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+            return { texto: dark ? '#cfd8e3' : '#555', grade: dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)' };
+        }
+        function mostrarVazioGrafico(canvasId, msg) {
+            const canvas = document.getElementById(canvasId);
+            canvas.style.display = 'none';
+            let m = canvas.parentElement.querySelector('.chart-empty');
+            if (!m) { m = document.createElement('div'); m.className = 'chart-empty'; canvas.parentElement.appendChild(m); }
+            m.innerHTML = `<i class="fas fa-chart-column"></i>${msg}`;
+            m.style.display = 'block';
+        }
+        function esconderVazioGrafico(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            canvas.style.display = '';
+            const m = canvas.parentElement.querySelector('.chart-empty');
+            if (m) m.style.display = 'none';
+        }
+        // Re-renderiza os gráficos quando o tema muda (cores de eixos/legenda)
+        window.addEventListener('themechange', () => {
+            if (ultProdutos) renderizarGraficoProdutos(ultProdutos.nomes, ultProdutos.precos, ultProdutos.custos);
+            if (ultOrcamentos) renderizarGraficoItens(ultOrcamentos);
+        });
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
 
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // Se estiver logado, inicia o carregamento sequencial dos dados
-                carregarProdutos();
-                carregarClientes()
-                    .then(carregarOrcamentos)
-                    .catch(error => {
-                        document.getElementById('feedback').textContent = "Erro fatal ao carregar dados. Verifique o console.";
-                        console.error("Erro no carregamento inicial:", error);
-                    });
-            }
-        });
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('dashboard')) return;
+            carregarProdutos();
+            carregarClientes()
+                .then(carregarOrcamentos)
+                .catch(error => {
+                    document.getElementById('feedback').textContent = "Erro fatal ao carregar dados. Verifique o console.";
+                    console.error("Erro no carregamento inicial:", error);
+                });
+            carregarVendas();
+        })();
 
         // --- 3. FUNÇÕES DE UTILIDADE ---
         function formatarMoeda(valor) {
@@ -267,7 +376,7 @@
         // --- 4. CARREGAMENTO DE DADOS (SEQUENCIAL) ---
 
         function carregarProdutos() {
-            database.ref("produtos").once('value').then(snapshot => {
+            empresaRef("produtos").once('value').then(snapshot => {
                 const nomes = [], precos = [], custos = [];
                 snapshot.forEach(child => {
                     const d = child.val();
@@ -276,12 +385,19 @@
                     custos.push(parseFloat(d.custoTotal) || 0);
                 });
                 document.getElementById('totalProdutos').textContent = nomes.length;
+                ultProdutos = { nomes, precos, custos };
                 renderizarGraficoProdutos(nomes, precos, custos);
+            }).catch(err => {
+                console.error('Erro ao carregar produtos:', err);
+                mostrarVazioGrafico('produtosChart', 'Erro ao carregar produtos.');
             });
         }
 
         function renderizarGraficoProdutos(nomes, precos, custos) {
             if (produtosChartInstance) produtosChartInstance.destroy();
+            if (!nomes.length) { mostrarVazioGrafico('produtosChart', 'Nenhum produto cadastrado ainda.'); return; }
+            esconderVazioGrafico('produtosChart');
+            const c = coresGrafico();
             const ctx = document.getElementById('produtosChart').getContext('2d');
             produtosChartInstance = new Chart(ctx, {
                 type: 'bar',
@@ -301,11 +417,11 @@
                             label: 'Custo Total',
                             data: custos,
                             type: 'line',
-                            borderColor: '#007bff',
-                            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                            borderColor: '#4A93B0',
+                            backgroundColor: 'rgba(74, 147, 176, 0.1)',
                             borderWidth: 2,
                             pointRadius: 4,
-                            pointBackgroundColor: '#007bff',
+                            pointBackgroundColor: '#4A93B0',
                             fill: false,
                             tension: 0.3,
                             order: 1
@@ -318,7 +434,7 @@
                         legend: {
                             display: true,
                             position: 'top',
-                            labels: { font: { size: 12 }, boxWidth: 14 }
+                            labels: { font: { size: 12 }, boxWidth: 14, color: c.texto }
                         },
                         tooltip: {
                             callbacks: {
@@ -328,15 +444,13 @@
                     },
                     scales: {
                         x: {
-                            ticks: {
-                                font: { size: 11 },
-                                maxRotation: 45,
-                                minRotation: 30
-                            }
+                            ticks: { font: { size: 11 }, maxRotation: 45, minRotation: 30, color: c.texto },
+                            grid: { color: c.grade }
                         },
                         y: {
                             beginAtZero: true,
-                            ticks: { callback: v => 'R$ ' + v.toFixed(2).replace('.', ',') }
+                            ticks: { callback: v => 'R$ ' + v.toFixed(2).replace('.', ','), color: c.texto },
+                            grid: { color: c.grade }
                         }
                     }
                 }
@@ -345,31 +459,34 @@
 
         // Removido o window.onload antigo, pois o carregamento agora é feito em onAuthStateChanged
         
+        // Clientes vêm de /pessoas (tipo cliente/ambos). Fallback p/ /clientes (dados antigos).
         function carregarClientes() {
-            return new Promise((resolve, reject) => {
-                database.ref("clientes").once('value')
-                    .then((snapshot) => {
-                        const selectCliente = document.getElementById('filterCliente');
-                        
-                        snapshot.forEach((childSnapshot) => {
-                            const data = childSnapshot.val();
-                            clientesMap[childSnapshot.key] = data.nome;
-                            
-                            // Popula o filtro de clientes
-                            const option = document.createElement('option');
-                            option.value = childSnapshot.key;
-                            option.textContent = data.nome;
-                            selectCliente.appendChild(option);
-                        });
-                        resolve();
-                    })
-                    .catch(reject);
+            const selectCliente = document.getElementById('filterCliente');
+            const addCliente = (key, nome) => {
+                clientesMap[key] = nome;
+                const o = document.createElement('option');
+                o.value = key; o.textContent = nome || ('ID ' + key);
+                selectCliente.appendChild(o);
+            };
+            return empresaRef("pessoas").once('value').then(snap => {
+                if (snap.exists()) {
+                    snap.forEach(c => {
+                        const d = c.val() || {};
+                        const ehCliente = (d.tipo === 'cliente' || d.tipo === 'ambos') || (d.tipos && d.tipos.cliente);
+                        if (ehCliente) addCliente(c.key, d.nome);
+                    });
+                    return;
+                }
+                // Sem /pessoas → tenta o nó legado /clientes
+                return empresaRef("clientes").once('value').then(s2 => {
+                    s2.forEach(c => addCliente(c.key, (c.val() || {}).nome));
+                });
             });
         }
 
         function carregarOrcamentos() {
             document.getElementById('feedback').textContent = "Carregando orçamentos...";
-            database.ref("orcamentos").once('value')
+            empresaRef("orcamentos").once('value')
                 .then((snapshot) => {
                     allOrcamentos = [];
                     snapshot.forEach((childSnapshot) => {
@@ -450,6 +567,11 @@
         }
         
         function renderizarGraficoItens(orcamentos) {
+            ultOrcamentos = orcamentos;
+            if (itemsChartInstance) itemsChartInstance.destroy();
+            if (!orcamentos.length) { mostrarVazioGrafico('itemsChart', 'Nenhum orçamento ainda.'); return; }
+            esconderVazioGrafico('itemsChart');
+            const cor = coresGrafico();
             const contagemItens = { '1 Item': 0, '2 Itens': 0, '3 ou Mais': 0 };
 
             orcamentos.forEach(orc => {
@@ -467,7 +589,7 @@
                 datasets: [{
                     label: 'Orçamentos por Qtd. de Itens',
                     data: Object.values(contagemItens),
-                    backgroundColor: ['#28a745', '#007bff', '#ffc107'],
+                    backgroundColor: ['#28a745', '#4A93B0', '#ffc107'],
                     hoverOffset: 4
                 }]
             };
@@ -478,15 +600,11 @@
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: { position: 'top', labels: { color: cor.texto } },
                         title: { display: false }
                     }
                 }
             };
-            
-            if (itemsChartInstance) {
-                itemsChartInstance.destroy();
-            }
 
             const ctx = document.getElementById('itemsChart').getContext('2d');
             itemsChartInstance = new Chart(ctx, config);
@@ -510,6 +628,157 @@
             calcularEMostrarDashboard(orcamentosFiltrados);
             document.getElementById('feedback').textContent = `Exibindo ${orcamentosFiltrados.length} de ${allOrcamentos.length} orçamentos.`;
         }
+
+        // ══════════════════════════════════════════════════════════════
+        //  SEÇÃO VENDAS (evento + online, via vendas.js)
+        // ══════════════════════════════════════════════════════════════
+        let todasVendas = [];
+        const PALETA_VENDAS = ['#1B4C65', '#4A93B0', '#28a745', '#e66a2e', '#ffc107', '#6741D9', '#2E7496', '#c0631c'];
+        const vendasCharts = { periodo: null, produtos: null, pagamento: null, evento: null, clientes: null };
+
+        function carregarVendas() {
+            document.getElementById('vendasFeedback').textContent = 'Carregando vendas...';
+            Vendas.carregarConsolidado().then(rows => {
+                todasVendas = rows;
+                // popula o dropdown de eventos
+                const evs = {};
+                todasVendas.forEach(r => { if (r.eventoId) evs[r.eventoId] = r.eventoNome; });
+                const sel = document.getElementById('vEvento');
+                Object.keys(evs).sort((a, b) => (evs[a] || '').localeCompare(evs[b] || '')).forEach(id => {
+                    const o = document.createElement('option'); o.value = id; o.textContent = evs[id]; sel.appendChild(o);
+                });
+                document.getElementById('vendasFeedback').textContent = '';
+                aplicarFiltrosVendas();
+            }).catch(err => {
+                document.getElementById('vendasFeedback').textContent = 'Erro ao carregar vendas: ' + err.message;
+                console.error('Erro ao carregar vendas:', err);
+            });
+        }
+
+        function vendasFiltradas() {
+            const periodo = document.getElementById('vPeriodo').value;
+            const evento = document.getElementById('vEvento').value;
+            const origem = document.getElementById('vOrigem').value;
+            let limite = null;
+            if (periodo !== 'all') { limite = new Date(); limite.setDate(limite.getDate() - parseInt(periodo)); limite.setHours(0, 0, 0, 0); }
+            return todasVendas.filter(r => {
+                if (r.status === 'cancelada') return false;   // canceladas não entram nos KPIs/gráficos
+                if (origem !== 'all' && r.origem !== origem) return false;
+                if (evento !== 'all' && r.eventoId !== evento) return false;
+                if (limite) { if (!r._dt || r._dt < limite) return false; }
+                return true;
+            });
+        }
+
+        function aplicarFiltrosVendas() {
+            const rows = vendasFiltradas();
+            const total = rows.reduce((s, r) => s + (Number(r.valorTotal) || 0), 0);
+            const qtd = rows.length;
+            const clientes = new Set(rows.filter(r => r.clienteId).map(r => r.clienteId));
+            document.getElementById('vTotal').textContent = formatarMoeda(total);
+            document.getElementById('vQtd').textContent = qtd;
+            document.getElementById('vTicket').textContent = formatarMoeda(qtd ? total / qtd : 0);
+            document.getElementById('vClientes').textContent = clientes.size;
+
+            renderVendasPeriodo(rows);
+            renderTopBar(rows, 'produtos', 'vendasProdutosChart', r => r.produtoNome || '—', '#4A93B0');
+            renderVendasPagamento(rows);
+            renderTopBar(rows, 'evento', 'vendasEventoChart', r => r.eventoNome, '#28a745');
+            renderTopClientes(rows);
+        }
+
+        // Agrega receita por chave (via keyFn) e desenha as N maiores em barras horizontais.
+        function renderTopBar(rows, slot, canvasId, keyFn, cor, top) {
+            top = top || 8;
+            if (vendasCharts[slot]) { vendasCharts[slot].destroy(); vendasCharts[slot] = null; }
+            const acc = {};
+            rows.forEach(r => { const k = keyFn(r); if (!k) return; acc[k] = (acc[k] || 0) + (Number(r.valorTotal) || 0); });
+            const pares = Object.keys(acc).map(k => [k, acc[k]]).sort((a, b) => b[1] - a[1]).slice(0, top);
+            if (!pares.length) { mostrarVazioGrafico(canvasId, 'Sem dados no período.'); return; }
+            esconderVazioGrafico(canvasId);
+            const c = coresGrafico();
+            vendasCharts[slot] = new Chart(document.getElementById(canvasId).getContext('2d'), {
+                type: 'bar',
+                data: { labels: pares.map(p => p[0]), datasets: [{ label: 'Receita', data: pares.map(p => p[1]), backgroundColor: cor, borderRadius: 4 }] },
+                options: {
+                    indexAxis: 'y', responsive: true,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => 'R$ ' + ctx.parsed.x.toFixed(2).replace('.', ',') } } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v, color: c.texto }, grid: { color: c.grade } },
+                        y: { ticks: { color: c.texto }, grid: { color: c.grade } }
+                    }
+                }
+            });
+        }
+
+        function renderTopClientes(rows) {
+            renderTopBar(rows.filter(r => r.clienteId), 'clientes', 'vendasClientesChart', r => r.clienteNome || ('#' + r.clienteId), '#6741D9');
+        }
+
+        function renderVendasPagamento(rows) {
+            if (vendasCharts.pagamento) { vendasCharts.pagamento.destroy(); vendasCharts.pagamento = null; }
+            const acc = {};
+            rows.forEach(r => { const k = r.pagamento || 'Não informado'; acc[k] = (acc[k] || 0) + (Number(r.valorTotal) || 0); });
+            const labels = Object.keys(acc);
+            if (!labels.length) { mostrarVazioGrafico('vendasPagamentoChart', 'Sem dados no período.'); return; }
+            esconderVazioGrafico('vendasPagamentoChart');
+            const c = coresGrafico();
+            vendasCharts.pagamento = new Chart(document.getElementById('vendasPagamentoChart').getContext('2d'), {
+                type: 'pie',
+                data: { labels: labels, datasets: [{ data: labels.map(l => acc[l]), backgroundColor: PALETA_VENDAS, hoverOffset: 4 }] },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: c.texto } },
+                        tooltip: { callbacks: { label: ctx => ctx.label + ': R$ ' + ctx.parsed.toFixed(2).replace('.', ',') } }
+                    }
+                }
+            });
+        }
+
+        function renderVendasPeriodo(rows) {
+            if (vendasCharts.periodo) { vendasCharts.periodo.destroy(); vendasCharts.periodo = null; }
+            const comData = rows.filter(r => r._dt);
+            if (!comData.length) { mostrarVazioGrafico('vendasPeriodoChart', 'Sem vendas com data no período.'); return; }
+            esconderVazioGrafico('vendasPeriodoChart');
+            // Agrupa por dia; se o intervalo passar de ~70 dias, agrupa por mês.
+            const tempos = comData.map(r => r._dt.getTime());
+            const spanDias = (Math.max(...tempos) - Math.min(...tempos)) / 86400000;
+            const porMes = spanDias > 70;
+            const acc = {};
+            comData.forEach(r => {
+                const d = r._dt;
+                const k = porMes
+                    ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+                    : Vendas.diaKey(d);
+                acc[k] = (acc[k] || 0) + (Number(r.valorTotal) || 0);
+            });
+            const labels = Object.keys(acc).sort();
+            const c = coresGrafico();
+            vendasCharts.periodo = new Chart(document.getElementById('vendasPeriodoChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels.map(formatarLabelData),
+                    datasets: [{ label: 'Receita', data: labels.map(l => acc[l]), borderColor: '#1B4C65', backgroundColor: 'rgba(74,147,176,0.15)', borderWidth: 2, pointRadius: 3, fill: true, tension: 0.3 }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => 'R$ ' + ctx.parsed.y.toFixed(2).replace('.', ',') } } },
+                    scales: {
+                        x: { ticks: { color: c.texto, maxRotation: 45, minRotation: 0 }, grid: { color: c.grade } },
+                        y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v, color: c.texto }, grid: { color: c.grade } }
+                    }
+                }
+            });
+        }
+        function formatarLabelData(k) {
+            const p = k.split('-');
+            if (p.length === 2) return p[1] + '/' + p[0];            // AAAA-MM → MM/AAAA
+            return p[2] + '/' + p[1];                                // AAAA-MM-DD → DD/MM
+        }
+
+        // Re-renderiza a seção Vendas ao trocar o tema (cores de eixos/legenda).
+        window.addEventListener('themechange', () => { if (todasVendas.length) aplicarFiltrosVendas(); });
     </script>
 </body>
 </html>

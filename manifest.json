@@ -1,0 +1,19 @@
+{
+  "name": "KOMBINEI — Gestão",
+  "short_name": "KOMBINEI",
+  "description": "Sistema de gestão para impressão 3D — orçamentos, produtos, eventos e PDV.",
+  "start_url": "/home.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1B4C65",
+  "theme_color": "#1B4C65",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pdv/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/kombinei-logo.svg", "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/pdv/icon-maskable.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

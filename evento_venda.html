@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venda do Evento</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="barcode.js"></script>
+    <script src="cliente-pdv.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 16px; }
+        .topo { max-width:1100px; margin:0 auto 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+        .topo h1 { color:#333; font-size:1.3em; margin:0; }
+        .topo .total-evento { font-size:0.95em; color:#555; }
+        .topo .total-evento b { color:#28a745; }
+        .layout { max-width:1100px; margin:0 auto; display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+        .grid-wrap { flex:1 1 560px; }
+        .busca-venda { margin-bottom:12px; }
+        .busca-venda input { width:100%; padding:12px 14px; border:1px solid #ddd; border-radius:8px; font-size:16px; background:#fff; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+        .prod-card { background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:10px; cursor:pointer; text-align:center; transition:transform .1s, box-shadow .1s; box-shadow:0 2px 6px rgba(0,0,0,0.06); }
+        .prod-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,0.12); }
+        .prod-card.esgotado { opacity:.45; cursor:not-allowed; }
+        .prod-card img { width:100%; height:90px; object-fit:cover; border-radius:6px; background:#f0f0f0; }
+        .prod-card .sem-img { width:100%; height:90px; border-radius:6px; background:#eef2f5; display:flex; align-items:center; justify-content:center; color:#abb; font-size:1.6em; }
+        .prod-card .nome { font-size:0.85em; font-weight:600; color:#333; margin:6px 0 2px; min-height:2.4em; }
+        .prod-card .preco { color:#28a745; font-weight:700; }
+        .prod-card .disp { font-size:0.75em; color:#888; }
+
+        .cart { flex:1 1 320px; background:#fff; border:1px solid #e0e0e0; border-radius:10px; padding:16px; box-shadow:0 2px 6px rgba(0,0,0,0.06); position:sticky; top:16px; }
+        .cart h2 { margin:0 0 10px; font-size:1.1em; color:#333; }
+        .cart-item { display:flex; align-items:center; gap:6px; padding:8px 0; border-bottom:1px solid #f0f0f0; font-size:0.9em; }
+        .cart-item .ci-nome { flex:1; }
+        .cart-item .qtd-btn { width:26px; height:26px; border:none; border-radius:4px; background:#4A93B0; color:#fff; cursor:pointer; font-size:1em; line-height:1; }
+        .cart-item .ci-qtd { min-width:22px; text-align:center; font-weight:700; }
+        .cart-item .ci-sub { min-width:70px; text-align:right; font-weight:600; color:#28a745; }
+        .cart-item .ci-x { background:none; border:none; color:#dc3545; cursor:pointer; font-size:1em; }
+        .cart-vazio { color:#999; font-size:0.88em; padding:10px 0; }
+        .cart-total { display:flex; justify-content:space-between; font-size:1.2em; font-weight:bold; margin:12px 0; color:#333; }
+        .cart label { display:block; font-weight:600; color:#555; margin-bottom:4px; }
+        .cart select { width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; margin-bottom:10px; background:#fff; }
+        .btn-finalizar { width:100%; background:#28a745; color:#fff; border:none; border-radius:6px; padding:13px; font-size:1.05em; font-weight:700; cursor:pointer; }
+        .btn-finalizar:hover { background:#218838; }
+        .btn-finalizar:disabled { background:#aaa; cursor:not-allowed; }
+        #feedback { text-align:center; margin-top:10px; font-weight:bold; color:#28a745; min-height:1.2em; }
+
+        html[data-theme="dark"] .prod-card, html[data-theme="dark"] .cart { background:#1e1e2e !important; border-color:#333 !important; }
+        html[data-theme="dark"] .prod-card .nome, html[data-theme="dark"] .cart h2, html[data-theme="dark"] .cart-total { color:#e0e0e0 !important; }
+        html[data-theme="dark"] .cart select { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+        html[data-theme="dark"] .cart-item { border-bottom-color:#333 !important; }
+        html[data-theme="dark"] .topo h1, html[data-theme="dark"] .topo .total-evento { color:#e0e0e0 !important; }
+        html[data-theme="dark"] .busca-venda input { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+
+        /* ── Desconto / Brinde por item ── */
+        .cart-item { flex-direction:column; align-items:stretch; gap:6px; }
+        .ci-main { display:flex; align-items:center; gap:6px; }
+        .ci-main .ci-nome { flex:1; }
+        .ci-extra { display:flex; align-items:center; gap:8px; padding-left:2px; }
+        .ci-brinde { display:flex; align-items:center; gap:4px; font-size:0.8em; color:#666; margin:0; white-space:nowrap; cursor:pointer; }
+        .ci-brinde input { width:15px; height:15px; cursor:pointer; }
+        .ci-desc { width:72px; padding:5px 6px; border:1px solid #ddd; border-radius:4px; font-size:0.82em; }
+        .ci-desc:disabled { background:#f0f0f0; color:#aaa; }
+        .ci-desc-tipo { padding:5px 4px; border:1px solid #ddd; border-radius:4px; font-size:0.82em; background:#fff; margin:0; width:auto; }
+        .cart-item.ci-brinde-on .ci-sub { color:#d39e00; }
+        html[data-theme="dark"] .ci-desc, html[data-theme="dark"] .ci-desc-tipo { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+        html[data-theme="dark"] .ci-brinde { color:#bbb !important; }
+
+        /* ── Caixa / Troco / Extrato ── */
+        #trocoBox { background:#fff8e1; border:1px solid #ffe08a; border-radius:6px; padding:10px; margin:8px 0 10px; }
+        #trocoBox label { margin-top:0; }
+        #trocoView { font-size:1.2em; font-weight:bold; color:#1B4C65; margin-top:8px; }
+        #trocoView.neg { color:#dc3545; }
+        .btn-extrato { background:#4A93B0; color:#fff; border:none; border-radius:6px; padding:6px 11px; font-weight:600; cursor:pointer; font-size:.82em; }
+        .btn-extrato:hover { background:#3A7A96; }
+
+        .ev-modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:700; padding:16px; }
+        .ev-modal-bg.open { display:flex; }
+        .ev-modal { background:#fff; border-radius:10px; width:100%; max-width:420px; padding:22px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+        .ev-modal.lg { max-width:620px; max-height:88vh; display:flex; flex-direction:column; padding:0; overflow:hidden; }
+        .ev-modal h3 { margin:0 0 12px; color:#333; font-size:1.15em; }
+        .ev-modal > label { display:block; font-weight:600; color:#555; margin:8px 0 4px; }
+        .ev-modal input[type=number], .ev-modal input[type=text], .ev-modal input[type=tel], .ev-modal input[type=email] { width:100%; padding:11px; border:1px solid #ddd; border-radius:6px; font-size:1.05em; }
+
+        /* ── Identificação de cliente ── */
+        .cliente-box { background:#f0f7fb; border:1px solid #d6e9f3; border-radius:6px; padding:8px 10px; margin-bottom:12px; }
+        .cliente-box.identificado { background:#e8f6ee; border-color:#bfe3cd; }
+        .cli-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .cli-label { font-size:.9em; color:#333; }
+        .cli-label b { color:#1B4C65; }
+        .cliente-box.identificado .cli-label b { color:#1c7a43; }
+        .btn-cli { background:#4A93B0; color:#fff; border:none; border-radius:5px; padding:6px 12px; font-size:.82em; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .btn-cli:hover { background:#3A7A96; }
+        .btn-cli-rm { background:none; border:none; color:#dc3545; cursor:pointer; font-size:.95em; padding:4px 6px; }
+        html[data-theme="dark"] .cliente-box { background:#0d2137 !important; border-color:#1e4d7a !important; }
+        html[data-theme="dark"] .cliente-box.identificado { background:#10301d !important; border-color:#1f5a36 !important; }
+        html[data-theme="dark"] .cli-label, html[data-theme="dark"] .cli-label b { color:#e0e0e0 !important; }
+        html[data-theme="dark"] .ev-modal input[type=text], html[data-theme="dark"] .ev-modal input[type=tel], html[data-theme="dark"] .ev-modal input[type=email] { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+        .ev-modal-foot { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+        .btn-pri { background:#28a745; color:#fff; border:none; border-radius:6px; padding:11px 18px; font-weight:700; cursor:pointer; }
+        .btn-sec { background:none; border:1px solid #ccc; color:#555; border-radius:6px; padding:11px 18px; cursor:pointer; }
+        .ext-head { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid #eee; }
+        .ext-head h3 { margin:0; }
+        .ext-close { background:none; border:none; font-size:1.5em; color:#888; cursor:pointer; line-height:1; }
+        .ext-body { padding:14px 18px; overflow-y:auto; }
+        .resumo-cx { background:#f0f7fb; border:1px solid #d6e9f3; border-radius:8px; padding:12px 14px; margin-bottom:14px; }
+        .resumo-cx .lr { display:flex; justify-content:space-between; padding:4px 0; font-size:.95em; }
+        .resumo-cx .lr.tot { border-top:1px dashed #c4d8e2; margin-top:6px; padding-top:8px; font-weight:bold; font-size:1.12em; color:#1B4C65; }
+        .venda-row { border:1px solid #eee; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+        .venda-row.cancelada { opacity:.65; background:#fbeaea; }
+        .venda-row .vr-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+        .venda-row .vr-hora { font-size:.8em; color:#888; }
+        .venda-row .vr-tot { font-weight:700; color:#28a745; }
+        .venda-row.cancelada .vr-tot { text-decoration:line-through; color:#999; }
+        .venda-row .vr-itens { font-size:.86em; color:#555; margin:5px 0; }
+        .venda-row .vr-pg { font-size:.78em; color:#666; text-transform:capitalize; }
+        .badge-st { font-size:.72em; font-weight:700; padding:2px 9px; border-radius:20px; }
+        .badge-ok { background:#d4edda; color:#155724; }
+        .badge-cancel { background:#f8d7da; color:#721c24; }
+        .btn-cancelar-venda { background:#dc3545; color:#fff; border:none; border-radius:5px; padding:6px 11px; font-size:.8em; cursor:pointer; }
+        .btn-cancelar-venda:hover { background:#c82333; }
+        html[data-theme="dark"] .ev-modal { background:#1e1e2e !important; color:#e0e0e0; }
+        html[data-theme="dark"] .ev-modal h3, html[data-theme="dark"] .ext-head h3 { color:#e0e0e0; }
+        html[data-theme="dark"] .ev-modal input[type=number] { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+        html[data-theme="dark"] .resumo-cx { background:#0d2137 !important; border-color:#1e4d7a !important; }
+        html[data-theme="dark"] .venda-row { border-color:#333 !important; }
+        html[data-theme="dark"] #trocoBox { background:#3a3320 !important; border-color:#6b5d2a !important; }
+        html[data-theme="dark"] #trocoView { color:#e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <!-- Modal: Abertura de Caixa -->
+    <div class="ev-modal-bg" id="modalCaixa">
+        <div class="ev-modal">
+            <h3><i class="fas fa-cash-register" style="color:#28a745;"></i> Abertura de Caixa</h3>
+            <p style="color:#666;font-size:.9em;margin:0 0 8px;">Informe o troco inicial em dinheiro para começar o dia.</p>
+            <label>Troco Inicial (R$)</label>
+            <input type="number" id="inputTrocoInicial" min="0" step="0.01" value="0">
+            <div class="ev-modal-foot">
+                <button class="btn-sec" onclick="pularCaixa()">Pular</button>
+                <button class="btn-pri" onclick="confirmarAberturaCaixa()">Abrir Caixa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Extrato do Caixa -->
+    <div class="ev-modal-bg" id="modalExtrato" onclick="fecharExtrato(event)">
+        <div class="ev-modal lg" onclick="event.stopPropagation()">
+            <div class="ext-head">
+                <h3><i class="fas fa-receipt" style="color:#4A93B0;"></i> Extrato do Caixa</h3>
+                <button class="ext-close" onclick="fecharExtrato()">&times;</button>
+            </div>
+            <div class="ext-body">
+                <div class="resumo-cx" id="extratoResumo"></div>
+                <div id="extratoLista"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Identificar cliente -->
+    <div class="ev-modal-bg" id="modalCliente">
+        <div class="ev-modal">
+            <h3><i class="fas fa-user-tag" style="color:#4A93B0;"></i> Identificar cliente</h3>
+            <p style="color:#666;font-size:.88em;margin:0 0 6px;">Informe o telefone para reconhecer ou cadastrar o cliente. Você também pode seguir sem identificar.</p>
+            <label for="cliTelefone">Telefone *</label>
+            <input type="tel" id="cliTelefone" inputmode="tel" placeholder="(11) 91234-5678" oninput="ClientePDV.mascararTelefone(this)">
+            <label for="cliNome">Nome <small style="color:#999;font-weight:normal;">(p/ cadastrar novo)</small></label>
+            <input type="text" id="cliNome" placeholder="Nome do cliente">
+            <label for="cliEmail">E-mail <small style="color:#999;font-weight:normal;">(opcional)</small></label>
+            <input type="email" id="cliEmail" placeholder="email@exemplo.com">
+            <p id="cliFeedback" style="min-height:1.1em;font-size:.9em;margin:8px 0 0;color:#dc3545;"></p>
+            <div class="ev-modal-foot">
+                <button class="btn-sec" onclick="naoIdentificarCliente()">Não identificar</button>
+                <button class="btn-pri" id="btnConfirmarCliente" onclick="confirmarCliente()">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="topo">
+        <div>
+            <h1 id="tituloEvento">Venda</h1>
+        </div>
+        <div class="total-evento">Faturamento do evento: <b id="totalEvento">R$ 0,00</b> · <span id="numVendas">0</span> venda(s)
+            <button class="btn-extrato" onclick="escanearVenda()" style="margin-left:8px;background:#6741D9;"><i class="fas fa-barcode"></i> Escanear</button>
+            <button class="btn-extrato" onclick="abrirExtrato()" style="margin-left:8px;"><i class="fas fa-receipt"></i> Extrato</button>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="grid-wrap">
+            <div class="busca-venda">
+                <input type="search" id="buscaVenda" placeholder="Buscar produto por nome..." oninput="renderGrid()" autocomplete="off">
+            </div>
+            <div class="grid" id="grid"></div>
+            <p id="gridVazio" class="cart-vazio" style="display:none;text-align:center;">Nenhum produto designado para este evento. Adicione no cadastro do evento.</p>
+        </div>
+
+        <div class="cart">
+            <h2><i class="fas fa-shopping-cart"></i> Carrinho</h2>
+            <div id="cartItens"></div>
+            <div class="cart-total"><span>Total</span><span id="cartTotal">R$ 0,00</span></div>
+            <div class="cliente-box" id="clienteBox">
+                <div class="cli-row">
+                    <span class="cli-label"><i class="fas fa-user"></i> Cliente: <b id="clienteNomeLabel">Não identificado</b></span>
+                    <span style="display:flex;align-items:center;gap:2px;">
+                        <button type="button" class="btn-cli-rm" id="btnRemoverCliente" onclick="removerCliente()" style="display:none;" title="Remover identificação"><i class="fas fa-times"></i></button>
+                        <button type="button" class="btn-cli" id="btnIdentificarCliente" onclick="abrirModalCliente()">Identificar</button>
+                    </span>
+                </div>
+            </div>
+            <label for="pagamento">Forma de pagamento</label>
+            <select id="pagamento" onchange="onPagamentoChange()">
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">Pix</option>
+                <option value="credito">Crédito</option>
+                <option value="debito">Débito</option>
+            </select>
+            <div id="trocoBox" style="display:none;">
+                <label for="valorPago">Valor pago pelo cliente (R$)</label>
+                <input type="number" id="valorPago" min="0" step="0.01" placeholder="0,00" oninput="calcTroco()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;">
+                <div id="trocoView">Troco: R$ 0,00</div>
+            </div>
+            <button class="btn-finalizar" id="btnFinalizar" onclick="finalizar()">Finalizar venda</button>
+            <p id="feedback"></p>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        const eventoId = new URLSearchParams(window.location.search).get('id');
+        let eventoNome = '';   // nome do evento (p/ eventoOrigem ao cadastrar cliente)
+        let clienteVenda = null;   // { id, nome, telefone } identificado para a próxima venda
+        let clientePerguntado = false;   // já abrimos o modal de cliente nesta venda?
+        // Linhas do estoque do evento são segmentadas por produto+cor. "chave" (chave de memória,
+        // NÃO é a chave do RTDB) = produtoId + '|' + (corId||'') — agrupa venda/disponibilidade
+        // independente de qual seja o id real da linha em /eventos/{id}/estoque.
+        let estoqueMap = {};   // chave -> { produtoId, corId, corNome, qtdLevada, precoEvento, nome, imagemUrl }
+        let codigoIndex = {};  // codigoBarras -> [chave, ...] (um código é do produto; pode ter 2+ cores no evento)
+        let vendido = {};      // chave -> qtdVendida
+        let cart = {};         // chave -> qtd
+        let cartDesc = {};     // chave -> { valor, tipo: 'valor'|'percent' }
+        let cartBrinde = {};   // chave -> bool
+        let prodMapEvento = {};   // produtoId -> {nome,imagemUrl,codigos} (1x, não reativo)
+        let totalEvento = 0;
+        let numVendas = 0;
+        let caixaInicial = 0;     // troco inicial do dia
+        let vendasRaw = [];       // todas as vendas (com _key e status) para o extrato
+        let extratoGrupos = [];   // transações agrupadas exibidas no extrato
+
+        function formatarMoeda(v) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+        function chaveEstoque(produtoId, corId) { return String(produtoId) + '|' + (corId || ''); }
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        function disponivel(chave) {
+            const lev = (estoqueMap[chave] && estoqueMap[chave].qtdLevada) || 0;
+            return lev - (vendido[chave] || 0);
+        }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            if (!eventoId) { document.getElementById('tituloEvento').textContent = 'Evento não informado'; return; }
+
+            const evSnap = await empresaRef('eventos/' + eventoId).once('value');
+            if (!evSnap.exists()) { document.getElementById('tituloEvento').textContent = 'Evento não encontrado'; return; }
+            const ev = evSnap.val();
+            eventoNome = ev.nome || ('Evento #' + eventoId);
+            document.getElementById('tituloEvento').textContent = 'Venda — ' + eventoNome;
+            renderClienteBox();
+
+            // Nomes/imagens/códigos dos produtos (1x, não reativo)
+            const prodSnap = await empresaRef('produtos').once('value');
+            prodMapEvento = {};
+            if (prodSnap.exists()) prodSnap.forEach(c => { const d = c.val() || {}; prodMapEvento[c.key] = { nome: d.nomePeca || ('#' + c.key), imagemUrl: d.imagemUrl || null, codigos: codigosDoProduto(d) }; });
+
+            // Caixa do dia: abre o modal de troco inicial no primeiro acesso da sessão
+            try {
+                const cxSnap = await empresaRef('eventos/' + eventoId + '/caixa/' + hojeKey()).once('value');
+                if (cxSnap.exists()) caixaInicial = Number(cxSnap.val().trocoInicial) || 0;
+                else document.getElementById('modalCaixa').classList.add('open');
+            } catch (e) { /* segue sem bloquear */ }
+            onPagamentoChange();   // mostra a caixa de troco (pagamento padrão = dinheiro)
+
+            // Tempo real: estoque do evento → recalcula a grade (pega "Adicionar estoque" feito no PDV)
+            empresaRef('eventos/' + eventoId + '/estoque').on('value', snap => {
+                aplicarEstoqueEvento(snap.val() || {});
+                Object.keys(cart).forEach(chave => { if (cart[chave] > disponivel(chave)) cart[chave] = Math.max(0, disponivel(chave)); });
+                renderGrid();
+                renderCart();
+            });
+
+            // Tempo real: vendas → recalcula disponível e totais (ignora canceladas)
+            empresaRef('eventos/' + eventoId + '/vendas').on('value', snap => {
+                vendido = {}; totalEvento = 0; numVendas = 0; vendasRaw = [];
+                const transacoes = new Set();
+                snap.forEach(c => {
+                    const v = c.val() || {}; v._key = c.key; vendasRaw.push(v);
+                    if (v.status === 'cancelada') return;   // estornada: não conta estoque/faturamento
+                    const chave = chaveEstoque(v.produtoId, v.corId);
+                    vendido[chave] = (vendido[chave] || 0) + (Number(v.qtd) || 0);
+                    totalEvento += (Number(v.precoUnit) || 0) * (Number(v.qtd) || 0);
+                    if (v.dataHora) transacoes.add(v.dataHora);
+                });
+                numVendas = transacoes.size;
+                // Clampa o carrinho ao novo disponível
+                Object.keys(cart).forEach(chave => { if (cart[chave] > disponivel(chave)) cart[chave] = Math.max(0, disponivel(chave)); });
+                document.getElementById('totalEvento').textContent = formatarMoeda(totalEvento);
+                document.getElementById('numVendas').textContent = numVendas;
+                renderGrid();
+                renderCart();
+                if (document.getElementById('modalExtrato').classList.contains('open')) renderExtrato();
+            });
+        })();
+
+        // Reconstrói estoqueMap/codigoIndex a partir de um snapshot de eventos/{id}/estoque.
+        function aplicarEstoqueEvento(estoque) {
+            estoqueMap = {}; codigoIndex = {};
+            Object.keys(estoque || {}).forEach(estoqueId => {
+                const e = estoque[estoqueId] || {};
+                const produtoId = e.produtoId != null ? e.produtoId : estoqueId;   // retrocompat: linha antiga sem produtoId gravado
+                const corId = e.corId || null, corNome = e.corNome || null;
+                const chave = chaveEstoque(produtoId, corId);
+                const p = prodMapEvento[produtoId] || {};
+                estoqueMap[chave] = {
+                    produtoId, corId, corNome,
+                    qtdLevada: Number(e.qtdLevada) || 0,
+                    precoEvento: Number(e.precoEvento) || 0,
+                    nome: p.nome || ('#' + produtoId),
+                    imagemUrl: p.imagemUrl
+                };
+                (p.codigos || []).forEach(code => { (codigoIndex[code] = codigoIndex[code] || []).push(chave); });
+            });
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('grid');
+            const termo = (document.getElementById('buscaVenda').value || '').toLowerCase().trim();
+            const chaves = Object.keys(estoqueMap).filter(chave => {
+                if (!termo) return true;
+                const p = estoqueMap[chave];
+                return (p.nome || '').toLowerCase().includes(termo) || (p.corNome || '').toLowerCase().includes(termo);
+            });
+            document.getElementById('gridVazio').style.display = (chaves.length || termo) ? 'none' : 'block';
+            grid.innerHTML = '';
+            if (termo && !chaves.length) grid.innerHTML = '<p class="cart-vazio" style="grid-column:1/-1;text-align:center;">Nenhum produto encontrado para "' + esc(termo) + '".</p>';
+            chaves.forEach(chave => {
+                const p = estoqueMap[chave];
+                const disp = disponivel(chave);
+                const card = document.createElement('div');
+                card.className = 'prod-card' + (disp <= 0 ? ' esgotado' : '');
+                const img = p.imagemUrl
+                    ? `<img src="${p.imagemUrl}" alt="${p.nome}">`
+                    : `<div class="sem-img"><i class="fas fa-image"></i></div>`;
+                card.innerHTML = `${img}
+                    <div class="nome">${p.nome}${p.corNome ? ' <small style="font-weight:normal;color:#888;">· ' + p.corNome + '</small>' : ''}</div>
+                    <div class="preco">${formatarMoeda(p.precoEvento)}</div>
+                    <div class="disp">Disponível: ${disp}</div>`;
+                if (disp > 0) card.onclick = () => addCarrinho(chave);
+                grid.appendChild(card);
+            });
+        }
+
+        function addCarrinho(chave) {
+            const atual = cart[chave] || 0;
+            if (atual + 1 > disponivel(chave)) { flash('Sem estoque disponível.'); return; }
+            cart[chave] = atual + 1;
+            renderCart();
+            talvezPerguntarCliente();   // pergunta o cliente antes do pagamento (1x por venda)
+        }
+
+        // Abre o modal de cliente automaticamente na 1ª inclusão do carrinho (antes do pagamento)
+        function talvezPerguntarCliente() {
+            if (clientePerguntado || clienteVenda) return;
+            if (!Object.keys(cart).some(p => cart[p] > 0)) return;
+            clientePerguntado = true;
+            abrirModalCliente();
+        }
+
+        // Coleta os códigos de barras de um produto (string única + array opcional)
+        function codigosDoProduto(d) {
+            const arr = [];
+            if (d.codigoBarras) arr.push(String(d.codigoBarras).trim());
+            if (Array.isArray(d.codigosBarras)) d.codigosBarras.forEach(x => { if (x) arr.push(String(x).trim()); });
+            return arr.filter(Boolean);
+        }
+
+        // Escanear para registrar produto no carrinho (procura só no estoque do evento)
+        function escanearVenda() {
+            if (!window.Barcode || !Barcode.isSupported()) { alert('Câmera não disponível neste dispositivo/navegador.'); return; }
+            Barcode.open({
+                title: 'Escanear produto',
+                continuous: true,
+                hint: 'Aponte para o código de cada item — vários em sequência.',
+                onCode: (code, ui) => {
+                    const candidatas = (codigoIndex[code] || []).filter(k => estoqueMap[k]);
+                    if (!candidatas.length) { ui.setStatus('Produto não está neste evento', 'warn'); ui.flash('warn'); return; }
+                    let chave = candidatas[0];
+                    if (candidatas.length > 1) {
+                        const comEspaco = candidatas.filter(k => (cart[k] || 0) + 1 <= disponivel(k));
+                        if (comEspaco.length !== 1) { ui.setStatus('Produto tem várias cores no evento — clique na cor certa na grade', 'warn'); ui.flash('warn'); return; }
+                        chave = comEspaco[0];
+                    }
+                    if ((cart[chave] || 0) + 1 > disponivel(chave)) {
+                        ui.setStatus('"' + estoqueMap[chave].nome + '": sem estoque suficiente', 'warn'); ui.flash('warn'); return;
+                    }
+                    cart[chave] = (cart[chave] || 0) + 1;
+                    renderCart();
+                    ui.setStatus('+1 ' + estoqueMap[chave].nome + '  (' + cart[chave] + ' no carrinho)', 'ok');
+                }
+            });
+        }
+        function alterarQtd(chave, delta) {
+            const novo = (cart[chave] || 0) + delta;
+            if (novo <= 0) { delete cart[chave]; delete cartDesc[chave]; delete cartBrinde[chave]; }
+            else if (novo > disponivel(chave)) { flash('Quantidade acima do disponível.'); return; }
+            else { cart[chave] = novo; }
+            renderCart();
+        }
+        function removerItem(pid) { delete cart[pid]; delete cartDesc[pid]; delete cartBrinde[pid]; renderCart(); }
+
+        // ── Desconto / Brinde por item ──
+        // Preço unitário líquido: brinde → 0; senão aplica desconto (R$ por unidade ou %).
+        function precoUnitLiquido(pid) {
+            if (cartBrinde[pid]) return 0;
+            const base = Number(estoqueMap[pid] && estoqueMap[pid].precoEvento) || 0;
+            const d = cartDesc[pid] || {};
+            const val = Number(d.valor) || 0;
+            if (val <= 0) return base;
+            const net = (d.tipo === 'percent') ? base * (1 - val / 100) : base - val;
+            return Math.max(0, net);
+        }
+        function subtotalItem(pid) { return precoUnitLiquido(pid) * (cart[pid] || 0); }
+
+        // Atualiza subtotais e total SEM rebuild (evita perder o foco ao digitar o desconto)
+        function atualizarSubtotais() {
+            let total = 0;
+            document.querySelectorAll('#cartItens .ci-sub[data-sub]').forEach(span => {
+                const pid = span.getAttribute('data-sub');
+                const sub = subtotalItem(pid);
+                total += sub;
+                span.textContent = formatarMoeda(sub);
+                const row = span.closest('.cart-item');
+                if (row) row.classList.toggle('ci-brinde-on', !!cartBrinde[pid]);
+            });
+            document.getElementById('cartTotal').textContent = formatarMoeda(total);
+        }
+        function setDesconto(pid, val) {
+            cartDesc[pid] = cartDesc[pid] || { tipo: 'valor' };
+            cartDesc[pid].valor = Math.max(0, Number(val) || 0);
+            atualizarSubtotais();
+        }
+        function setDescontoTipo(pid, tipo) {
+            cartDesc[pid] = cartDesc[pid] || {};
+            cartDesc[pid].tipo = tipo;
+            atualizarSubtotais();
+        }
+        function toggleBrinde(pid, checked) { cartBrinde[pid] = !!checked; renderCart(); }
+
+        function renderCart() {
+            const cont = document.getElementById('cartItens');
+            const pids = Object.keys(cart).filter(p => cart[p] > 0);
+            cont.innerHTML = '';
+            let total = 0;
+            if (!pids.length) {
+                cont.innerHTML = '<div class="cart-vazio">Carrinho vazio. Clique nos produtos.</div>';
+                clientePerguntado = false;   // carrinho vazio → próxima venda pergunta de novo
+            } else {
+                pids.forEach(pid => {
+                    const p = estoqueMap[pid];
+                    const brinde = !!cartBrinde[pid];
+                    const d = cartDesc[pid] || {};
+                    const sub = subtotalItem(pid);
+                    total += sub;
+                    const div = document.createElement('div');
+                    div.className = 'cart-item' + (brinde ? ' ci-brinde-on' : '');
+                    div.innerHTML = `
+                        <div class="ci-main">
+                            <span class="ci-nome">${p.nome}${p.corNome ? ' · ' + p.corNome : ''}</span>
+                            <button class="qtd-btn" onclick="alterarQtd('${pid}',-1)">−</button>
+                            <span class="ci-qtd">${cart[pid]}</span>
+                            <button class="qtd-btn" onclick="alterarQtd('${pid}',1)">+</button>
+                            <span class="ci-sub" data-sub="${pid}">${formatarMoeda(sub)}</span>
+                            <button class="ci-x" title="Remover" onclick="removerItem('${pid}')"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="ci-extra">
+                            <label class="ci-brinde"><input type="checkbox" ${brinde ? 'checked' : ''} onchange="toggleBrinde('${pid}', this.checked)"> Brinde</label>
+                            <input type="number" class="ci-desc" min="0" step="0.01" placeholder="Desc." value="${d.valor != null ? d.valor : ''}" ${brinde ? 'disabled' : ''} oninput="setDesconto('${pid}', this.value)" title="Desconto por unidade">
+                            <select class="ci-desc-tipo" ${brinde ? 'disabled' : ''} onchange="setDescontoTipo('${pid}', this.value)">
+                                <option value="valor" ${d.tipo !== 'percent' ? 'selected' : ''}>R$</option>
+                                <option value="percent" ${d.tipo === 'percent' ? 'selected' : ''}>%</option>
+                            </select>
+                        </div>`;
+                    cont.appendChild(div);
+                });
+            }
+            document.getElementById('cartTotal').textContent = formatarMoeda(total);
+            document.getElementById('btnFinalizar').disabled = pids.length === 0;
+        }
+
+        let flashTimer = null;
+        function flash(msg) {
+            const fb = document.getElementById('feedback');
+            fb.textContent = msg;
+            clearTimeout(flashTimer);
+            flashTimer = setTimeout(() => { fb.textContent = ''; }, 3000);
+        }
+
+        // ── Caixa / Troco / Extrato ──
+        function localDateKey(iso) { const d = iso ? new Date(iso) : new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function hojeKey() { return localDateKey(); }
+        function totalCart() { let t = 0; Object.keys(cart).forEach(pid => { if (cart[pid] > 0) t += subtotalItem(pid); }); return t; }
+
+        function confirmarAberturaCaixa() {
+            const val = parseFloat(document.getElementById('inputTrocoInicial').value) || 0;
+            caixaInicial = val;
+            empresaRef('eventos/' + eventoId + '/caixa/' + hojeKey()).set({ trocoInicial: val, abertoEm: new Date().toISOString() }).catch(() => {});
+            document.getElementById('modalCaixa').classList.remove('open');
+            flash('Caixa aberto. Troco inicial: ' + formatarMoeda(val));
+        }
+        function pularCaixa() { document.getElementById('inputTrocoInicial').value = '0'; confirmarAberturaCaixa(); }
+
+        // ── Identificação de cliente ──
+        function renderClienteBox() {
+            const box = document.getElementById('clienteBox');
+            const lbl = document.getElementById('clienteNomeLabel');
+            const btn = document.getElementById('btnIdentificarCliente');
+            const rm = document.getElementById('btnRemoverCliente');
+            if (clienteVenda) {
+                box.classList.add('identificado');
+                lbl.textContent = clienteVenda.nome;
+                btn.textContent = 'Trocar';
+                rm.style.display = '';
+            } else {
+                box.classList.remove('identificado');
+                lbl.textContent = 'Não identificado';
+                btn.textContent = 'Identificar';
+                rm.style.display = 'none';
+            }
+        }
+        function abrirModalCliente() {
+            document.getElementById('cliFeedback').textContent = '';
+            document.getElementById('cliTelefone').value = (clienteVenda && clienteVenda.telefone) || '';
+            document.getElementById('cliNome').value = (clienteVenda && clienteVenda.nome) || '';
+            document.getElementById('cliEmail').value = '';
+            document.getElementById('modalCliente').classList.add('open');
+            setTimeout(() => document.getElementById('cliTelefone').focus(), 60);
+        }
+        function fecharModalCliente() { document.getElementById('modalCliente').classList.remove('open'); }
+        function naoIdentificarCliente() {
+            clienteVenda = null; renderClienteBox(); fecharModalCliente();
+            flash('Venda sem identificação de cliente.');
+        }
+        function removerCliente() { clienteVenda = null; renderClienteBox(); }
+        async function confirmarCliente() {
+            const fb = document.getElementById('cliFeedback');
+            const btn = document.getElementById('btnConfirmarCliente');
+            fb.textContent = ''; btn.disabled = true;
+            try {
+                const r = await ClientePDV.identificar(
+                    { nome: document.getElementById('cliNome').value, telefone: document.getElementById('cliTelefone').value, email: document.getElementById('cliEmail').value },
+                    { eventoId, eventoNome }
+                );
+                if (r.erro) { fb.textContent = r.erro; return; }
+                clienteVenda = { id: r.id, nome: r.nome, telefone: r.telefone || '' };
+                renderClienteBox(); fecharModalCliente();
+                flash(r.novo ? `Cliente cadastrado: ${r.nome}` : `Cliente reconhecido: ${r.nome}`);
+            } catch (e) {
+                fb.textContent = 'Erro: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function onPagamentoChange() {
+            const dinheiro = document.getElementById('pagamento').value === 'dinheiro';
+            document.getElementById('trocoBox').style.display = dinheiro ? 'block' : 'none';
+            if (dinheiro) calcTroco();
+        }
+        function calcTroco() {
+            const total = totalCart();
+            const pago = parseFloat(document.getElementById('valorPago').value);
+            const troco = (isNaN(pago) ? 0 : pago) - total;
+            const view = document.getElementById('trocoView');
+            view.textContent = 'Troco: ' + formatarMoeda(Math.max(0, troco));
+            view.classList.toggle('neg', !isNaN(pago) && troco < 0);
+        }
+
+        function abrirExtrato() { renderExtrato(); document.getElementById('modalExtrato').classList.add('open'); }
+        function fecharExtrato(e) { if (e && e.target !== document.getElementById('modalExtrato')) return; document.getElementById('modalExtrato').classList.remove('open'); }
+
+        function renderExtrato() {
+            // Lista TODAS as vendas do evento (qualquer dia) — assim qualquer uma pode ser estornada
+            const grupos = {};
+            vendasRaw.forEach(v => {
+                const k = v.dataHora || v._key;
+                const g = grupos[k] || (grupos[k] = { dataHora: v.dataHora, pagamento: v.pagamento, itens: [], total: 0, cancelada: false, keys: [] });
+                g.itens.push(v); g.keys.push(v._key);
+                if (v.status === 'cancelada') g.cancelada = true;
+                g.total += (Number(v.precoUnit) || 0) * (Number(v.qtd) || 0);
+            });
+            extratoGrupos = Object.values(grupos).sort((a, b) => (b.dataHora || '').localeCompare(a.dataHora || ''));
+
+            let dinheiro = 0, cartao = 0;
+            extratoGrupos.forEach(g => { if (g.cancelada) return; if (g.pagamento === 'dinheiro') dinheiro += g.total; else cartao += g.total; });
+            const totalCaixa = caixaInicial + dinheiro;
+            document.getElementById('extratoResumo').innerHTML = `
+                <div class="lr"><span>(+) Troco inicial</span><b>${formatarMoeda(caixaInicial)}</b></div>
+                <div class="lr"><span>(+) Vendas em dinheiro</span><b>${formatarMoeda(dinheiro)}</b></div>
+                <div class="lr"><span>(+) Vendas em cartão/Pix</span><b>${formatarMoeda(cartao)}</b></div>
+                <div class="lr tot"><span>(=) Total em caixa (dinheiro)</span><span>${formatarMoeda(totalCaixa)}</span></div>`;
+
+            const lista = document.getElementById('extratoLista');
+            if (!extratoGrupos.length) { lista.innerHTML = '<p class="cart-vazio" style="text-align:center;">Nenhuma venda registrada.</p>'; return; }
+            lista.innerHTML = extratoGrupos.map((g, idx) => {
+                const hora = g.dataHora ? new Date(g.dataHora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+                const itensTxt = g.itens.map(v => {
+                    const chave = chaveEstoque(v.produtoId, v.corId);
+                    const nome = (estoqueMap[chave] && estoqueMap[chave].nome) || ('#' + v.produtoId);
+                    return `${nome}${v.corNome ? ' · ' + v.corNome : ''} ×${v.qtd}`;
+                }).join(', ');
+                return `<div class="venda-row ${g.cancelada ? 'cancelada' : ''}">
+                    <div class="vr-top">
+                        <span class="vr-hora"><i class="far fa-clock"></i> ${hora}</span>
+                        <span class="badge-st ${g.cancelada ? 'badge-cancel' : 'badge-ok'}">${g.cancelada ? 'Cancelada' : 'Concluída'}</span>
+                    </div>
+                    <div class="vr-itens">${itensTxt}</div>
+                    <div class="vr-top">
+                        <span class="vr-pg">${g.pagamento || ''}</span>
+                        <span class="vr-tot">${formatarMoeda(g.total)}</span>
+                    </div>
+                    ${g.cancelada ? '' : `<div style="text-align:right;margin-top:6px;"><button class="btn-cancelar-venda" onclick="cancelarVenda(${idx})"><i class="fas fa-trash"></i> Cancelar venda</button></div>`}
+                </div>`;
+            }).join('');
+        }
+
+        function cancelarVenda(idx) {
+            const g = extratoGrupos[idx];
+            if (!g || g.cancelada) return;
+            if (!confirm('Deseja realmente cancelar esta venda? O estoque será devolvido.')) return;
+            const updates = {};
+            g.keys.forEach(k => { updates[k + '/status'] = 'cancelada'; });
+            empresaRef('eventos/' + eventoId + '/vendas').update(updates)
+                .then(() => flash('Venda cancelada e estoque devolvido.'))
+                .catch(e => alert('Erro ao cancelar: ' + e.message));
+        }
+
+        async function finalizar() {
+            const chaves = Object.keys(cart).filter(p => cart[p] > 0);
+            if (!chaves.length) return;
+            // Revalida disponibilidade
+            for (const chave of chaves) {
+                if (cart[chave] > disponivel(chave)) { flash(`"${estoqueMap[chave].nome}" sem estoque suficiente.`); return; }
+            }
+            const pagamento = document.getElementById('pagamento').value;
+            const total = totalCart();
+            let valorPago = null, troco = null;
+            if (pagamento === 'dinheiro') {
+                valorPago = parseFloat(document.getElementById('valorPago').value);
+                if (isNaN(valorPago) || valorPago < total) { flash('Informe um valor pago igual ou maior que o total.'); return; }
+                troco = +(valorPago - total).toFixed(2);
+            }
+            const dataHora = new Date().toISOString();
+            const btn = document.getElementById('btnFinalizar');
+            btn.disabled = true;
+
+            let totalVenda = 0;
+            const promessas = chaves.map(chave => {
+                const meta = estoqueMap[chave];
+                const precoUnit = precoUnitLiquido(chave);   // líquido (desconto/brinde aplicados)
+                const venda = { produtoId: parseInt(meta.produtoId), corId: meta.corId || null, corNome: meta.corNome || null,
+                    qtd: cart[chave], precoUnit, precoCheio: meta.precoEvento, pagamento, dataHora, status: 'ativa' };
+                if (cartBrinde[chave]) venda.brinde = true;
+                const d = cartDesc[chave];
+                if (!cartBrinde[chave] && d && Number(d.valor) > 0) { venda.descontoTipo = d.tipo || 'valor'; venda.descontoValor = Number(d.valor); }
+                if (pagamento === 'dinheiro') { venda.valorPago = valorPago; venda.troco = troco; }
+                if (clienteVenda) { venda.clienteId = clienteVenda.id; venda.clienteNome = clienteVenda.nome; }
+                totalVenda += precoUnit * cart[chave];
+                return empresaRef('eventos/' + eventoId + '/vendas').push(venda);
+            });
+
+            try {
+                await Promise.all(promessas);
+                cart = {}; cartDesc = {}; cartBrinde = {};
+                clienteVenda = null; clientePerguntado = false; renderClienteBox();   // próxima venda recomeça sem cliente
+                document.getElementById('valorPago').value = '';
+                renderCart();   // o listener .on atualizará grid/totais
+                onPagamentoChange();
+                flash(`Venda registrada: ${formatarMoeda(totalVenda)}${troco != null ? ' · Troco ' + formatarMoeda(troco) : ''}`);
+            } catch (e) {
+                flash('Erro ao registrar: ' + e.message);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

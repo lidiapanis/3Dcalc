@@ -13,5 +13,7 @@ window.addEventListener('message', function (e) {
     if (e.data && e.data.type === 'SET_THEME') {
         document.documentElement.setAttribute('data-theme', e.data.theme);
         localStorage.setItem('theme', e.data.theme);
+        // Avisa a página para re-renderizar o que depende de cor (ex.: gráficos Chart.js)
+        window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: e.data.theme } }));
     }
 });

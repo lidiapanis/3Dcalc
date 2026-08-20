@@ -35,10 +35,14 @@
   }
 
   async function exchange(code) {
+    // Lê o code_verifier PKCE salvo antes de abrir o popup de autorização
+    const codeVerifier = localStorage.getItem('ml_pkce_verifier') || null;
+    localStorage.removeItem('ml_pkce_verifier'); // usa uma vez e descarta
+
     const resp = await fetch("/api/monitor/ml-auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, code_verifier: codeVerifier }),
     });
     const json = await resp.json();
     if (!json.success) throw new Error(json.error);

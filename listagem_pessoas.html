@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listagem de Pessoas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1000px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
+        /* Ordenar/filtrar = ação neutra (cinza) */
+        .sort-buttons button { background-color: #6c757d; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #5a6268; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 5px 10px; margin-right: 5px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.74em; font-weight: 700; margin-right: 4px; }
+        .badge-cliente    { background: #e0f0f8; color: #2E7496; }
+        .badge-fornecedor { background: #fdeede; color: #c0631c; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 id="pageTitle">Clientes</h1>
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por nome...">
+            <div class="sort-buttons">
+                <button onclick="ordenarTabela('id')">Ordenar por ID</button>
+                <button onclick="ordenarTabela('nome')">Ordenar por Nome</button>
+            </div>
+            <a id="addLink" href="cadastro_pessoas.html?tipo=cliente" style="text-decoration: none;">
+                 <button id="addBtn" style="background-color: #28a745; margin-left: 20px; color:#fff; border:none; padding:10px 15px; border-radius:5px; cursor:pointer;">+ Novo Cliente</button>
+            </a>
+        </div>
+
+        <table id="pessoasTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Documento</th>
+                    <th>Origem</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "pessoas";
+
+        // Tela escopada por tipo: 'cliente' (Clientes) ou 'fornecedor' (Fornecedores).
+        const tipoContexto = new URLSearchParams(location.search).get('tipo') === 'fornecedor' ? 'fornecedor' : 'cliente';
+        const LABELS = {
+            cliente:    { titulo: 'Clientes',     addBtn: '+ Novo Cliente',     primeiro: '+ Cadastrar primeiro cliente',     vazio: 'Nenhum cliente cadastrado ainda.',     buscaVazia: 'Nenhum cliente encontrado para a busca.' },
+            fornecedor: { titulo: 'Fornecedores', addBtn: '+ Novo Fornecedor',  primeiro: '+ Cadastrar primeiro fornecedor', vazio: 'Nenhum fornecedor cadastrado ainda.', buscaVazia: 'Nenhum fornecedor encontrado para a busca.' }
+        };
+        const L = LABELS[tipoContexto];
+
+        // Uma pessoa pertence a esta tela conforme o papel (flags em tipos{} ou campo legado tipo).
+        function ehDoTipo(item) {
+            const t = item.tipos || {};
+            if (tipoContexto === 'fornecedor') return !!t.fornecedor || item.tipo === 'fornecedor' || item.tipo === 'ambos';
+            return !!t.cliente || item.tipo === 'cliente' || item.tipo === 'ambos';
+        }
+
+        let pessoasData = [];
+        let currentSort = 'id';
+
+        window.ordenarTabela = function(key) {
+            currentSort = key;
+            if (key === 'id') pessoasData.sort((a, b) => a.id - b.id);
+            else if (key === 'nome') pessoasData.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+            aplicarFiltro();
+        }
+
+        window.aplicarFiltro = function() {
+            const searchText = document.getElementById('searchBar').value.toLowerCase();
+            const filtered = pessoasData.filter(item => ehDoTipo(item) && (item.nome || '').toLowerCase().includes(searchText));
+            renderizarTabela(filtered);
+        }
+
+        function renderizarTabela(data) {
+            const tbody = document.getElementById('pessoasTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            if (data.length === 0) {
+                const semBusca = !document.getElementById('searchBar').value;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:36px;color:#888;">
+                    ${semBusca
+                        ? `${L.vazio}<br><a href="cadastro_pessoas.html?tipo=${tipoContexto}" style="display:inline-block;margin-top:12px;background:#28a745;color:#fff;text-decoration:none;padding:8px 16px;border-radius:5px;">${L.primeiro}</a>`
+                        : L.buscaVazia}
+                </td></tr>`;
+                return;
+            }
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = item.id;
+                row.insertCell().textContent = item.nome || '';
+
+                row.insertCell().textContent = item.telefone || '';
+                row.insertCell().textContent = item.documento || '';
+                const origemCell = row.insertCell();
+                origemCell.textContent = item.eventoOrigemNome || '—';
+                if (!item.eventoOrigemNome) origemCell.style.color = '#aaa';
+
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn'; editBtn.textContent = 'Editar';
+                editBtn.onclick = () => editarPessoa(item.id);
+                actionsCell.appendChild(editBtn);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn'; deleteBtn.textContent = 'Deletar';
+                deleteBtn.onclick = () => deletarPessoa(item.id);
+                actionsCell.appendChild(deleteBtn);
+                ['ID', 'Nome', 'Telefone', 'Documento', 'Origem'].forEach((lab, i) => { if (row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
+            });
+        }
+
+        // Pessoas reaproveita a permissão do módulo 'clientes'
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('clientes')) return;
+            // Aplica os rótulos da tela conforme o tipo (Clientes ou Fornecedores)
+            document.getElementById('pageTitle').textContent = L.titulo;
+            document.getElementById('addLink').href = 'cadastro_pessoas.html?tipo=' + tipoContexto;
+            document.getElementById('addBtn').textContent = L.addBtn;
+            document.title = 'Listagem de ' + L.titulo;
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            iniciar();
+        })();
+
+        function mostrarEstado(html) {
+            const tbody = document.getElementById('pessoasTable').querySelector('tbody');
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        window.iniciar = async function () {
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando pessoas...');
+            try { await migrarClientesParaPessoas(); }
+            catch (e) { console.warn('Migração clientes→pessoas:', e.message); }
+            carregarPessoas();
+        };
+
+        // Migração idempotente: copia /clientes → /pessoas (tipos.cliente=true),
+        // preservando a mesma chave (id). Rodar de novo não duplica. /clientes é mantido.
+        async function migrarClientesParaPessoas() {
+            const [pessoasSnap, clientesSnap, contadorSnap] = await Promise.all([
+                empresaRef('pessoas').once('value'),
+                empresaRef('clientes').once('value'),
+                empresaRef('contador_pessoas/proximoId').once('value')
+            ]);
+            if (!clientesSnap.exists()) return 0;
+
+            const pessoas = pessoasSnap.val() || {};
+            const updates = {};
+            let maxId = 0, migrou = 0;
+            Object.keys(pessoas).forEach(k => { const n = parseInt(k); if (!isNaN(n)) maxId = Math.max(maxId, n); });
+
+            clientesSnap.forEach(c => {
+                const key = c.key;
+                const kn = parseInt(key); if (!isNaN(kn)) maxId = Math.max(maxId, kn);
+                if (!pessoas[key]) {
+                    const d = c.val() || {};
+                    updates['pessoas/' + key] = {
+                        nome: d.nome || '',
+                        telefone: d.telefone || '',
+                        email: d.email || '',
+                        documento: d.documento || '',
+                        endereco: d.endereco || '',
+                        cep: d.cep || '',
+                        observacoes: d.observacoes || '',
+                        tipos: { cliente: true, fornecedor: false },
+                        dataCriacao: d.dataCriacao || new Date().toISOString(),
+                        migradoDeCliente: true
+                    };
+                    migrou++;
+                }
+            });
+
+            if (migrou > 0) {
+                const contadorAtual = contadorSnap.val() || 0;
+                updates['contador_pessoas/proximoId'] = Math.max(maxId, contadorAtual);
+                await empresaRef('').update(updates);
+                console.log(`Migração: ${migrou} cliente(s) copiado(s) para /pessoas.`);
+            }
+            return migrou;
+        }
+
+        function carregarPessoas() {
+            document.getElementById('feedback').textContent = "";
+            empresaRef(CAMINHO_RTDB).once('value').then((snapshot) => {
+                pessoasData = [];
+                snapshot.forEach((child) => {
+                    const d = child.val() || {};
+                    pessoasData.push({
+                        id: parseInt(child.key),
+                        nome: d.nome,
+                        telefone: d.telefone,
+                        documento: d.documento,
+                        tipo: d.tipo || null,
+                        tipos: d.tipos || {},
+                        eventoOrigemNome: d.eventoOrigemNome || null
+                    });
+                });
+                ordenarTabela(currentSort);
+            }).catch((error) => {
+                console.error("Erro ao carregar pessoas:", error);
+                mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar pessoas.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
+            });
+        }
+
+        window.deletarPessoa = function(id) {
+            if (confirm(`Tem certeza que deseja deletar a Pessoa # ${id}?`)) {
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => { alert(`Pessoa # ${id} deletada com sucesso!`); carregarPessoas(); })
+                    .catch((error) => { alert("Erro ao deletar: " + error.message); });
+            }
+        }
+
+        window.editarPessoa = function(id) {
+            window.location.href = `cadastro_pessoas.html?id=${id}&tipo=${tipoContexto}`;
+        }
+    </script>
+</body>
+</html>

@@ -55,10 +55,14 @@ async function refreshToken(refresh_token) {
 /**
  * Troca um authorization_code por access_token + refresh_token (primeiro login).
  */
-async function exchangeCode(code) {
+async function exchangeCode(code, codeVerifier = null) {
+  // Monta body — inclui code_verifier se PKCE estiver sendo usado
+  let body = `grant_type=authorization_code&client_id=${ML_CLIENT_ID}&client_secret=${ML_SECRET}&code=${code}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  if (codeVerifier) body += `&code_verifier=${encodeURIComponent(codeVerifier)}`;
+
   const { data } = await axios.post(
     `${ML_BASE}/oauth/token`,
-    `grant_type=authorization_code&client_id=${ML_CLIENT_ID}&client_secret=${ML_SECRET}&code=${code}&redirect_uri=${REDIRECT_URI}`,
+    body,
     { headers: { "Content-Type": "application/x-www-form-urlencoded" }, timeout: 8000 }
   );
 
@@ -81,7 +85,11 @@ async function exchangeCode(code) {
  */
 async function searchProducts(query, limit = 10, category = null) {
   const token  = await getMLAccessToken();
-  const params = { q: query, limit: Math.min(limit, 50) };
+  const params = {
+    q:      query,
+    limit:  Math.min(limit, 50),
+    app_id: ML_CLIENT_ID,   // obrigatório para IPs de cloud providers
+  };
   if (category) params.category = category;
 
   const { data } = await axios.get(`${ML_BASE}/sites/${SITE}/search`, {

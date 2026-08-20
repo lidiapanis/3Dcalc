@@ -8,20 +8,21 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
     <style>
         /* Estilos CSS (inalterados) */
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
         .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 500px; width: 100%; }
         h1 { color: #333; text-align: center; margin-bottom: 25px; }
         fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
-        legend { font-weight: bold; color: #007bff; padding: 0 10px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
         label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
         input[type="text"], input[type="number"] { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         button { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; transition: background-color 0.3s; margin-top: 15px; }
         button:hover { background-color: #218838; }
-        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #007bff; }
-        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
-        .home-btn:hover { color: #0056b3; }
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #4A93B0; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #4A93B0; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #3A7A96; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
@@ -70,16 +71,13 @@
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO ---
         
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // SE ESTIVER LOGADO, inicializa o modo de edição/cadastro
-                verificarModoEdicao(); 
-            }
-        });
-    
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('clientes')) return;
+            verificarModoEdicao();
+        })();
+
         // --- 3. LÓGICA DE INICIALIZAÇÃO E EDIÇÃO ---
         
         function verificarModoEdicao() {
@@ -90,7 +88,7 @@
                 idEmEdicao = id;
                 document.getElementById('feedback').textContent = `Carregando Cliente #${id}...`;
     
-                database.ref(CAMINHO_RTDB + '/' + id).once('value')
+                empresaRef(CAMINHO_RTDB + '/' + id).once('value')
                     .then((snapshot) => {
                         if (snapshot.exists()) {
                             preencherFormulario(snapshot.val());
@@ -143,7 +141,7 @@
         function obterProximoId(dados) {
             document.getElementById('feedback').textContent = "Buscando ID sequencial...";
             
-            database.ref(CAMINHO_CONTADOR).transaction((currentData) => {
+            empresaRef(CAMINHO_CONTADOR).transaction((currentData) => {
                 let proximoId = currentData === null ? 1 : currentData + 1;
                 return proximoId;
             })
@@ -162,7 +160,7 @@
         }
     
         function salvarCliente(id, dados, acao) {
-            database.ref(CAMINHO_RTDB + '/' + id).set(dados)
+            empresaRef(CAMINHO_RTDB + '/' + id).set(dados)
                 .then(() => {
                     document.getElementById('feedback').textContent = `Cliente #${id} ${acao} com sucesso!`;
                     

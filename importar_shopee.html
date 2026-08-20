@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importar Vendas (Shopee)</title>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background:#f4f7f6; margin:0; padding:24px 16px; }
+        .container { background:#fff; padding:28px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.1); max-width:1000px; margin:0 auto; }
+        h1 { color:#333; font-size:1.4em; margin:0 0 8px; }
+        .passo { border:1px solid #e0e0e0; border-radius:8px; padding:18px; margin-top:18px; }
+        .passo h2 { font-size:1.05em; color:#4A93B0; margin:0 0 12px; }
+        .passo[hidden] { display:none; }
+        label { font-weight:600; color:#555; }
+        input[type="file"], select { padding:9px; border:1px solid #ddd; border-radius:5px; background:#fff; font-family:inherit; }
+        table { width:100%; border-collapse:collapse; margin-top:8px; font-size:0.85em; }
+        th, td { border:1px solid #ddd; padding:7px 9px; text-align:left; white-space:nowrap; max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+        th { background:#f2f2f2; }
+        .map-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; }
+        .map-item { display:flex; flex-direction:column; gap:4px; }
+        .map-item select { width:100%; }
+        .match-linha { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f0f0f0; flex-wrap:wrap; }
+        .match-linha .desc { flex:1; min-width:200px; font-weight:600; color:#333; }
+        .match-linha .badge { font-size:0.72em; padding:2px 8px; border-radius:20px; }
+        .badge-ok { background:#d4edda; color:#155724; }
+        .badge-no { background:#f8d7da; color:#721c24; }
+        .btn { background:#4A93B0; color:#fff; border:none; border-radius:6px; padding:11px 18px; cursor:pointer; font-size:0.95em; font-weight:600; margin-top:12px; }
+        .btn:hover { background:#3A7A96; }
+        .btn-import { background:#28a745; }
+        .btn-import:hover { background:#218838; }
+        .btn:disabled { background:#aaa; cursor:not-allowed; }
+        .aviso { background:#fff3cd; border:1px solid #ffe69c; color:#856404; padding:10px 14px; border-radius:6px; font-size:0.88em; margin-bottom:14px; }
+        .resumo { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+        .resumo .card { background:#f8fafb; border:1px solid #e8eef1; border-radius:8px; padding:14px; }
+        .resumo .card .t { font-size:0.78em; color:#90a4ae; text-transform:uppercase; }
+        .resumo .card .v { font-size:1.4em; font-weight:bold; color:#28a745; }
+        .resumo .card .v.escuro { color:#333; }
+        .resumo .card .v.alerta { color:#e66a2e; }
+        #feedback { color:#dc3545; font-weight:bold; margin-top:10px; }
+        html[data-theme="dark"] .passo { border-color:#333 !important; }
+        html[data-theme="dark"] .resumo .card { background:#1e1e2e !important; border-color:#333 !important; }
+        html[data-theme="dark"] .resumo .card .v.escuro { color:#e0e0e0 !important; }
+        html[data-theme="dark"] .match-linha { border-bottom-color:#333 !important; }
+        html[data-theme="dark"] .match-linha .desc { color:#e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-file-import" style="color:#4A93B0;"></i> Importar Vendas — Shopee</h1>
+        <div id="avisoFlag" class="aviso" hidden>
+            <i class="fas fa-flask"></i> Integração Shopee desligada em <code>config.js</code> — esta tela está em <b>modo de teste</b>.
+        </div>
+        <p style="color:#777;font-size:0.9em;margin:0;">Exporte o relatório de pedidos no Seller Center (.xlsx ou .csv) e importe aqui. Você confere e mapeia as colunas antes de gravar.</p>
+
+        <!-- Passo 1: upload -->
+        <div class="passo">
+            <h2>1. Selecione o arquivo</h2>
+            <input type="file" id="arquivo" accept=".xlsx,.xls,.csv" onchange="lerArquivo(this)">
+        </div>
+
+        <!-- Passo 2: preview -->
+        <div class="passo" id="passoPreview" hidden>
+            <h2>2. Pré-visualização (primeiras linhas)</h2>
+            <div style="overflow-x:auto;"><table id="tabelaPreview"></table></div>
+            <p style="color:#888;font-size:0.82em;margin-top:6px;" id="infoLinhas"></p>
+        </div>
+
+        <!-- Passo 3: mapeamento -->
+        <div class="passo" id="passoMapa" hidden>
+            <h2>3. Mapeie as colunas</h2>
+            <p style="color:#888;font-size:0.85em;margin-top:0;">Associe cada campo do sistema à coluna correspondente do arquivo. Tentamos adivinhar pelo cabeçalho — confira.</p>
+            <div class="map-grid" id="mapaGrid"></div>
+            <button class="btn" onclick="avancarProdutos()">Avançar: casar produtos</button>
+        </div>
+
+        <!-- Passo 4: casar produtos -->
+        <div class="passo" id="passoMatch" hidden>
+            <h2>4. Casar produtos</h2>
+            <p style="color:#888;font-size:0.85em;margin-top:0;">Cada descrição do arquivo é associada a um produto do sistema. Ajuste o que não casou (fica registrado mesmo sem produto).</p>
+            <div id="matchLista"></div>
+            <button class="btn btn-import" id="btnImportar" onclick="importar()"><i class="fas fa-cloud-upload-alt"></i> Importar vendas</button>
+        </div>
+
+        <!-- Passo 5: resumo -->
+        <div class="passo" id="passoResumo" hidden>
+            <h2>5. Resumo da importação</h2>
+            <div class="resumo">
+                <div class="card"><div class="t">Pedidos importados</div><div class="v" id="rPedidos">0</div></div>
+                <div class="card"><div class="t">Itens importados</div><div class="v escuro" id="rItens">0</div></div>
+                <div class="card"><div class="t">Valor total</div><div class="v" id="rValor">R$ 0,00</div></div>
+                <div class="card"><div class="t">Itens sem produto</div><div class="v alerta" id="rNaoCasados">0</div></div>
+                <div class="card"><div class="t">Pedidos já existentes (pulados)</div><div class="v escuro" id="rPulados">0</div></div>
+            </div>
+        </div>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        // Campos alvo do sistema + sinônimos para auto-mapeamento (PT/EN, estilo Shopee)
+        const CAMPOS = [
+            { key: 'numeroPedido', label: 'Nº do Pedido',        syn: ['pedido', 'order', 'order id', 'order sn', 'no. pedido', 'número'] },
+            { key: 'data',         label: 'Data',                 syn: ['data', 'date', 'order date', 'data do pedido', 'payment date', 'criacao'] },
+            { key: 'produto',      label: 'Produto / SKU',        syn: ['produto', 'item', 'sku', 'nome', 'product', 'variation', 'descric'] },
+            { key: 'quantidade',   label: 'Quantidade',           syn: ['quantidade', 'qtd', 'qty', 'quantity', 'qtde'] },
+            { key: 'valorUnit',    label: 'Valor Unitário',       syn: ['unit', 'unitário', 'unitario', 'preço', 'preco', 'valor unit'] },
+            { key: 'valorTotal',   label: 'Valor Total',          syn: ['total', 'valor total', 'subtotal', 'order total', 'amount'] },
+            { key: 'pagamento',    label: 'Forma de Pagamento',   syn: ['pagamento', 'payment', 'forma', 'método', 'metodo'] },
+        ];
+
+        let cabecalhos = [];     // nomes das colunas (linha 0)
+        let linhas = [];         // linhas de dados (array de arrays)
+        var produtosMap = {};    // { id: { nome } } — var p/ ficar acessível em window (sinal de readiness nos testes)
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            if (!flagAtiva('shopee')) document.getElementById('avisoFlag').hidden = false;
+            const snap = await empresaRef('produtos').once('value');
+            produtosMap = {};
+            if (snap.exists()) snap.forEach(c => { produtosMap[c.key] = { nome: (c.val() || {}).nomePeca || ('#' + c.key) }; });
+        })();
+
+        function lerArquivo(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            document.getElementById('feedback').textContent = '';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const matriz = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+                    if (!matriz.length) { document.getElementById('feedback').textContent = 'Arquivo vazio.'; return; }
+                    cabecalhos = (matriz[0] || []).map((c, i) => String(c).trim() || ('Coluna ' + (i + 1)));
+                    linhas = matriz.slice(1).filter(l => l.some(c => String(c).trim() !== ''));
+                    renderPreview();
+                    renderMapa();
+                } catch (err) {
+                    document.getElementById('feedback').textContent = 'Erro ao ler o arquivo: ' + err.message;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function renderPreview() {
+            const t = document.getElementById('tabelaPreview');
+            const head = '<tr>' + cabecalhos.map(c => `<th>${escapar(c)}</th>`).join('') + '</tr>';
+            const corpo = linhas.slice(0, 5).map(l =>
+                '<tr>' + cabecalhos.map((_, i) => `<td>${escapar(l[i])}</td>`).join('') + '</tr>'
+            ).join('');
+            t.innerHTML = head + corpo;
+            document.getElementById('infoLinhas').textContent = `${linhas.length} linha(s) de dados, ${cabecalhos.length} coluna(s).`;
+            document.getElementById('passoPreview').hidden = false;
+        }
+
+        function renderMapa() {
+            const grid = document.getElementById('mapaGrid');
+            grid.innerHTML = '';
+            CAMPOS.forEach(campo => {
+                const palpite = adivinharColuna(campo.syn);
+                const opts = ['<option value="">— não mapear —</option>']
+                    .concat(cabecalhos.map((c, i) => `<option value="${i}" ${i === palpite ? 'selected' : ''}>${escapar(c)}</option>`))
+                    .join('');
+                const div = document.createElement('div');
+                div.className = 'map-item';
+                div.innerHTML = `<label>${campo.label}</label><select id="map_${campo.key}">${opts}</select>`;
+                grid.appendChild(div);
+            });
+            document.getElementById('passoMapa').hidden = false;
+        }
+
+        function adivinharColuna(sinonimos) {
+            for (let i = 0; i < cabecalhos.length; i++) {
+                const h = cabecalhos[i].toLowerCase();
+                if (sinonimos.some(s => h.includes(s))) return i;
+            }
+            return -1;
+        }
+
+        function mapaAtual() {
+            const m = {};
+            CAMPOS.forEach(c => { const v = document.getElementById('map_' + c.key).value; m[c.key] = v === '' ? -1 : parseInt(v); });
+            return m;
+        }
+
+        function celula(linha, idx) { return idx >= 0 ? String(linha[idx] != null ? linha[idx] : '').trim() : ''; }
+
+        // ── Passo 4: casar produtos ──
+        let mapa = {};
+        function avancarProdutos() {
+            mapa = mapaAtual();
+            if (mapa.produto < 0) { document.getElementById('feedback').textContent = 'Mapeie ao menos a coluna de Produto/SKU.'; return; }
+            document.getElementById('feedback').textContent = '';
+
+            // Descrições distintas
+            const descricoes = [...new Set(linhas.map(l => celula(l, mapa.produto)).filter(Boolean))];
+            const lista = document.getElementById('matchLista');
+            lista.innerHTML = '';
+            descricoes.forEach(desc => {
+                const palpiteId = casarProduto(desc);
+                const opts = ['<option value="">— não casado —</option>']
+                    .concat(Object.keys(produtosMap).map(id => `<option value="${id}" ${id === palpiteId ? 'selected' : ''}>${escapar(produtosMap[id].nome)}</option>`))
+                    .join('');
+                const div = document.createElement('div');
+                div.className = 'match-linha';
+                const badge = palpiteId ? '<span class="badge badge-ok">casou</span>' : '<span class="badge badge-no">sem produto</span>';
+                div.innerHTML = `<span class="desc">${escapar(desc)}</span> ${badge}
+                    <select class="match-select" data-desc="${escapar(desc)}">${opts}</select>`;
+                lista.appendChild(div);
+            });
+            // atualiza badge ao trocar manualmente
+            lista.querySelectorAll('.match-select').forEach(sel => sel.onchange = () => {
+                const b = sel.previousElementSibling;
+                if (sel.value) { b.className = 'badge badge-ok'; b.textContent = 'casou'; }
+                else { b.className = 'badge badge-no'; b.textContent = 'sem produto'; }
+            });
+            document.getElementById('passoMatch').hidden = false;
+        }
+
+        function casarProduto(desc) {
+            const d = desc.toLowerCase().trim();
+            if (!d) return '';
+            for (const id in produtosMap) {
+                const nome = produtosMap[id].nome.toLowerCase();
+                if (nome === d || nome.includes(d) || d.includes(nome)) return id;
+            }
+            return '';
+        }
+
+        function parseNumero(v) {
+            if (typeof v === 'number') return v;
+            let s = String(v).replace(/[^\d.,-]/g, '').trim();
+            if (!s) return 0;
+            if (s.includes('.') && s.includes(',')) {
+                if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+                else s = s.replace(/,/g, '');
+            } else if (s.includes(',')) {
+                s = s.replace(',', '.');
+            }
+            const n = parseFloat(s);
+            return isNaN(n) ? 0 : n;
+        }
+
+        function formatarMoeda(v) {
+            const n = parseFloat(v); if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+        function escapar(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+        // ── Passo 5: importar ──
+        async function importar() {
+            const btn = document.getElementById('btnImportar');
+            btn.disabled = true;
+            document.getElementById('feedback').textContent = 'Importando...';
+
+            // descrição → produtoId (escolha do usuário)
+            const descToProduto = {};
+            document.querySelectorAll('.match-select').forEach(sel => { descToProduto[sel.dataset.desc] = sel.value || null; });
+
+            try {
+                // Idempotência: pedidos já existentes no banco são pulados
+                const existSnap = await empresaRef('vendas_online').once('value');
+                const existentes = new Set();
+                if (existSnap.exists()) existSnap.forEach(c => { const v = c.val() || {}; if (v.numeroPedido) existentes.add(String(v.numeroPedido)); });
+
+                const updates = {};
+                const pedidosImportados = new Set();
+                let itens = 0, naoCasados = 0, pulados = 0, valorTotalGeral = 0;
+                const dataImportacao = new Date().toISOString();
+
+                linhas.forEach(linha => {
+                    const numeroPedido = celula(linha, mapa.numeroPedido);
+                    if (numeroPedido && existentes.has(numeroPedido)) { pulados++; return; }
+
+                    const descricao = celula(linha, mapa.produto);
+                    const produtoId = descToProduto[descricao] || null;
+                    const qtd = parseNumero(celula(linha, mapa.quantidade)) || 1;
+                    let valorUnit = parseNumero(celula(linha, mapa.valorUnit));
+                    let valorTotal = parseNumero(celula(linha, mapa.valorTotal));
+                    if (!valorTotal && valorUnit) valorTotal = valorUnit * qtd;
+                    if (!valorUnit && valorTotal && qtd) valorUnit = valorTotal / qtd;
+
+                    const registro = {
+                        origem: 'shopee',
+                        numeroPedido: numeroPedido || null,
+                        produtoId: produtoId,
+                        descricaoOriginal: descricao || null,
+                        qtd: qtd,
+                        valorUnit: valorUnit,
+                        valorTotal: valorTotal,
+                        pagamento: celula(linha, mapa.pagamento) || null,
+                        data: celula(linha, mapa.data) || null,
+                        dataImportacao: dataImportacao
+                    };
+                    const key = empresaRef('vendas_online').push().key;
+                    updates['vendas_online/' + key] = registro;
+                    itens++;
+                    if (numeroPedido) pedidosImportados.add(numeroPedido);
+                    if (!produtoId) naoCasados++;
+                    valorTotalGeral += valorTotal;
+                });
+
+                if (itens > 0) await empresaRef('').update(updates);
+
+                document.getElementById('rPedidos').textContent = pedidosImportados.size;
+                document.getElementById('rItens').textContent = itens;
+                document.getElementById('rValor').textContent = formatarMoeda(valorTotalGeral);
+                document.getElementById('rNaoCasados').textContent = naoCasados;
+                document.getElementById('rPulados').textContent = pulados;
+                document.getElementById('passoResumo').hidden = false;
+                document.getElementById('feedback').textContent = '';
+                document.getElementById('passoResumo').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                document.getElementById('feedback').textContent = 'Erro ao importar: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

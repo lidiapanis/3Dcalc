@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listagem de Eventos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1000px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 6px 10px; margin-right: 4px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85em; color:#fff; }
+        .btn-edit   { background-color: #ffc107; color:#333; }
+        .btn-vender { background-color: #28a745; }
+        .btn-rel    { background-color: #4A93B0; }
+        .btn-transfer { background-color: #fd7e14; }
+        .btn-del    { background-color: #dc3545; margin-left: 10px; }
+        .actions .btn-del { border-left: none; }
+        .actions { white-space: nowrap; }
+        .actions button:focus-visible { outline: 2px solid #1B4C65; outline-offset: 2px; }
+        .badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.74em; font-weight:700; }
+        .badge-planejado { background:#e0e7ff; color:#3742a0; }
+        .badge-ativo     { background:#d4edda; color:#155724; }
+        .badge-encerrado { background:#e2e3e5; color:#41464b; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+        .btn-link { background-color: #6741D9; }
+
+        /* ── Modal: link/QR de cadastro ── */
+        .lk-modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 700; padding: 16px; }
+        .lk-modal-bg.open { display: flex; }
+        .lk-modal { background: #fff; border-radius: 10px; width: 100%; max-width: 420px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,.25); text-align: center; position: relative; }
+        .lk-modal h3 { margin: 0 0 4px; color: #333; }
+        .lk-modal .ev-nome { color: #4A93B0; font-weight: 700; margin-bottom: 14px; }
+        .lk-close { position: absolute; top: 12px; right: 14px; background: none; border: none; color: #888; font-size: 1.5em; cursor: pointer; line-height: 1; }
+        .lk-qr { display: flex; justify-content: center; min-height: 230px; align-items: center; margin: 6px 0 14px; }
+        .lk-qr img, .lk-qr canvas { width: 230px; height: 230px; border: 1px solid #eee; border-radius: 8px; }
+        .lk-url { display: flex; gap: 8px; margin-bottom: 12px; }
+        .lk-url input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: .82em; }
+        .lk-btns { display: flex; gap: 8px; }
+        .lk-btns button { flex: 1; padding: 11px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; color: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .lk-copy { background: #4A93B0; } .lk-copy:hover { background: #3A7A96; }
+        .lk-download { background: #28a745; } .lk-download:hover { background: #218838; }
+        html[data-theme="dark"] .lk-modal { background: #1e1e2e !important; color: #e0e0e0; }
+        html[data-theme="dark"] .lk-modal h3 { color: #e0e0e0; }
+        html[data-theme="dark"] .lk-url input { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <!-- Modal: link / QR de cadastro do evento -->
+    <div class="lk-modal-bg" id="lkModal" onclick="fecharLink(event)">
+        <div class="lk-modal" onclick="event.stopPropagation()">
+            <button class="lk-close" onclick="fecharLink()">&times;</button>
+            <h3><i class="fas fa-qrcode" style="color:#6741D9;"></i> Link de cadastro</h3>
+            <div class="ev-nome" id="lkEvNome"></div>
+            <div class="lk-qr" id="lkQr"></div>
+            <div class="lk-url">
+                <input type="text" id="lkUrl" readonly>
+                <button class="lk-copy" onclick="copiarLink()" title="Copiar link"><i class="fas fa-copy"></i></button>
+            </div>
+            <div class="lk-btns">
+                <button class="lk-download" onclick="baixarQr()"><i class="fas fa-download"></i> Baixar QR (PNG)</button>
+            </div>
+            <p id="lkMsg" style="min-height:1em;color:#28a745;font-size:.85em;margin:10px 0 0;"></p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h1>Eventos</h1>
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por nome do evento...">
+            <a href="cadastro_eventos.html" style="text-decoration: none;">
+                 <button style="background-color:#28a745;color:#fff;border:none;padding:10px 15px;border-radius:5px;cursor:pointer;">+ Novo Evento</button>
+            </a>
+        </div>
+
+        <table id="eventosTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Local</th>
+                    <th>Período</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "eventos";
+
+        let eventosData = [];
+
+        function formatarData(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso + 'T00:00:00');
+            return isNaN(d) ? iso : d.toLocaleDateString('pt-BR');
+        }
+
+        window.aplicarFiltro = function() {
+            const t = document.getElementById('searchBar').value.toLowerCase();
+            renderizar(eventosData.filter(e => (e.nome || '').toLowerCase().includes(t)));
+        }
+
+        function renderizar(data) {
+            const tbody = document.querySelector('#eventosTable tbody');
+            tbody.innerHTML = '';
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Nenhum evento cadastrado.</td></tr>';
+                return;
+            }
+            data.forEach(ev => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = ev.id;
+                row.insertCell().textContent = ev.nome || '';
+                row.insertCell().textContent = ev.local || '—';
+                row.insertCell().textContent = `${formatarData(ev.dataInicio)} – ${formatarData(ev.dataFim)}`;
+
+                const stCell = row.insertCell();
+                const st = ev.status || 'planejado';
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-' + st;
+                badge.textContent = st.charAt(0).toUpperCase() + st.slice(1);
+                stCell.appendChild(badge);
+
+                const ac = row.insertCell();
+                ac.className = 'actions';
+                ac.appendChild(botao('btn-vender', '<i class="fas fa-cash-register"></i>', 'Vender', () => location.href = `evento_venda.html?id=${ev.id}`));
+                ac.appendChild(botao('btn-rel', '<i class="fas fa-chart-bar"></i>', 'Relatório', () => location.href = `evento_relatorio.html?id=${ev.id}`));
+                ac.appendChild(botao('btn-transfer', '<i class="fas fa-right-left"></i>', 'Transferir produtos', () => location.href = `evento_transferir.html?id=${ev.id}`));
+                ac.appendChild(botao('btn-link', '<i class="fas fa-qrcode"></i>', 'Gerar link de cadastro', () => gerarLink(ev)));
+                ac.appendChild(botao('btn-edit', '<i class="fas fa-edit"></i>', 'Editar', () => location.href = `cadastro_eventos.html?id=${ev.id}`));
+                ac.appendChild(botao('btn-del', '<i class="fas fa-trash"></i>', 'Deletar', () => deletarEvento(ev.id)));
+                ['ID', 'Nome', 'Local', 'Período', 'Status'].forEach((lab, i) => { if (row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
+            });
+        }
+
+        function botao(cls, html, titulo, onclick) {
+            const b = document.createElement('button');
+            b.className = cls; b.innerHTML = html; b.title = titulo; b.onclick = onclick;
+            b.setAttribute('aria-label', titulo);   // acessibilidade: botão só com ícone
+            return b;
+        }
+
+        function mostrarEstado(html) {
+            const tbody = document.querySelector('#eventosTable tbody');
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            iniciar();
+        })();
+
+        window.iniciar = function () { carregarEventos(); };
+
+        function carregarEventos() {
+            document.getElementById('feedback').textContent = "";
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando eventos...');
+            empresaRef(CAMINHO_RTDB).once('value').then((snap) => {
+                eventosData = [];
+                snap.forEach(child => {
+                    const d = child.val() || {};
+                    eventosData.push({
+                        id: parseInt(child.key),
+                        nome: d.nome, local: d.local,
+                        dataInicio: d.dataInicio, dataFim: d.dataFim,
+                        status: d.status
+                    });
+                });
+                eventosData.sort((a, b) => b.id - a.id);
+                aplicarFiltro();
+            }).catch((error) => {
+                console.error("Erro ao carregar eventos:", error);
+                mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar eventos.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
+            });
+        }
+
+        // ── Link / QR de cadastro público do evento ──
+        let qrDataUrl = null, qrEvSlug = 'evento';
+
+        window.gerarLink = function(ev) {
+            const empresaId = (window.EmpresaCtx && EmpresaCtx.empresaId) || '1';
+            const url = `https://calculo3d.web.app/cadastro-cliente.html?e=${empresaId}&ev=${ev.id}`;
+            document.getElementById('lkUrl').value = url;
+            document.getElementById('lkEvNome').textContent = ev.nome || ('Evento #' + ev.id);
+            document.getElementById('lkMsg').textContent = '';
+            qrEvSlug = (ev.nome || ('evento-' + ev.id)).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || ('evento-' + ev.id);
+            qrDataUrl = null;
+            const cont = document.getElementById('lkQr'); cont.innerHTML = '';
+            if (window.QRCode && QRCode.toDataURL) {
+                QRCode.toDataURL(url, { width: 460, margin: 2 }, (err, dataUrl) => {
+                    if (err) { cont.textContent = 'Erro ao gerar QR Code.'; return; }
+                    qrDataUrl = dataUrl;
+                    const img = document.createElement('img'); img.src = dataUrl; img.alt = 'QR Code do cadastro'; cont.appendChild(img);
+                });
+            } else { cont.textContent = 'Biblioteca de QR não carregada.'; }
+            document.getElementById('lkModal').classList.add('open');
+        };
+        window.fecharLink = function(e) {
+            if (e && e.target !== document.getElementById('lkModal')) return;
+            document.getElementById('lkModal').classList.remove('open');
+        };
+        window.copiarLink = function() {
+            const inp = document.getElementById('lkUrl');
+            inp.select(); inp.setSelectionRange(0, 99999);
+            const done = () => { document.getElementById('lkMsg').textContent = 'Link copiado!'; };
+            if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(done).catch(() => { try { document.execCommand('copy'); done(); } catch (_) {} });
+            else { try { document.execCommand('copy'); done(); } catch (_) {} }
+        };
+        window.baixarQr = function() {
+            if (!qrDataUrl) { document.getElementById('lkMsg').textContent = 'Aguarde o QR carregar...'; return; }
+            const a = document.createElement('a');
+            a.href = qrDataUrl; a.download = `qr-cadastro-${qrEvSlug}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+        };
+
+        window.deletarEvento = function(id) {
+            if (confirm(`Deletar o Evento #${id} e TODAS as suas vendas/estoque? Esta ação não pode ser desfeita.`)) {
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => { alert(`Evento #${id} deletado.`); carregarEventos(); })
+                    .catch(e => alert("Erro ao deletar: " + e.message));
+            }
+        }
+    </script>
+</body>
+</html>

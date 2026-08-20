@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Histórico de Vendas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="vendas.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #fff; padding: 26px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1200px; margin: 16px auto; }
+        h1 { color: #1B4C65; margin: 0 0 6px; font-size: 1.4em; }
+        .sub { color: #6a7c93; font-size: .9em; margin: 0 0 20px; }
+
+        .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;
+            background: #fafafa; border: 1px solid #e9ecef; border-radius: 8px; padding: 16px; margin-bottom: 18px; }
+        .filtros .fg { display: flex; flex-direction: column; }
+        .filtros .fg.wide { grid-column: 1 / -1; }
+        .filtros label { font-size: .82em; font-weight: 600; color: #555; margin-bottom: 4px; }
+        .filtros input, .filtros select { width: 100%; padding: 9px; border: 1px solid #ccc; border-radius: 5px; font-size: .95em; background: #fff; }
+        .btn-limpar { background: #6c757d; color: #fff; border: none; border-radius: 5px; padding: 9px 14px; cursor: pointer; font-weight: 600; height: 38px; }
+        .btn-limpar:hover { background: #5a6268; }
+
+        .resumo-bar { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+        .resumo-bar .rb { background: #f0f7fb; border: 1px solid #d6e9f3; border-radius: 8px; padding: 10px 16px; }
+        .resumo-bar .rb .v { font-size: 1.25em; font-weight: 800; color: #1B4C65; }
+        .resumo-bar .rb .l { font-size: .78em; color: #6a7c93; text-transform: uppercase; letter-spacing: .03em; }
+
+        .tabela-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e5e8ea; padding: 10px 12px; text-align: left; font-size: .9em; vertical-align: middle; }
+        th { background: #f2f5f7; color: #333; white-space: nowrap; }
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable .arr { opacity: .5; font-size: .85em; margin-left: 3px; }
+        td.num, th.num { text-align: right; white-space: nowrap; }
+        .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .74em; font-weight: 700; }
+        .badge-evento { background: #e0f0f8; color: #2E7496; }
+        .badge-online { background: #efe6fb; color: #6741D9; }
+        .badge-ok { background: #d4edda; color: #155724; }
+        .badge-cancel { background: #f8d7da; color: #721c24; }
+        tr.linha-cancelada td { opacity: .65; }
+        tr.linha-cancelada .tot-val { text-decoration: line-through; color: #999; }
+        .rb.cancel .v { color: #c0392b; }
+        html[data-theme="dark"] .rb.cancel .v { color: #ef9a9a !important; }
+        .pg-badge { font-size: .8em; color: #555; text-transform: capitalize; }
+        .cli-link { color: #2E7496; text-decoration: none; font-weight: 600; }
+        .cli-link:hover { text-decoration: underline; }
+        .muted { color: #aaa; }
+        #feedback { text-align: center; margin-top: 18px; color: #6a7c93; }
+        .vazio { text-align: center; padding: 40px 12px; color: #888; }
+        .vazio i { font-size: 2em; opacity: .35; display: block; margin-bottom: 10px; }
+
+        /* Dark mode (complementa dark-mode.css) */
+        html[data-theme="dark"] .container { background: #1e1e2e !important; }
+        html[data-theme="dark"] h1 { color: #7fc1de !important; }
+        html[data-theme="dark"] .filtros { background: #181826 !important; border-color: #333 !important; }
+        html[data-theme="dark"] .filtros input, html[data-theme="dark"] .filtros select { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] th { background: #26263a !important; color: #e0e0e0 !important; }
+        html[data-theme="dark"] td, html[data-theme="dark"] th { border-color: #333 !important; }
+        html[data-theme="dark"] .resumo-bar .rb { background: #0d2137 !important; border-color: #1e4d7a !important; }
+        html[data-theme="dark"] .resumo-bar .rb .v { color: #7fc1de !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-clock-rotate-left"></i> Histórico de Vendas</h1>
+        <p class="sub">Vendas de eventos/feiras e vendas online (Shopee) consolidadas.</p>
+
+        <div class="filtros">
+            <div class="fg wide">
+                <label for="fBusca">Buscar (produto, cliente ou evento)</label>
+                <input type="search" id="fBusca" placeholder="Digite para filtrar..." oninput="aplicarFiltros()">
+            </div>
+            <div class="fg">
+                <label for="fProduto">Produto</label>
+                <input type="text" id="fProduto" placeholder="Nome do produto" oninput="aplicarFiltros()">
+            </div>
+            <div class="fg">
+                <label for="fCliente">Cliente</label>
+                <input type="text" id="fCliente" placeholder="Nome do cliente" oninput="aplicarFiltros()">
+            </div>
+            <div class="fg">
+                <label for="fEvento">Evento</label>
+                <select id="fEvento" onchange="aplicarFiltros()"><option value="all">Todos os eventos</option></select>
+            </div>
+            <div class="fg">
+                <label for="fOrigem">Origem</label>
+                <select id="fOrigem" onchange="aplicarFiltros()">
+                    <option value="all">Todas</option>
+                    <option value="evento">Evento / Feira</option>
+                    <option value="online">Online (Shopee)</option>
+                </select>
+            </div>
+            <div class="fg">
+                <label for="fStatus">Status</label>
+                <select id="fStatus" onchange="aplicarFiltros()">
+                    <option value="all">Todas</option>
+                    <option value="ativa">Ativas</option>
+                    <option value="cancelada">Canceladas</option>
+                </select>
+            </div>
+            <div class="fg">
+                <label for="fPagamento">Pagamento</label>
+                <select id="fPagamento" onchange="aplicarFiltros()"><option value="all">Todas</option></select>
+            </div>
+            <div class="fg">
+                <label for="fDe">De</label>
+                <input type="date" id="fDe" onchange="aplicarFiltros()">
+            </div>
+            <div class="fg">
+                <label for="fAte">Até</label>
+                <input type="date" id="fAte" onchange="aplicarFiltros()">
+            </div>
+            <div class="fg">
+                <label>&nbsp;</label>
+                <button class="btn-limpar" onclick="limparFiltros()"><i class="fas fa-eraser"></i> Limpar</button>
+            </div>
+        </div>
+
+        <div class="resumo-bar">
+            <div class="rb"><div class="v" id="rbTotal">R$ 0,00</div><div class="l">Total filtrado</div></div>
+            <div class="rb"><div class="v" id="rbQtd">0</div><div class="l">Vendas ativas</div></div>
+            <div class="rb cancel" id="rbCancelBox" style="display:none;"><div class="v" id="rbCancel">0</div><div class="l">Canceladas</div></div>
+        </div>
+
+        <div class="tabela-wrap">
+            <table id="tabela">
+                <thead>
+                    <tr>
+                        <th class="sortable" onclick="ordenarPor('data')">Data <span class="arr" id="arr-data">▼</span></th>
+                        <th>Origem</th>
+                        <th>Status</th>
+                        <th>Produto</th>
+                        <th class="num">Qtd</th>
+                        <th class="num">Preço unit.</th>
+                        <th class="num sortable" onclick="ordenarPor('valorTotal')">Total <span class="arr" id="arr-valorTotal"></span></th>
+                        <th>Evento</th>
+                        <th>Cliente</th>
+                        <th>Pagamento</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <p id="feedback">Carregando vendas...</p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        let todasVendas = [];      // modelo consolidado (vendas.js)
+        let sortKey = 'data';      // 'data' | 'valorTotal'
+        let sortDir = -1;          // -1 desc, 1 asc
+
+        function fmt(v) {
+            return 'R$ ' + (Number(v) || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+        function fmtData(row) {
+            if (row._dt) return row._dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return row.data ? String(row.data) : '—';
+        }
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            try {
+                todasVendas = await Vendas.carregarConsolidado();
+                popularDropdowns();
+                aplicarFiltros();
+            } catch (e) {
+                document.getElementById('feedback').textContent = 'Erro ao carregar vendas: ' + e.message;
+                console.error(e);
+            }
+        })();
+
+        function popularDropdowns() {
+            // Eventos distintos
+            const evs = {};
+            todasVendas.forEach(r => { if (r.eventoId) evs[r.eventoId] = r.eventoNome; });
+            const selEv = document.getElementById('fEvento');
+            Object.keys(evs).sort((a, b) => (evs[a] || '').localeCompare(evs[b] || '')).forEach(id => {
+                const o = document.createElement('option'); o.value = id; o.textContent = evs[id]; selEv.appendChild(o);
+            });
+            // Formas de pagamento distintas
+            const pgs = new Set();
+            todasVendas.forEach(r => { if (r.pagamento) pgs.add(String(r.pagamento)); });
+            const selPg = document.getElementById('fPagamento');
+            [...pgs].sort().forEach(p => { const o = document.createElement('option'); o.value = p; o.textContent = p; selPg.appendChild(o); });
+        }
+
+        function ordenarPor(key) {
+            if (sortKey === key) sortDir = -sortDir; else { sortKey = key; sortDir = -1; }
+            document.getElementById('arr-data').textContent = sortKey === 'data' ? (sortDir < 0 ? '▼' : '▲') : '';
+            document.getElementById('arr-valorTotal').textContent = sortKey === 'valorTotal' ? (sortDir < 0 ? '▼' : '▲') : '';
+            aplicarFiltros();
+        }
+
+        function limparFiltros() {
+            ['fBusca', 'fProduto', 'fCliente', 'fDe', 'fAte'].forEach(id => document.getElementById(id).value = '');
+            ['fEvento', 'fOrigem', 'fPagamento', 'fStatus'].forEach(id => document.getElementById(id).value = 'all');
+            aplicarFiltros();
+        }
+
+        function aplicarFiltros() {
+            const busca = document.getElementById('fBusca').value.trim().toLowerCase();
+            const fProd = document.getElementById('fProduto').value.trim().toLowerCase();
+            const fCli = document.getElementById('fCliente').value.trim().toLowerCase();
+            const fEv = document.getElementById('fEvento').value;
+            const fOri = document.getElementById('fOrigem').value;
+            const fSt = document.getElementById('fStatus').value;
+            const fPg = document.getElementById('fPagamento').value;
+            const de = document.getElementById('fDe').value ? new Date(document.getElementById('fDe').value + 'T00:00:00') : null;
+            const ate = document.getElementById('fAte').value ? new Date(document.getElementById('fAte').value + 'T23:59:59') : null;
+
+            const filtradas = todasVendas.filter(r => {
+                if (fOri !== 'all' && r.origem !== fOri) return false;
+                if (fSt !== 'all' && (r.status || 'ativa') !== fSt) return false;
+                if (fEv !== 'all' && r.eventoId !== fEv) return false;
+                if (fPg !== 'all' && String(r.pagamento) !== fPg) return false;
+                if (fProd && !(r.produtoNome || '').toLowerCase().includes(fProd)) return false;
+                if (fCli && !(r.clienteNome || '').toLowerCase().includes(fCli)) return false;
+                if (de || ate) {
+                    if (!r._dt) return false;
+                    if (de && r._dt < de) return false;
+                    if (ate && r._dt > ate) return false;
+                }
+                if (busca) {
+                    const alvo = [(r.produtoNome || ''), (r.clienteNome || ''), (r.eventoNome || '')].join(' ').toLowerCase();
+                    if (!alvo.includes(busca)) return false;
+                }
+                return true;
+            });
+
+            filtradas.sort((a, b) => {
+                if (sortKey === 'valorTotal') return (a.valorTotal - b.valorTotal) * sortDir;
+                const ta = a._dt ? a._dt.getTime() : 0, tb = b._dt ? b._dt.getTime() : 0;
+                return (ta - tb) * sortDir;
+            });
+
+            renderTabela(filtradas);
+        }
+
+        function renderTabela(linhas) {
+            const tbody = document.getElementById('tbody');
+            // O total e a contagem de "vendas" consideram só as ativas; canceladas contam à parte.
+            const ativas = linhas.filter(r => (r.status || 'ativa') !== 'cancelada');
+            const canceladas = linhas.length - ativas.length;
+            const total = ativas.reduce((s, r) => s + (Number(r.valorTotal) || 0), 0);
+            document.getElementById('rbTotal').textContent = fmt(total);
+            document.getElementById('rbQtd').textContent = ativas.length;
+            document.getElementById('rbCancel').textContent = canceladas;
+            document.getElementById('rbCancelBox').style.display = canceladas ? '' : 'none';
+
+            if (!linhas.length) {
+                tbody.innerHTML = `<tr><td colspan="10"><div class="vazio"><i class="fas fa-receipt"></i>Nenhuma venda encontrada para os filtros.</div></td></tr>`;
+                document.getElementById('feedback').textContent = '';
+                return;
+            }
+
+            tbody.innerHTML = linhas.map(r => {
+                const cancelada = (r.status || 'ativa') === 'cancelada';
+                const origemBadge = r.origem === 'online'
+                    ? '<span class="badge badge-online">Online</span>'
+                    : '<span class="badge badge-evento">Evento</span>';
+                const statusBadge = cancelada
+                    ? '<span class="badge badge-cancel">Cancelada</span>'
+                    : '<span class="badge badge-ok">Concluída</span>';
+                const cliente = r.clienteId
+                    ? `<a class="cli-link" href="cadastro_pessoas.html?id=${encodeURIComponent(r.clienteId)}&tipo=cliente">${esc(r.clienteNome || ('#' + r.clienteId))}</a>`
+                    : (r.clienteNome ? esc(r.clienteNome) : '<span class="muted">—</span>');
+                const evento = r.eventoNome ? esc(r.eventoNome) : '<span class="muted">—</span>';
+                const pg = r.pagamento ? `<span class="pg-badge">${esc(r.pagamento)}</span>` : '<span class="muted">—</span>';
+                return `<tr class="${cancelada ? 'linha-cancelada' : ''}">
+                    <td data-label="Data">${esc(fmtData(r))}</td>
+                    <td data-label="Origem">${origemBadge}</td>
+                    <td data-label="Status">${statusBadge}</td>
+                    <td data-label="Produto">${esc(r.produtoNome || '—')}</td>
+                    <td class="num" data-label="Qtd">${r.qtd}</td>
+                    <td class="num" data-label="Preço unit.">${fmt(r.precoUnit)}</td>
+                    <td class="num" data-label="Total"><b class="tot-val">${fmt(r.valorTotal)}</b></td>
+                    <td data-label="Evento">${evento}</td>
+                    <td data-label="Cliente">${cliente}</td>
+                    <td data-label="Pagamento">${pg}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('feedback').textContent = '';
+        }
+    </script>
+</body>
+</html>

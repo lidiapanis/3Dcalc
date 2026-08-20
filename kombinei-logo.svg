@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="grad1" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" style="stop-color:#9CCADE;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#3A80A8;stop-opacity:1"/>
+    </linearGradient>
+  </defs>
+  <!-- Hexagon body -->
+  <polygon points="50,3 94,27.5 94,72.5 50,97 6,72.5 6,27.5"
+           fill="url(#grad1)" stroke="#2E7496" stroke-width="1.5"/>
+  <!-- Icosahedron inner lines -->
+  <line x1="50" y1="3"   x2="50" y2="97"   stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>
+  <line x1="6"  y1="27.5" x2="94" y2="72.5" stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>
+  <line x1="94" y1="27.5" x2="6"  y2="72.5" stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>
+  <!-- Subtle center ring -->
+  <circle cx="50" cy="50" r="22" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+  <!-- K letter -->
+  <text x="50" y="58"
+        font-family="Arial,Helvetica,sans-serif"
+        font-size="42" font-weight="900"
+        fill="white"
+        text-anchor="middle"
+        dominant-baseline="middle">K</text>
+</svg>

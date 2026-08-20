@@ -2,17 +2,27 @@
 <html lang="pt-BR" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Precificação 3D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>KOMBINEI — Sistema de Gestão</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1B4C65">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KOMBINEI">
+    <link rel="apple-touch-icon" href="/kombinei-logo.svg">
+    <script src="config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="empresa.js"></script>
+    <script src="pwa.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         :root {
             --bg:        #f0f2f5;
-            --sidebar-bg:#1e3c72;
-            --sidebar-hover:#2a5298;
-            --sidebar-active:#3a6fd8;
+            --sidebar-bg:#1B4C65;
+            --sidebar-hover:#26617E;
+            --sidebar-active:#2E7496;
             --text:      #333;
             --text-light:#ffffff;
             --text-muted:#6a7c93;
@@ -58,7 +68,7 @@
         }
 
         .sidebar-logo {
-            padding: 24px 20px 20px;
+            padding: calc(24px + env(safe-area-inset-top)) 20px 20px;
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         .sidebar-logo h2 {
@@ -68,7 +78,7 @@
             line-height: 1.3;
         }
         .sidebar-logo span {
-            color: #90caf9;
+            color: #8BBBD4;
             font-size: 0.78em;
             font-weight: 400;
         }
@@ -86,7 +96,17 @@
             letter-spacing: 1px;
             text-transform: uppercase;
             padding: 14px 20px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            background: none; border: none; width: 100%; text-align: left;
         }
+        .nav-section-title:hover { color: rgba(255,255,255,0.65); }
+        .nav-section-title .chev { transition: transform 0.2s; font-size: 0.85em; opacity: .7; }
+        .nav-section-title.collapsed .chev { transform: rotate(-90deg); }
+        .nav-item.grp-collapsed { display: none !important; }
 
         .nav-item {
             display: flex;
@@ -110,7 +130,7 @@
         }
         .nav-item.active {
             background: var(--sidebar-active);
-            border-left-color: #90caf9;
+            border-left-color: #8BBBD4;
             color: #fff;
             font-weight: 600;
         }
@@ -123,7 +143,7 @@
 
         .sidebar-footer {
             border-top: 1px solid rgba(255,255,255,0.1);
-            padding: 12px 0;
+            padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
         }
 
         /* dark mode toggle */
@@ -158,7 +178,7 @@
             border-radius: 50%;
             transition: transform 0.3s;
         }
-        input:checked + .toggle-slider { background: #3a6fd8; }
+        input:checked + .toggle-slider { background: #2E7496; }
         input:checked + .toggle-slider:before { transform: translateX(18px); }
 
         /* ── MAIN ── */
@@ -172,8 +192,9 @@
         .topbar {
             background: var(--topbar-bg);
             box-shadow: var(--topbar-shadow);
-            padding: 0 24px;
-            height: 56px;
+            /* Reserva o espaço da barra de status do celular (PWA/standalone) */
+            padding: env(safe-area-inset-top) 24px 0;
+            height: calc(56px + env(safe-area-inset-top));
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -185,10 +206,33 @@
             font-weight: 600;
             color: var(--text);
         }
+        .user-wrap { position: relative; }
         .topbar-user {
             font-size: 0.85em;
             color: var(--text-muted);
+            background: none; border: none; cursor: pointer; font-family: inherit;
+            display: flex; align-items: center; padding: 6px 10px; border-radius: 6px;
         }
+        .topbar-user::after { content: '\25BE'; margin-left: 6px; opacity: .6; font-size: .9em; }
+        .topbar-user:hover { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .topbar-user:hover { background: rgba(255,255,255,0.08); }
+        .user-menu {
+            position: absolute; right: 0; top: calc(100% + 6px);
+            background: var(--topbar-bg); border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            min-width: 190px; display: none; overflow: hidden; z-index: 200;
+        }
+        .user-menu.open { display: block; }
+        .user-menu button {
+            width: 100%; text-align: left; background: none; border: none;
+            padding: 11px 16px; cursor: pointer; font-size: 0.88em; color: var(--text);
+            display: flex; align-items: center; gap: 10px; font-family: inherit;
+        }
+        .user-menu button:hover { background: rgba(0,0,0,0.05); }
+        .user-menu .danger { color: #dc3545; }
+        [data-theme="dark"] .user-menu { border-color: rgba(255,255,255,0.12); }
+        [data-theme="dark"] .user-menu button:hover { background: rgba(255,255,255,0.08); }
+        :focus-visible { outline: 2px solid #2E7496; outline-offset: 2px; }
 
         .content-frame {
             flex: 1;
@@ -197,53 +241,125 @@
             background: var(--bg);
             transition: background 0.3s;
         }
+
+        /* ── Hambúrguer + drawer (mobile) ── */
+        .hamburger {
+            display: none; background: none; border: none; color: var(--text);
+            font-size: 1.35em; cursor: pointer; margin-right: 10px; padding: 6px 10px;
+            border-radius: 6px; align-items: center; min-height: 44px;
+        }
+        .hamburger:hover { background: rgba(0,0,0,0.05); }
+        [data-theme="dark"] .hamburger:hover { background: rgba(255,255,255,0.08); }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 99; }
+
+        @media (max-width: 768px) {
+            .hamburger { display: inline-flex; }
+            .sidebar {
+                position: fixed; left: 0; top: 0; bottom: 0;
+                transform: translateX(-100%); transition: transform 0.25s, background 0.3s;
+                z-index: 100; box-shadow: 2px 0 16px rgba(0,0,0,0.4);
+            }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar-backdrop.open { display: block; }
+            .topbar { padding: env(safe-area-inset-top) 12px 0; }
+            .topbar-title { font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        }
+    /* ── Banner de licença ── */
+    #licenseBanner {
+        display: none;
+        background: #fff3cd;
+        border-bottom: 1px solid #ffc107;
+        padding: 8px 24px;
+        font-size: 0.82em;
+        color: #856404;
+        flex-shrink: 0;
+        text-align: center;
+    }
+    #licenseBanner.expired { background: #f8d7da; border-color: #dc3545; color: #842029; }
+    [data-theme="dark"] #licenseBanner { background: #2a2000; border-color: #996600; color: #ffc107; }
+    [data-theme="dark"] #licenseBanner.expired { background: #2a0000; border-color: #dc3545; color: #f8d7da; }
     </style>
 </head>
 <body>
 
     <!-- SIDEBAR -->
-    <aside class="sidebar">
-        <div class="sidebar-logo">
-            <h2><i class="fas fa-cube" style="color:#90caf9;margin-right:8px;"></i>Precificação 3D</h2>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeDrawer()"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo" style="display:flex;flex-direction:column;align-items:flex-start;gap:4px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <img id="brandLogo" src="kombinei-logo.svg" alt="KOMBINEI" style="width:36px;height:36px;flex-shrink:0;object-fit:contain;">
+                <h2 id="brandTitle" style="color:var(--brand,#fff);font-size:1.15em;font-weight:800;letter-spacing:1px;margin:0;">KOMBINEI</h2>
+            </div>
             <span>Sistema de gestão</span>
         </div>
 
         <nav class="sidebar-nav">
-            <div class="nav-section-title">Visão Geral</div>
-            <button class="nav-item active" onclick="navegar('dashboard.html', this, 'Dashboard')">
+            <div class="nav-section-title" data-modulo="dashboard">Visão Geral</div>
+            <button class="nav-item active" data-modulo="dashboard"
+                    onclick="navegar('dashboard.html', this, 'Dashboard')">
                 <i class="fas fa-chart-pie"></i> Dashboard
             </button>
 
-            <div class="nav-section-title">Orçamentos</div>
-            <button class="nav-item" onclick="navegar('cadastro_orcamentos.html', this, 'Criar Orçamento')">
-                <i class="fas fa-file-signature"></i> Criar Orçamento
-            </button>
-            <button class="nav-item" onclick="navegar('listagem_orcamentos.html', this, 'Listar Orçamentos')">
-                <i class="fas fa-file-invoice"></i> Listar Orçamentos
+            <div class="nav-section-title" data-modulo="orcamentos">Orçamentos</div>
+            <button class="nav-item" data-modulo="orcamentos"
+                    onclick="navegar('listagem_orcamentos.html', this, 'Orçamentos')">
+                <i class="fas fa-file-invoice"></i> Orçamentos
             </button>
 
-            <div class="nav-section-title">Clientes</div>
-            <button class="nav-item" onclick="navegar('cadastro_clientes.html', this, 'Cadastrar Cliente')">
-                <i class="fas fa-user-plus"></i> Cadastrar Cliente
+            <div class="nav-section-title" data-modulo="orcamentos">Eventos</div>
+            <button class="nav-item" data-modulo="orcamentos"
+                    onclick="navegar('listagem_eventos.html', this, 'Eventos')">
+                <i class="fas fa-store"></i> Eventos / Feiras
             </button>
-            <button class="nav-item" onclick="navegar('listagem_clientes.html', this, 'Listar Clientes')">
-                <i class="fas fa-list-ul"></i> Listar Clientes
+            <button class="nav-item" id="navImportarShopee" data-modulo="orcamentos"
+                    onclick="navegar('importar_shopee.html', this, 'Importar Shopee')">
+                <i class="fas fa-file-import"></i> Importar Shopee
             </button>
-
-            <div class="nav-section-title">Produtos</div>
-            <button class="nav-item" onclick="navegar('cadastro_produtos.html', this, 'Cadastrar Produto')">
-                <i class="fas fa-calculator"></i> Cadastrar Produto
-            </button>
-            <button class="nav-item" onclick="navegar('listagem_produtos.html', this, 'Listar Produtos')">
-                <i class="fas fa-boxes"></i> Listar Produtos
+            <button class="nav-item" data-modulo="orcamentos"
+                    onclick="navegar('historico_vendas.html', this, 'Histórico de Vendas')">
+                <i class="fas fa-clock-rotate-left"></i> Histórico de Vendas
             </button>
 
-            <div class="nav-section-title">Mercado Livre</div>
-            <button class="nav-item" onclick="navegar('busca_ml.html', this, 'Busca no ML')">
-                <i class="fas fa-search"></i> Busca no ML
+            <div class="nav-section-title">Cadastros</div>
+            <button class="nav-item" data-modulo="clientes"
+                    onclick="navegar('listagem_pessoas.html?tipo=cliente', this, 'Clientes')">
+                <i class="fas fa-users"></i> Clientes
             </button>
-            <button class="nav-item" onclick="navegar('monitoramento.html', this, 'Monitoramento de Preços')">
+            <button class="nav-item" data-modulo="clientes"
+                    onclick="navegar('listagem_pessoas.html?tipo=fornecedor', this, 'Fornecedores')">
+                <i class="fas fa-truck"></i> Fornecedores
+            </button>
+            <button class="nav-item" data-modulo="produtos"
+                    onclick="navegar('listagem_produtos.html', this, 'Produtos')">
+                <i class="fas fa-boxes"></i> Produtos
+            </button>
+            <button class="nav-item" data-modulo="produtos"
+                    onclick="navegar('listagem_insumos.html', this, 'Insumos')">
+                <i class="fas fa-vials"></i> Insumos
+            </button>
+            <button class="nav-item" data-modulo="produtos"
+                    onclick="navegar('listagem_hueforges.html', this, 'HueForges')">
+                <i class="fas fa-layer-group"></i> HueForges
+            </button>
+
+            <div class="nav-section-title" data-modulo="ml">Mercado Livre</div>
+            <button class="nav-item" data-modulo="ml"
+                    onclick="navegar('busca_ml.html', this, 'Destaques ML')">
+                <i class="fas fa-fire"></i> Destaques ML
+            </button>
+            <button class="nav-item" data-modulo="ml"
+                    onclick="navegar('monitoramento.html', this, 'Monitoramento de Preços')">
                 <i class="fas fa-tags"></i> Monitoramento de Preços
+            </button>
+
+            <div class="nav-section-title">Sistema</div>
+            <button class="nav-item" data-modulo="configuracoes"
+                    onclick="navegar('configuracoes.html', this, 'Configurações')">
+                <i class="fas fa-cog"></i> Configurações
+            </button>
+            <button class="nav-item" id="adminMenuItem" style="display:none;"
+                    onclick="navegar('admin.html', this, 'Painel Admin')">
+                <i class="fas fa-shield-alt"></i> Painel Admin
             </button>
         </nav>
 
@@ -264,9 +380,19 @@
     <!-- MAIN -->
     <div class="main">
         <div class="topbar">
-            <span class="topbar-title" id="topbarTitle">Dashboard</span>
-            <span class="topbar-user" id="topbarUser"></span>
+            <div style="display:flex; align-items:center; min-width:0;">
+                <button class="hamburger" id="hamburger" onclick="toggleDrawer()" aria-label="Abrir menu"><i class="fas fa-bars"></i></button>
+                <span class="topbar-title" id="topbarTitle">Dashboard</span>
+            </div>
+            <div class="user-wrap">
+                <button class="topbar-user" id="topbarUser" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false"></button>
+                <div class="user-menu" id="userMenu">
+                    <button onclick="irConfiguracoes()"><i class="fas fa-cog"></i> Configurações</button>
+                    <button class="danger" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Sair do sistema</button>
+                </div>
+            </div>
         </div>
+        <div id="licenseBanner"></div>
         <iframe class="content-frame" id="contentFrame" src="dashboard.html"></iframe>
     </div>
 
@@ -283,14 +409,76 @@
         };
 
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
+        const auth      = firebase.auth();
+        const firestore = firebase.firestore();
 
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                window.location.href = 'login.html';
-            } else {
-                document.getElementById('topbarUser').textContent = user.email;
-            }
+        auth.onAuthStateChanged(async user => {
+            if (!user) { window.location.href = 'login.html'; return; }
+
+            document.getElementById('topbarUser').textContent = user.email;
+
+            try {
+                const result = await user.getIdTokenResult(true);
+                const c = result.claims;
+
+                // Bloqueia conta inativa
+                if (c.ativo === false) {
+                    auth.signOut();
+                    window.location.href = 'login.html?erro=inativo';
+                    return;
+                }
+
+                const role     = c.role || 'user';
+                const isSA     = role === 'superadmin';
+                const isAdmin  = role === 'admin' || isSA;
+                const perms    = c.permissoes || {};
+
+                // ── Visibilidade do menu por módulo ─────────────────────────
+                document.querySelectorAll('[data-modulo]').forEach(el => {
+                    const m = el.getAttribute('data-modulo');
+                    let tem = isAdmin || perms[m] !== false;
+                    // Flag central: oculta o Mercado Livre (Destaques + Monitoramento)
+                    // independente de permissão quando a integração está desligada.
+                    if (m === 'ml' && !flagAtiva('mercadoLivre')) tem = false;
+                    el.style.display = tem ? '' : 'none';
+                });
+
+                // Importar Shopee: visível porém desabilitado quando a flag shopee está off
+                const shopeeItem = document.getElementById('navImportarShopee');
+                if (shopeeItem && !flagAtiva('shopee')) {
+                    shopeeItem.style.opacity = '0.5';
+                    shopeeItem.style.pointerEvents = 'none';
+                    shopeeItem.title = 'Integração Shopee desativada (config.js)';
+                    shopeeItem.innerHTML += ' <small style="opacity:.8;">(em breve)</small>';
+                }
+
+                // Painel Admin: só superadmin
+                if (isSA) document.getElementById('adminMenuItem').style.display = '';
+
+                // ── Banner de licença ────────────────────────────────────────
+                const empresaId = String(c.empresaId || '1');
+                try {
+                    const empDoc = await firestore.doc('empresas/' + empresaId).get();
+                    if (empDoc.exists) {
+                        const emp = empDoc.data();
+                        if (window.aplicarBranding) window.aplicarBranding(emp.branding);
+                        if (emp.licencaExpira) {
+                            const expira = emp.licencaExpira.toDate();
+                            const dias   = Math.ceil((expira - Date.now()) / 86400000);
+                            const banner = document.getElementById('licenseBanner');
+                            if (dias <= 0) {
+                                banner.innerHTML = '<i class="fas fa-triangle-exclamation"></i> Sua licença expirou. Contate o administrador.';
+                                banner.className = 'expired';
+                                banner.style.display = 'block';
+                            } else if (dias <= 7) {
+                                banner.innerHTML = `<i class="fas fa-triangle-exclamation"></i> Sua licença expira em ${dias} dia(s). Renove para manter o acesso.`;
+                                banner.style.display = 'block';
+                            }
+                        }
+                    }
+                } catch(e) { /* Firestore indisponível — sem banner */ }
+
+            } catch(e) { console.warn('Claims check failed:', e); }
         });
 
         function getTheme() {
@@ -298,7 +486,8 @@
         }
 
         function urlComTema(pagina) {
-            return pagina + '?theme=' + getTheme();
+            const sep = pagina.includes('?') ? '&' : '?';
+            return pagina + sep + 'theme=' + getTheme();
         }
 
         function navegar(pagina, btn, titulo) {
@@ -306,17 +495,27 @@
             btn.classList.add('active');
             document.getElementById('contentFrame').src = urlComTema(pagina);
             document.getElementById('topbarTitle').textContent = titulo;
+            closeDrawer();   // fecha o menu no mobile após navegar
         }
+
+        // ── Drawer (menu lateral no mobile) ──
+        window.toggleDrawer = function () {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarBackdrop').classList.toggle('open');
+        };
+        window.closeDrawer = function () {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebarBackdrop').classList.remove('open');
+        };
 
         function toggleDark(checkbox) {
             const theme = checkbox.checked ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
 
-            // Recarrega o iframe atual com o novo tema na URL
+            // Envia tema via postMessage — não recarrega o iframe, preserva o formulário
             const frame = document.getElementById('contentFrame');
-            const paginaAtual = frame.src.split('?')[0];
-            frame.src = paginaAtual + '?theme=' + theme;
+            frame.contentWindow.postMessage({ type: 'SET_THEME', theme }, '*');
         }
 
         // Carrega o dashboard inicial já com o tema correto
@@ -336,6 +535,61 @@
         window.handleLogout = function () {
             auth.signOut().then(() => window.location.href = 'login.html');
         };
+
+        // Menu de usuário (topo direito)
+        window.toggleUserMenu = function (e) {
+            e.stopPropagation();
+            const m = document.getElementById('userMenu');
+            const aberto = m.classList.toggle('open');
+            document.getElementById('topbarUser').setAttribute('aria-expanded', aberto);
+        };
+        document.addEventListener('click', () => {
+            const m = document.getElementById('userMenu');
+            if (m) { m.classList.remove('open'); document.getElementById('topbarUser').setAttribute('aria-expanded', 'false'); }
+        });
+        window.irConfiguracoes = function () {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById('contentFrame').src = urlComTema('configuracoes.html');
+            document.getElementById('topbarTitle').textContent = 'Configurações';
+        };
+
+        // ── Seções recolhíveis do menu lateral ──
+        (function initMenuColapsavel() {
+            const titulos = document.querySelectorAll('.sidebar-nav .nav-section-title');
+            let salvo = {};
+            try { salvo = JSON.parse(localStorage.getItem('navCollapsed') || '{}'); } catch (e) {}
+
+            titulos.forEach(t => {
+                // Grupo = itens seguintes até o próximo título de seção
+                const grupo = [];
+                let el = t.nextElementSibling;
+                while (el && !el.classList.contains('nav-section-title')) { grupo.push(el); el = el.nextElementSibling; }
+
+                // Chevron (respeita o uso de display:flex já definido no CSS)
+                const chev = document.createElement('i');
+                chev.className = 'fas fa-chevron-down chev';
+                t.appendChild(chev);
+                t.setAttribute('role', 'button');
+                t.setAttribute('tabindex', '0');
+
+                const chave = t.textContent.trim();
+                const aplicar = (col) => {
+                    t.classList.toggle('collapsed', col);
+                    // Usa classe (não inline) para não conflitar com o ocultar por permissão
+                    grupo.forEach(g => g.classList.toggle('grp-collapsed', col));
+                };
+                if (salvo[chave]) aplicar(true);
+
+                const toggle = () => {
+                    const col = !t.classList.contains('collapsed');
+                    aplicar(col);
+                    salvo[chave] = col;
+                    try { localStorage.setItem('navCollapsed', JSON.stringify(salvo)); } catch (e) {}
+                };
+                t.addEventListener('click', toggle);
+                t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+            });
+        })();
     </script>
 </body>
 </html>

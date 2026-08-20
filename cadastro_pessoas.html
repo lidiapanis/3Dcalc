@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Pessoas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 24px 12px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 560px; width: 100%; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        input[type="text"], input[type="email"], input[type="tel"], textarea {
+            width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px;
+            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-family: inherit;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+        select#eventoOrigem { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px;
+            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; background: #fff; font-family: inherit; font-size: 1em; }
+        html[data-theme="dark"] select#eventoOrigem { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        .tipos-row { display: flex; gap: 24px; margin-top: 8px; }
+        .tipo-check { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #444; cursor: pointer; }
+        .tipo-check input { width: 18px; height: 18px; cursor: pointer; }
+        button.salvar { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; transition: background-color 0.3s; margin-top: 15px; }
+        button.salvar:hover { background-color: #218838; }
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #4A93B0; }
+
+        /* ── Dropdown estilizado (tipo de cadastro) ── */
+        .dd { position: relative; margin-top: 8px; max-width: 340px; }
+        .dd-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px 14px; cursor: pointer; font-size: 1em; color: #333; }
+        .dd-toggle:hover { border-color: #4A93B0; }
+        .dd.open .dd-toggle { border-color: #4A93B0; box-shadow: 0 0 0 2px rgba(74,147,176,.15); }
+        .dd-toggle .chev { color: #888; transition: transform .15s; }
+        .dd.open .dd-toggle .chev { transform: rotate(180deg); }
+        .dd-menu { position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: #fff; border: 1px solid #ddd;
+            border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.12); z-index: 50; display: none; overflow: hidden; }
+        .dd.open .dd-menu { display: block; }
+        .dd-opt { padding: 11px 14px; cursor: pointer; font-size: .95em; color: #333; }
+        .dd-opt:hover { background: #e8f0fe; }
+        .dd-opt.sel { background: #e0f0f8; color: #2E7496; font-weight: 600; }
+        html[data-theme="dark"] .dd-toggle, html[data-theme="dark"] .dd-menu { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] .dd-opt { color: #e0e0e0 !important; }
+        html[data-theme="dark"] .dd-opt:hover { background: #33384d !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 id="pageTitle">Cadastrar Cliente</h1>
+        <form id="pessoaForm">
+            <fieldset>
+                <legend>Dados</legend>
+                <label for="nome">Nome / Razão Social:</label>
+                <input type="text" id="nome" required>
+
+                <label for="documento">Documento (CPF / CNPJ):</label>
+                <input type="text" id="documento">
+
+                <label for="telefone">Telefone:</label>
+                <input type="tel" id="telefone">
+
+                <label for="email">E-mail:</label>
+                <input type="email" id="email">
+
+                <label for="endereco">Endereço:</label>
+                <input type="text" id="endereco">
+
+                <label for="cep">CEP:</label>
+                <input type="text" id="cep">
+
+                <label for="observacoes">Observações:</label>
+                <textarea id="observacoes"></textarea>
+
+                <label for="eventoOrigem">Evento de origem: <small style="color:#999;font-weight:normal;">(opcional)</small></label>
+                <select id="eventoOrigem">
+                    <option value="">— nenhum —</option>
+                </select>
+            </fieldset>
+
+            <button type="button" class="salvar" id="btnSalvar" onclick="iniciarCadastro()">Salvar Cliente</button>
+        </form>
+        <p id="feedback" class="feedback"></p>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "pessoas";
+        const CAMINHO_CONTADOR = "contador_pessoas/proximoId";
+
+        // O papel (cliente/fornecedor) é automático conforme a tela de origem — sem seleção manual.
+        const tipoContexto = new URLSearchParams(location.search).get('tipo') === 'fornecedor' ? 'fornecedor' : 'cliente';
+        const LABEL_SING = tipoContexto === 'fornecedor' ? 'Fornecedor' : 'Cliente';
+
+        let idEmEdicao = null;
+        let dataCriacaoOriginal = null;
+
+        // Pessoas reaproveita a permissão do módulo 'clientes'
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('clientes')) return;
+            // Rótulos da tela conforme o tipo (Cliente ou Fornecedor)
+            document.getElementById('pageTitle').textContent = 'Cadastrar ' + LABEL_SING;
+            document.getElementById('btnSalvar').textContent = 'Salvar ' + LABEL_SING;
+            document.title = 'Cadastro de ' + LABEL_SING;
+            await carregarEventosOrigem();
+            verificarModoEdicao();
+        })();
+
+        // Lista os eventos da empresa no dropdown "Evento de origem"
+        async function carregarEventosOrigem() {
+            const sel = document.getElementById('eventoOrigem');
+            try {
+                const snap = await empresaRef('eventos').once('value');
+                const evs = [];
+                snap.forEach(c => { const d = c.val() || {}; evs.push({ id: c.key, nome: d.nome || ('Evento #' + c.key) }); });
+                evs.sort((a, b) => Number(b.id) - Number(a.id));
+                evs.forEach(ev => { const o = document.createElement('option'); o.value = ev.id; o.textContent = ev.nome; sel.appendChild(o); });
+            } catch (e) { /* sem eventos — dropdown fica só com "nenhum" */ }
+        }
+
+        function verificarModoEdicao() {
+            const id = new URLSearchParams(window.location.search).get('id');
+            if (id) {
+                idEmEdicao = id;
+                document.getElementById('feedback').textContent = `Carregando Pessoa #${id}...`;
+                empresaRef(CAMINHO_RTDB + '/' + id).once('value')
+                    .then((snapshot) => {
+                        if (snapshot.exists()) preencherFormulario(snapshot.val());
+                        else document.getElementById('feedback').textContent = `Erro: Pessoa #${id} não encontrada.`;
+                    })
+                    .catch((error) => {
+                        document.getElementById('feedback').textContent = `Erro ao carregar dados: ${error.message}`;
+                    });
+            } else {
+                document.getElementById('feedback').textContent = "Modo: Novo Cadastro.";
+            }
+        }
+
+        function preencherFormulario(dados) {
+            document.getElementById('nome').value        = dados.nome || '';
+            document.getElementById('documento').value   = dados.documento || '';
+            document.getElementById('telefone').value    = dados.telefone || '';
+            document.getElementById('email').value       = dados.email || '';
+            document.getElementById('endereco').value    = dados.endereco || '';
+            document.getElementById('cep').value         = dados.cep || '';
+            document.getElementById('observacoes').value = dados.observacoes || '';
+
+            // Evento de origem (adiciona a opção caso o evento já tenha sido removido da lista)
+            const selEv = document.getElementById('eventoOrigem');
+            if (dados.eventoOrigemId) {
+                if (![...selEv.options].some(o => o.value === String(dados.eventoOrigemId))) {
+                    const o = document.createElement('option');
+                    o.value = String(dados.eventoOrigemId);
+                    o.textContent = dados.eventoOrigemNome || ('Evento #' + dados.eventoOrigemId);
+                    selEv.appendChild(o);
+                }
+                selEv.value = String(dados.eventoOrigemId);
+            }
+            dataCriacaoOriginal = dados.dataCriacao || null;
+
+            document.getElementById('pageTitle').textContent = `Editar ${LABEL_SING} #${idEmEdicao}`;
+            document.getElementById('btnSalvar').textContent = `Atualizar ${LABEL_SING}`;
+            document.getElementById('feedback').textContent = `Dados do ${LABEL_SING.toLowerCase()} #${idEmEdicao} carregados.`;
+        }
+
+        window.iniciarCadastro = function() {
+            const nome = document.getElementById('nome').value.trim();
+            if (!nome) { alert("Informe o nome / razão social."); return; }
+
+            // Papel automático conforme a tela de origem (Clientes/Fornecedores)
+            const tipo = tipoContexto;   // 'cliente' | 'fornecedor'
+
+            const selEv = document.getElementById('eventoOrigem');
+            const eventoOrigemId = selEv.value || null;
+            const eventoOrigemNome = eventoOrigemId ? (selEv.selectedOptions[0]?.textContent || null) : null;
+
+            const dados = {
+                nome,
+                documento:   document.getElementById('documento').value.trim(),
+                telefone:    document.getElementById('telefone').value.trim(),
+                email:       document.getElementById('email').value.trim(),
+                endereco:    document.getElementById('endereco').value.trim(),
+                cep:         document.getElementById('cep').value.trim(),
+                observacoes: document.getElementById('observacoes').value.trim(),
+                tipo,                                          // canônico: 'cliente' | 'fornecedor'
+                tipos: { cliente: tipo === 'cliente', fornecedor: tipo === 'fornecedor' },   // sincronizado (compat com módulos legados)
+                eventoOrigemId,
+                eventoOrigemNome,
+                dataCriacao: dataCriacaoOriginal || new Date().toISOString()
+            };
+
+            if (idEmEdicao) salvarPessoa(idEmEdicao, dados, 'atualizada');
+            else obterProximoId(dados);
+        }
+
+        function obterProximoId(dados) {
+            document.getElementById('feedback').textContent = "Buscando ID sequencial...";
+            empresaRef(CAMINHO_CONTADOR).transaction((currentData) => {
+                return currentData === null ? 1 : currentData + 1;
+            })
+            .then(result => {
+                if (result.committed) {
+                    const idParaSalvar = result.snapshot.val();
+                    salvarPessoa(idParaSalvar, { ...dados, idSequencial: idParaSalvar }, 'salva');
+                } else {
+                    document.getElementById('feedback').textContent = "Falha temporária na transação. Tente novamente.";
+                }
+            })
+            .catch(error => {
+                document.getElementById('feedback').textContent = "Erro ao obter ID: " + error.message;
+            });
+        }
+
+        function salvarPessoa(id, dados, acao) {
+            empresaRef(CAMINHO_RTDB + '/' + id).set(dados)
+                .then(() => {
+                    document.getElementById('feedback').textContent = `Pessoa #${id} ${acao} com sucesso!`;
+                    if (acao === 'salva') document.getElementById('pessoaForm').reset();
+                    setTimeout(() => { window.location.href = 'listagem_pessoas.html?tipo=' + tipoContexto; }, 1200);
+                })
+                .catch((error) => {
+                    document.getElementById('feedback').textContent = `Erro ao salvar: ` + error.message;
+                });
+        }
+    </script>
+</body>
+</html>

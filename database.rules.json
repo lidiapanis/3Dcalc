@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "empresas": {
+      "$empresaId": {
+        ".read":  "auth != null && (auth.token.empresaId == $empresaId || (auth.token.empresaId == null && $empresaId == '1')) && auth.token.ativo != false",
+        ".write": "auth != null && (auth.token.empresaId == $empresaId || (auth.token.empresaId == null && $empresaId == '1')) && auth.token.ativo != false"
+      }
+    }
+  }
+}

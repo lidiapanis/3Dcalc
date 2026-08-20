@@ -7,7 +7,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="empresa.js"></script>
+    <script src="estoque.js"></script>
     <script src="tags.js"></script>
+    <script src="cores.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="etiqueta.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         body {
@@ -43,8 +48,9 @@
             flex-grow: 1;
             min-width: 200px;
         }
+        /* Ordenar/filtrar = ação neutra (cinza) */
         .sort-buttons button {
-            background-color: #007bff;
+            background-color: #6c757d;
             color: white;
             padding: 10px 15px;
             border: none;
@@ -54,7 +60,25 @@
             transition: background-color 0.3s;
         }
         .sort-buttons button:hover {
-            background-color: #0056b3;
+            background-color: #5a6268;
+        }
+        /* Botão Novo Produto: mesma altura/forma dos demais, texto branco legível */
+        .btn-novo-produto {
+            background-color: #28a745;
+            color: #fff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 20px;
+            transition: background-color 0.3s;
+        }
+        .btn-novo-produto:hover { background-color: #218838; }
+        @media (max-width: 768px) {
+            /* Controles ocupam a largura toda e ficam alinhados (busca / ordenar / novo) */
+            .controls > a { width: 100%; }
+            .btn-novo-produto { width: 100%; margin-left: 0 !important; }
         }
         table {
             width: 100%;
@@ -92,7 +116,10 @@
             border-radius: 4px;
             display: block;
             margin: auto;
+            cursor: zoom-in;
+            transition: transform 0.15s;
         }
+        td.col-imagem img:hover { transform: scale(1.08); }
         th {
             background-color: #f2f2f2;
             color: #333;
@@ -123,15 +150,69 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #007bff; /* Azul */
+            color: #4A93B0;
             font-size: 1.8em;
             text-decoration: none;
             transition: color 0.3s;
         }
 
         .home-btn:hover {
-            color: #0056b3;
+            color: #3A7A96;
         }
+
+        .actions .etq-btn { background-color: #6741D9; color: #fff; }
+        .actions .etq-btn:hover { background-color: #5733c0; }
+        .actions .estoque-btn { background-color: #28a745; color: #fff; }
+        .actions .estoque-btn:hover { background-color: #218838; }
+        .est-num { font-weight: 700; color: #1B4C65; }
+        .est-zero { color: #dc3545; }
+
+        /* ── Modal Adicionar ao estoque (produção) ── */
+        .prod-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 720; padding: 16px; }
+        .prod-bg.open { display: flex; }
+        .prod-modal { background: #fff; border-radius: 10px; width: 100%; max-width: 480px; padding: 22px; box-shadow: 0 8px 30px rgba(0,0,0,.25); max-height: 90vh; overflow-y: auto; }
+        .prod-modal h3 { margin: 0 0 4px; color: #1B4C65; }
+        .prod-modal p.sub { margin: 0 0 14px; color: #6a7c93; font-size: .9em; }
+        .prod-modal label { display: block; font-weight: 600; color: #555; margin: 10px 0 4px; }
+        .prod-modal input[type=number], .prod-modal select { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 6px; font-size: 1.05em; background: #fff; }
+        .prod-prev { margin-top: 14px; border-top: 1px dashed #ddd; padding-top: 12px; }
+        .prev-linha { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: .9em; border-bottom: 1px solid #f3f3f3; }
+        .prev-linha .pl-disp { color: #6a7c93; font-size: .92em; }
+        .prev-linha.falta { color: #dc3545; font-weight: 600; }
+        .prev-linha.falta .pl-disp { color: #dc3545; }
+        .prev-custo { text-align: right; margin-top: 10px; font-weight: 700; color: #1B4C65; }
+        .prod-aviso { background: #fff3cd; border: 1px solid #ffe08a; color: #7a5b00; border-radius: 6px; padding: 10px 12px; margin-top: 12px; font-size: .88em; display: none; }
+        .prod-aviso a { color: #b8860b; font-weight: 700; }
+        .prod-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+        .pf-pri { background: #28a745; color: #fff; border: none; border-radius: 6px; padding: 11px 18px; font-weight: 700; cursor: pointer; }
+        .pf-pri:disabled { background: #aaa; cursor: not-allowed; }
+        .pf-sec { background: none; border: 1px solid #ccc; color: #555; border-radius: 6px; padding: 11px 18px; cursor: pointer; }
+        html[data-theme="dark"] .prod-modal { background: #1e1e2e; color: #e0e0e0; }
+        html[data-theme="dark"] .prod-modal h3 { color: #7fc1de; }
+        html[data-theme="dark"] .prod-modal input[type=number], html[data-theme="dark"] .prod-modal select { background: #2a2a3e; color: #e0e0e0; border-color: #555; }
+        html[data-theme="dark"] .prev-linha { border-bottom-color: #333; }
+        html[data-theme="dark"] .est-num { color: #7fc1de; }
+
+        /* ── Modal de etiqueta ── */
+        .etiq-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 650; padding: 16px; }
+        .etiq-backdrop.open { display: flex; }
+        .etiq-modal { background: #fff; border-radius: 10px; max-width: 420px; width: 100%; padding: 22px; box-shadow: 0 8px 30px rgba(0,0,0,0.25); text-align: center; }
+        .etiq-modal h3 { margin: 0 0 14px; color: #333; font-size: 1.1em; }
+        .etiq-preview { display: flex; justify-content: center; align-items: center; min-height: 120px; background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; overflow: auto; }
+        .etiq-preview canvas { max-width: 100%; }
+        .etiq-foot { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+        .etiq-btn { background: #4A93B0; color: #fff; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: 600; }
+        .etiq-btn-sec { background: #eee; color: #555; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; }
+        html[data-theme="dark"] .etiq-modal { background: #1f2230; }
+        html[data-theme="dark"] .etiq-modal h3 { color: #e0e0e0; }
+        html[data-theme="dark"] .etiq-preview { background: #fff; border-color: #444; }
+
+        /* ── Lightbox de imagem do produto ── */
+        .img-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.82); display: none; align-items: center; justify-content: center; z-index: 700; padding: 24px; cursor: zoom-out; }
+        .img-backdrop.open { display: flex; }
+        .img-backdrop img { max-width: 92vw; max-height: 86vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); cursor: default; }
+        .img-close { position: fixed; top: 18px; right: 24px; background: rgba(255,255,255,0.15); color: #fff; border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 1.6em; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .img-close:hover { background: rgba(255,255,255,0.3); }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
@@ -140,13 +221,13 @@
     <div class="container">
         <h1>Produtos Cadastrados</h1>
         <div class="controls">
-            <input type="text" id="searchBar" placeholder="Buscar por Nome da Peça...">
+            <input type="text" id="searchBar" placeholder="Buscar por nome ou tag...">
             <div class="sort-buttons">
                 <button onclick="ordenarTabela('id')">Ordenar por ID</button>
                 <button onclick="ordenarTabela('nomePeca')">Ordenar por Nome</button>
             </div>
             <a href="cadastro_produtos.html" style="text-decoration: none;">
-                 <button style="background-color: #28a745; margin-left: 20px;">+ Novo Produto</button>
+                 <button class="btn-novo-produto">+ Novo Produto</button>
             </a>
         </div>
         
@@ -157,9 +238,10 @@
                     <th>ID</th>
                     <th>Nome da Peça</th>
                     <th>Tags</th>
+                    <th>Cores</th>
                     <th>Custo Total</th>
                     <th>Preço de Venda</th>
-                    <th>Data</th>
+                    <th>Estoque</th>
                     <th>Ações</th>
                 </tr>
             </thead>
@@ -168,6 +250,28 @@
         </table>
 
         <p id="feedback"></p>
+    </div>
+
+    <!-- Modal: Adicionar peça pronta ao estoque (produção) -->
+    <div class="prod-bg" id="prodBg">
+        <div class="prod-modal">
+            <h3><i class="fas fa-cubes-stacked"></i> Adicionar ao estoque</h3>
+            <p class="sub" id="prodNome">—</p>
+            <label for="prodQtd">Quantidade de peças prontas</label>
+            <input type="number" id="prodQtd" min="1" step="1" value="1" oninput="renderPreviewProducao()">
+            <div id="prodFilamentoBox">
+                <label for="prodFilamento">Filamento / cor usada</label>
+                <select id="prodFilamento" onchange="renderPreviewProducao()"></select>
+            </div>
+            <div class="prod-prev" id="prodPreview"></div>
+            <div class="prev-custo" id="prodCusto"></div>
+            <div class="prod-aviso" id="prodAviso"></div>
+            <p id="prodFeedback" style="min-height:1.1em;font-size:.9em;margin:8px 0 0;color:#dc3545;"></p>
+            <div class="prod-foot">
+                <button class="pf-sec" onclick="fecharEstoqueModal()">Cancelar</button>
+                <button class="pf-pri" id="btnConfirmarProducao" onclick="confirmarProducao()">Confirmar produção</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -191,6 +295,8 @@
         let produtosData = [];
         let currentSort = 'id';
         let tagsGlobais = {};
+        let insumosMap = {};      // id -> { nome, tipo, unidade, estoqueAtual, custoUnitario, cor }
+        let produtosFull = {};    // id -> registro completo (receita, subprodutos, pesoPeca, estoque, custoTotal)
     
         // --- 2. FUNÇÕES DE UTILIDADE E RENDERIZAÇÃO (MOVIDAS PARA CIMA) ---
     
@@ -218,10 +324,15 @@
         }
     
         window.aplicarFiltro = function() {
-            const searchText = document.getElementById('searchBar').value.toLowerCase();
-            const filteredData = produtosData.filter(item => 
-                item.nomePeca.toLowerCase().includes(searchText)
-            );
+            const searchText = document.getElementById('searchBar').value.toLowerCase().trim();
+            const filteredData = produtosData.filter(item => {
+                if ((item.nomePeca || '').toLowerCase().includes(searchText)) return true;
+                // Também filtra por Tags (nome amigável ou slug)
+                return (item.tags || []).some(slug => {
+                    const nome = (tagsGlobais[slug] && tagsGlobais[slug].nome) ? tagsGlobais[slug].nome : slug;
+                    return nome.toLowerCase().includes(searchText) || String(slug).toLowerCase().includes(searchText);
+                });
+            });
             renderizarTabela(filteredData);
         }
     
@@ -230,7 +341,7 @@
             tbody.innerHTML = ''; 
     
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">Nenhum produto encontrado.</td></tr>';
                 return;
             }
 
@@ -243,6 +354,8 @@
                     const img = document.createElement('img');
                     img.src = item.imagemUrl;
                     img.alt = item.nomePeca;
+                    img.title = 'Clique para ampliar';
+                    img.onclick = () => ampliarImagem(item.imagemUrl, item.nomePeca);
                     imgCell.appendChild(img);
                 }
 
@@ -255,13 +368,35 @@
                     const nome = info ? info.nome : slug;
                     tagsCell.appendChild(renderChip(nome, slug, false, null));
                 });
+                row.insertCell().innerHTML = Cores.renderBolinhas(item.cores) || '<span style="color:#bbb;">—</span>';
                 row.insertCell().textContent = formatarMoeda(item.custoTotal);
                 row.insertCell().textContent = formatarMoeda(item.precoVenda);
-                row.insertCell().textContent = formatarData(item.dataCriacao);
-                
+
+                // Estoque (peças prontas)
+                const estCell = row.insertCell();
+                estCell.innerHTML = `<span class="est-num ${item.estoque <= 0 ? 'est-zero' : ''}">${item.estoque}</span>`;
+
                 const actionsCell = row.insertCell();
                 actionsCell.className = 'actions';
-                
+
+                // Produção: adicionar peças prontas ao estoque (baixa receita)
+                const addBtn = document.createElement('button');
+                addBtn.className = 'estoque-btn';
+                addBtn.innerHTML = '<i class="fas fa-plus"></i> Estoque';
+                addBtn.title = 'Adicionar peças prontas ao estoque';
+                addBtn.onclick = () => abrirEstoqueModal(item.id);
+                actionsCell.appendChild(addBtn);
+
+                // Etiqueta só para produtos com código de barras preenchido
+                if (item.codigoBarras) {
+                    const etqBtn = document.createElement('button');
+                    etqBtn.className = 'etq-btn';
+                    etqBtn.innerHTML = '<i class="fas fa-tag"></i> Etiqueta';
+                    etqBtn.title = 'Gerar etiqueta para impressão';
+                    etqBtn.onclick = () => Etiqueta.abrir({ code: item.codigoBarras, nome: item.nomeResumido || item.nomePeca, preco: item.precoVenda });
+                    actionsCell.appendChild(etqBtn);
+                }
+
                 const editBtn = document.createElement('button');
                 editBtn.className = 'edit-btn';
                 editBtn.textContent = 'Editar';
@@ -273,39 +408,47 @@
                 deleteBtn.textContent = 'Deletar';
                 deleteBtn.onclick = () => deletarProduto(item.id);
                 actionsCell.appendChild(deleteBtn);
+                ['', 'ID', 'Nome da Peça', 'Tags', 'Cores', 'Custo Total', 'Preço de Venda', 'Estoque'].forEach((lab, i) => { if (lab && row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
             });
         }
     
         // --- 3. FUNÇÕES CRUD E INICIALIZAÇÃO (QUE CHAMAM AS FUNÇÕES ACIMA) ---
     
         function carregarProdutos() {
-            document.getElementById('feedback').textContent = "Carregando dados...";
-            database.ref(CAMINHO_RTDB).once('value', (snapshot) => {
+            document.getElementById('feedback').textContent = "";
+            return empresaRef(CAMINHO_RTDB).once('value').then((snapshot) => {
                 produtosData = [];
+                produtosFull = {};
                 snapshot.forEach((childSnapshot) => {
                     const data = childSnapshot.val();
-                    const id = childSnapshot.key; 
-                    
+                    const id = childSnapshot.key;
+                    produtosFull[id] = data;     // registro completo p/ a produção (receita/subprodutos/pesoPeca)
+
                     produtosData.push({
                         id: parseInt(id),
                         chaveFirebase: id,
                         nomePeca: data.nomePeca,
+                        nomeResumido: data.nomeResumido || '',
+                        codigoBarras: data.codigoBarras || '',
                         custoTotal: data.custoTotal,
                         precoVenda: data.precoVenda,
+                        estoque: Number(data.estoque) || 0,
                         dataCriacao: data.dataCriacao,
                         imagemUrl: data.imagemUrl || null,
-                        tags: Array.isArray(data.tags) ? data.tags : (data.tags ? Object.values(data.tags) : [])
+                        tags: Array.isArray(data.tags) ? data.tags : (data.tags ? Object.values(data.tags) : []),
+                        cores: Array.isArray(data.cores) ? data.cores : (data.cores ? Object.values(data.cores) : [])
                     });
                 });
-                
-                document.getElementById('feedback').textContent = "";
                 ordenarTabela(currentSort); // Chama a função que agora está definida acima
+            }).catch((error) => {
+                console.error("Erro ao carregar produtos:", error);
+                mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar produtos.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
             });
         }
     
         window.deletarProduto = function(id) {
             if (confirm(`Tem certeza que deseja deletar o Produto # ${id}?`)) {
-                database.ref(CAMINHO_RTDB + '/' + id).remove()
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
                     .then(() => {
                         alert(`Produto # ${id} deletado com sucesso!`);
                         carregarProdutos();
@@ -319,20 +462,188 @@
         
         window.editarProduto = function(id) {
             window.location.href = `cadastro_produtos.html?id=${id}`;
-        }
-    
+        };
+
+        // Etiqueta via módulo compartilhado etiqueta.js (botão chama Etiqueta.abrir diretamente)
+
         // --- 4. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DE EVENTOS ---
     
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                window.location.href = 'login.html';
-            } else {
-                database.ref('tags').once('value').then(snap => {
-                    snap.forEach(child => { tagsGlobais[child.key] = child.val(); });
-                    carregarProdutos();
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('produtos')) return;
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            iniciar();
+        })();
+
+        function mostrarEstado(html) {
+            const tbody = document.getElementById('produtosTable').querySelector('tbody');
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        window.iniciar = function () {
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando produtos...');
+            // Tags são acessórias: se falharem, segue carregando os produtos mesmo assim
+            empresaRef('tags').once('value')
+                .then(snap => { snap.forEach(child => { tagsGlobais[child.key] = child.val(); }); })
+                .catch(() => {})
+                .then(carregarInsumosMap)
+                .then(carregarProdutos);
+        };
+
+        function carregarInsumosMap() {
+            return empresaRef('insumos').once('value').then(snap => {
+                insumosMap = {};
+                snap.forEach(c => {
+                    const d = c.val() || {};
+                    insumosMap[c.key] = {
+                        nome: d.nome || ('#' + c.key), tipo: d.tipo || 'material', unidade: d.unidade || 'un',
+                        estoqueAtual: Number(d.estoqueAtual) || 0, custoUnitario: Number(d.custoUnitario) || 0, cor: d.cor || null
+                    };
                 });
-                document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            }).catch(() => { insumosMap = {}; });
+        }
+
+        // ── Adicionar peça pronta ao estoque (produção: baixa receita em cascata) ──
+        let prodEstoqueId = null;
+
+        function produtosMapPlan() {
+            const m = {};
+            Object.keys(produtosFull).forEach(id => {
+                const d = produtosFull[id] || {};
+                m[id] = { nome: d.nomeResumido || d.nomePeca || ('#' + id), estoque: Number(d.estoque) || 0, custoTotal: Number(d.custoTotal) || 0 };
+            });
+            return m;
+        }
+        function filamentosDisponiveis() {
+            return Object.keys(insumosMap).filter(id => insumosMap[id].tipo === 'filamento').map(id => ({ id, ...insumosMap[id] }));
+        }
+        function planoAtual() {
+            const prod = produtosFull[prodEstoqueId] || {};
+            const qtd = parseInt(document.getElementById('prodQtd').value) || 0;
+            const usaFil = (Number(prod.pesoPeca) || 0) > 0;
+            const filamentoId = usaFil ? document.getElementById('prodFilamento').value : '';
+            return Estoque.planejarProducao({ produto: prod, qtd, filamentoId, produtosMap: produtosMapPlan(), insumosMap });
+        }
+
+        window.abrirEstoqueModal = function (id) {
+            const prod = produtosFull[id];
+            if (!prod) { alert('Produto não encontrado.'); return; }
+            prodEstoqueId = id;
+            document.getElementById('prodNome').textContent = `#${id} — ${prod.nomeResumido || prod.nomePeca || ''}`;
+            document.getElementById('prodQtd').value = '1';
+            document.getElementById('prodFeedback').textContent = '';
+            const usaFil = (Number(prod.pesoPeca) || 0) > 0;
+            const box = document.getElementById('prodFilamentoBox');
+            const sel = document.getElementById('prodFilamento');
+            box.style.display = usaFil ? '' : 'none';
+            if (usaFil) {
+                const fils = filamentosDisponiveis();
+                sel.innerHTML = fils.length
+                    ? fils.map(f => `<option value="${f.id}">${f.nome}${f.cor && f.cor.nome ? ' · ' + f.cor.nome : ''} (estoque ${f.estoqueAtual}g)</option>`).join('')
+                    : '<option value="">— nenhum filamento cadastrado —</option>';
             }
+            document.getElementById('prodBg').classList.add('open');
+            renderPreviewProducao();
+        };
+        window.fecharEstoqueModal = function () { document.getElementById('prodBg').classList.remove('open'); prodEstoqueId = null; };
+
+        window.renderPreviewProducao = function () {
+            if (!prodEstoqueId) return;
+            const prod = produtosFull[prodEstoqueId];
+            const qtd = parseInt(document.getElementById('prodQtd').value) || 0;
+            const usaFil = (Number(prod.pesoPeca) || 0) > 0;
+            const filamentoId = usaFil ? document.getElementById('prodFilamento').value : '';
+            const plano = planoAtual();
+            const prev = document.getElementById('prodPreview');
+            prev.innerHTML = plano.itens.length
+                ? plano.itens.map(i => `<div class="prev-linha ${i.falta > 0 ? 'falta' : ''}">
+                        <span>${i.nome}</span>
+                        <span class="pl-disp">${i.necessario}${i.unidade} • disp. ${i.disponivel}${i.unidade}${i.falta > 0 ? ' • falta ' + i.falta + i.unidade : ''}</span>
+                    </div>`).join('')
+                : '<p style="color:#6a7c93;font-size:.9em;margin:0;">Sem receita — apenas soma ao estoque.</p>';
+            document.getElementById('prodCusto').textContent = qtd > 0 ? 'Custo estimado: ' + formatarMoeda(plano.custoEstimado) : '';
+
+            const aviso = document.getElementById('prodAviso');
+            const btn = document.getElementById('btnConfirmarProducao');
+            let bloqueio = '';
+            if (qtd <= 0) bloqueio = 'Informe uma quantidade maior que zero.';
+            else if (usaFil && !filamentoId) bloqueio = 'Selecione o filamento/cor (cadastre um em Insumos se não houver).';
+            else if (!plano.ok) bloqueio = 'Estoque insuficiente: ' + plano.faltantes.map(f => `${f.nome} (falta ${f.falta}${f.unidade})`).join(', ') + '.';
+            if (bloqueio) {
+                aviso.style.display = 'block';
+                aviso.innerHTML = bloqueio + ' <a href="listagem_insumos.html">Registrar entrada de insumo</a>';
+                btn.disabled = true;
+            } else { aviso.style.display = 'none'; btn.disabled = false; }
+        };
+
+        window.confirmarProducao = async function () {
+            if (!prodEstoqueId) return;
+            const prod = produtosFull[prodEstoqueId];
+            const X = parseInt(document.getElementById('prodQtd').value) || 0;
+            const usaFil = (Number(prod.pesoPeca) || 0) > 0;
+            const filamentoId = usaFil ? document.getElementById('prodFilamento').value : '';
+            const fb = document.getElementById('prodFeedback');
+            const plano = planoAtual();
+            if (X <= 0) { fb.textContent = 'Quantidade inválida.'; return; }
+            if (usaFil && !filamentoId) { fb.textContent = 'Selecione o filamento.'; return; }
+            if (!plano.ok) { fb.textContent = 'Estoque insuficiente — ajuste a quantidade ou reponha insumos.'; return; }
+
+            const btn = document.getElementById('btnConfirmarProducao');
+            btn.disabled = true;
+            const dataHora = new Date().toISOString();
+            const updates = {};
+
+            // 1) Produto: soma X ao estoque (+ detalhe por cor)
+            updates['produtos/' + prodEstoqueId + '/estoque'] = (Number(prod.estoque) || 0) + X;
+            if (usaFil && filamentoId) {
+                const epf = (prod.estoquePorFilamento && Number(prod.estoquePorFilamento[filamentoId])) || 0;
+                updates['produtos/' + prodEstoqueId + '/estoquePorFilamento/' + filamentoId] = epf + X;
+            }
+            // 2) Baixa de cada item da receita (valor absoluto em leaf path)
+            plano.itens.forEach(i => {
+                const novo = i.disponivel - i.necessario;
+                if (i.kind === 'subproduto') updates['produtos/' + i.id + '/estoque'] = novo;
+                else updates['insumos/' + i.id + '/estoqueAtual'] = novo;   // insumo material ou filamento
+            });
+            // 3) Log de produção (atômico junto com as baixas)
+            const movKey = empresaRef('movimentacoes_estoque').push().key;
+            updates['movimentacoes_estoque/' + movKey] = {
+                tipo: 'producao', produtoId: String(prodEstoqueId), filamentoId: filamentoId || null,
+                qtd: X, custoUnit: X ? plano.custoEstimado / X : 0, dataHora, ref: 'peca_pronta'
+            };
+
+            try {
+                await empresaRef('').update(updates);
+                fecharEstoqueModal();
+                carregarInsumosMap().then(carregarProdutos);
+            } catch (e) {
+                fb.textContent = 'Erro: ' + e.message;
+                btn.disabled = false;
+            }
+        };
+    </script>
+
+    <!-- Lightbox para ampliar a imagem do produto -->
+    <div class="img-backdrop" id="imgBackdrop" onclick="fecharImagem(event)">
+        <button class="img-close" type="button" title="Fechar" onclick="fecharImagem(event)">&times;</button>
+        <img id="imgAmpliada" src="" alt="">
+    </div>
+    <script>
+        window.ampliarImagem = function (url, alt) {
+            const bd = document.getElementById('imgBackdrop');
+            const img = document.getElementById('imgAmpliada');
+            img.src = url;
+            img.alt = alt || '';
+            bd.classList.add('open');
+        };
+        window.fecharImagem = function (e) {
+            // Não fecha se o clique foi na própria imagem ampliada
+            if (e && e.target && e.target.id === 'imgAmpliada') return;
+            document.getElementById('imgBackdrop').classList.remove('open');
+        };
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') document.getElementById('imgBackdrop').classList.remove('open');
         });
     </script>
 </body>

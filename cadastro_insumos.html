@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Insumos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="estoque.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 24px 12px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 560px; width: 100%; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px;
+            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-family: inherit; background:#fff;
+        }
+        textarea { resize: vertical; min-height: 60px; }
+        .hint { font-size: 0.82em; color: #999; margin: 4px 0 0; }
+        .hint a { color: #4A93B0; }
+        button.salvar { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; transition: background-color 0.3s; margin-top: 15px; }
+        button.salvar:hover { background-color: #218838; }
+        button.salvar:disabled { background-color: #aaa; cursor: not-allowed; }
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #4A93B0; }
+        /* Botão "Novo fornecedor" rápido */
+        .btn-inline { width:auto; background:#4A93B0; color:#fff; border:none; border-radius:4px; padding:0 14px; cursor:pointer; white-space:nowrap; font-size:.92em; }
+        .btn-inline:hover { background:#3A7A96; }
+        /* Modal de cadastro rápido de fornecedor */
+        .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:600; padding:16px; }
+        .modal-bg.open { display:flex; }
+        .modal-card { background:#fff; border-radius:10px; max-width:420px; width:100%; padding:22px; box-shadow:0 8px 30px rgba(0,0,0,.25); }
+        .modal-card h3 { margin:0 0 14px; color:#333; }
+        .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+        .btn-sec { background:#eee; color:#555; border:none; border-radius:6px; padding:10px 14px; cursor:pointer; width:auto; }
+        .btn-sec:hover { background:#e0e0e0; }
+        html[data-theme="dark"] .modal-card { background:#1f2230 !important; color:#e0e0e0; }
+        html[data-theme="dark"] .modal-card h3 { color:#e0e0e0; }
+        html[data-theme="dark"] .btn-sec { background:#33384a !important; color:#cfd8dc !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Cadastro de Insumos</h1>
+        <form id="insumoForm">
+            <fieldset>
+                <legend>Dados do Insumo</legend>
+                <label for="nome">Nome do Insumo:</label>
+                <input type="text" id="nome" required>
+
+                <label for="fornecedorId">Fornecedor:</label>
+                <div style="display:flex; gap:8px; align-items:stretch;">
+                    <select id="fornecedorId" required style="flex:1; margin-bottom:0;">
+                        <option value="">Carregando fornecedores...</option>
+                    </select>
+                    <button type="button" class="btn-inline" onclick="abrirModalFornecedor()" title="Cadastrar fornecedor rápido"><i class="fas fa-plus"></i> Novo</button>
+                </div>
+                <p class="hint" id="fornecedorHint" style="display:none;">
+                    Nenhum fornecedor cadastrado. Use <b>+ Novo</b> acima para cadastrar um rapidamente.
+                </p>
+
+                <label for="tipo">Tipo:</label>
+                <select id="tipo" onchange="onTipoChange()">
+                    <option value="material">Material (insumo geral)</option>
+                    <option value="filamento">Filamento (cor de impressão)</option>
+                </select>
+
+                <div id="corBox" style="display:none;">
+                    <label for="tipoFilamento">Tipo de filamento:</label>
+                    <select id="tipoFilamento">
+                        <option value="">— selecione —</option>
+                    </select>
+                    <p class="hint">A média de preço usada na precificação dos produtos é calculada por tipo.</p>
+
+                    <label for="corNome">Cor do filamento:</label>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <input type="text" id="corNome" placeholder="Ex.: Vermelho" style="flex:1; margin:5px 0 10px;">
+                        <input type="color" id="corHex" value="#e53935" title="Cor (opcional)" style="width:52px; height:42px; padding:2px; cursor:pointer;">
+                    </div>
+                    <p class="hint">Cada cor é um insumo próprio (ex.: "PLA Vermelho", "PLA Azul").</p>
+                </div>
+
+                <label for="unidade">Unidade:</label>
+                <select id="unidade" required onchange="onUnidadeChange()">
+                    <option value="kg">kg (quilo)</option>
+                    <option value="g">g (grama)</option>
+                    <option value="ml">ml (mililitro)</option>
+                    <option value="un">un (unidade)</option>
+                    <option value="m">m (metro)</option>
+                </select>
+
+                <label for="custoUnitario"><span id="custoLabel">Custo Unitário (R$):</span></label>
+                <input type="number" id="custoUnitario" min="0" step="0.0001" placeholder="0,00">
+
+                <div id="precoBox" style="display:none;">
+                    <label for="precoUnitarioKg"><span id="precoLabel">Preço por KG (R$/kg):</span></label>
+                    <input type="number" id="precoUnitarioKg" min="0" step="0.01" placeholder="0,00">
+                    <p class="hint">Usado para <b>sugerir o preço de venda</b> dos produtos desse tipo de filamento. Se vazio, usa o custo.</p>
+                </div>
+
+                <label for="estoqueAtual">Estoque atual <small style="color:#999;font-weight:normal;">(na unidade)</small>:</label>
+                <input type="number" id="estoqueAtual" min="0" step="0.01" placeholder="0">
+
+                <label for="observacoes">Observações:</label>
+                <textarea id="observacoes"></textarea>
+            </fieldset>
+
+            <button type="button" class="salvar" id="btnSalvar" onclick="iniciarCadastro()">Salvar Insumo</button>
+        </form>
+        <p id="feedback" class="feedback"></p>
+    </div>
+
+    <!-- Modal: cadastro rápido de fornecedor -->
+    <div class="modal-bg" id="modalFornecedor" onclick="if(event.target===this) fecharModalFornecedor()">
+        <div class="modal-card">
+            <h3><i class="fas fa-truck" style="color:#4A93B0;margin-right:8px;"></i>Novo fornecedor</h3>
+            <label for="nf_nome">Nome / Razão social:</label>
+            <input type="text" id="nf_nome" placeholder="Ex.: Loja 3D Brasil">
+            <label for="nf_telefone">Telefone (opcional):</label>
+            <input type="text" id="nf_telefone" placeholder="(00) 00000-0000">
+            <label for="nf_email">E-mail (opcional):</label>
+            <input type="text" id="nf_email" placeholder="contato@fornecedor.com">
+            <p id="nf_feedback" class="feedback" style="margin-top:8px;"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-sec" onclick="fecharModalFornecedor()">Cancelar</button>
+                <button type="button" class="salvar" id="nf_salvar" onclick="salvarFornecedorRapido()" style="margin-top:0; width:auto;">Salvar fornecedor</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "insumos";
+        const CAMINHO_CONTADOR = "contador_insumos/proximoId";
+
+        let idEmEdicao = null;
+        let dataCriacaoOriginal = null;
+        let fornecedoresValidos = {};   // { id: nome }
+
+        // Insumos reaproveita a permissão do módulo 'produtos'
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('produtos')) return;
+            popularTipoFilamento();
+            await carregarFornecedores();
+            verificarModoEdicao();
+        })();
+
+        // Popula o dropdown de tipo de filamento a partir da fonte única (estoque.js)
+        function popularTipoFilamento() {
+            const sel = document.getElementById('tipoFilamento');
+            const tipos = (window.Estoque && Estoque.TIPOS_FILAMENTO) || ['PLA', 'PLA Silk', 'PETG', 'ABS', 'ASA'];
+            sel.innerHTML = '<option value="">— selecione —</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+        }
+
+        function onTipoChange() {
+            const ehFil = document.getElementById('tipo').value === 'filamento';
+            document.getElementById('corBox').style.display = ehFil ? 'block' : 'none';
+            document.getElementById('precoBox').style.display = ehFil ? 'block' : 'none';
+            const unidade = document.getElementById('unidade');
+            // Filamento: padrão KG, mas permite trocar p/ gramas (não trava mais).
+            if (ehFil && unidade.value !== 'kg' && unidade.value !== 'g') unidade.value = 'kg';
+            unidade.disabled = false;
+            atualizarRotulosUnidade();
+        }
+
+        // Rótulos de custo/preço seguem a unidade escolhida (KG ↔ grama). Só relevante p/ filamento.
+        function onUnidadeChange() { atualizarRotulosUnidade(); }
+        function atualizarRotulosUnidade() {
+            const ehFil = document.getElementById('tipo').value === 'filamento';
+            const custoLabel = document.getElementById('custoLabel');
+            if (!ehFil) { custoLabel.textContent = 'Custo Unitário (R$):'; return; }
+            const porKg = document.getElementById('unidade').value === 'kg';
+            custoLabel.textContent = porKg ? 'Custo por KG (R$/kg):' : 'Custo por grama (R$/g):';
+            const precoLabel = document.getElementById('precoLabel');
+            if (precoLabel) precoLabel.textContent = porKg ? 'Preço por KG (R$/kg):' : 'Preço por grama (R$/g):';
+        }
+
+        async function carregarFornecedores() {
+            const snap = await empresaRef('pessoas').once('value');
+            fornecedoresValidos = {};
+            if (snap.exists()) {
+                snap.forEach(p => {
+                    const d = p.val() || {};
+                    // Aceita o campo novo (tipo: 'fornecedor'|'ambos') e o legado (tipos.fornecedor)
+                    const ehFornecedor = (d.tipo === 'fornecedor' || d.tipo === 'ambos') || (d.tipos && d.tipos.fornecedor);
+                    if (ehFornecedor) fornecedoresValidos[p.key] = d.nome || ('#' + p.key);
+                });
+            }
+            renderFornecedores();
+        }
+
+        // (Re)constrói o <select> de fornecedores a partir de fornecedoresValidos.
+        function renderFornecedores(selecionado) {
+            const select = document.getElementById('fornecedorId');
+            const ids = Object.keys(fornecedoresValidos).sort((a, b) => fornecedoresValidos[a].localeCompare(fornecedoresValidos[b]));
+            if (!ids.length) {
+                select.innerHTML = '<option value="">— nenhum fornecedor —</option>';
+                document.getElementById('fornecedorHint').style.display = 'block';
+                document.getElementById('btnSalvar').disabled = true;
+                return;
+            }
+            document.getElementById('fornecedorHint').style.display = 'none';
+            document.getElementById('btnSalvar').disabled = false;
+            select.innerHTML = '<option value="">Selecione um fornecedor...</option>'
+                + ids.map(id => `<option value="${id}">${fornecedoresValidos[id]}</option>`).join('');
+            if (selecionado != null) select.value = String(selecionado);
+        }
+
+        function verificarModoEdicao() {
+            const id = new URLSearchParams(window.location.search).get('id');
+            if (id) {
+                idEmEdicao = id;
+                document.getElementById('feedback').textContent = `Carregando Insumo #${id}...`;
+                empresaRef(CAMINHO_RTDB + '/' + id).once('value')
+                    .then((snapshot) => {
+                        if (snapshot.exists()) preencherFormulario(snapshot.val());
+                        else document.getElementById('feedback').textContent = `Erro: Insumo #${id} não encontrado.`;
+                    })
+                    .catch((error) => {
+                        document.getElementById('feedback').textContent = `Erro ao carregar dados: ${error.message}`;
+                    });
+            } else {
+                document.getElementById('feedback').textContent = "Modo: Novo Cadastro.";
+            }
+        }
+
+        // Tira o ruído de ponto-flutuante das conversões (ex.: 0.08*1000 = 80.00000000001).
+        function limpaNum(v, casas) { return String(+Number(v).toFixed(casas)); }
+
+        function preencherFormulario(dados) {
+            const ehFil = (dados.tipo === 'filamento');
+            document.getElementById('nome').value = dados.nome || '';
+            document.getElementById('tipo').value = dados.tipo || 'material';     // legado sem tipo → material
+            // Filamento legado não tinha unidade (era travado em 'g'); novos respeitam o salvo.
+            document.getElementById('unidade').value = dados.unidade || (ehFil ? 'g' : 'un');
+            // Filamento guarda custo/preço em R$/g e estoque em gramas → reconverte p/ a unidade exibida.
+            const fator = (ehFil && (dados.unidade || 'g') === 'kg') ? 1000 : 1;
+            document.getElementById('custoUnitario').value =
+                (dados.custoUnitario != null) ? (ehFil ? limpaNum(dados.custoUnitario * fator, 4) : dados.custoUnitario) : '';
+            document.getElementById('precoUnitarioKg').value =
+                (dados.precoUnitario != null) ? (ehFil ? limpaNum(dados.precoUnitario * fator, 4) : dados.precoUnitario) : '';
+            document.getElementById('estoqueAtual').value =
+                (dados.estoqueAtual != null) ? (ehFil ? limpaNum(dados.estoqueAtual / fator, 3) : dados.estoqueAtual) : '';
+            document.getElementById('tipoFilamento').value = dados.tipoFilamento || '';
+            document.getElementById('corNome').value = (dados.cor && dados.cor.nome) || '';
+            if (dados.cor && dados.cor.hex) document.getElementById('corHex').value = dados.cor.hex;
+            onTipoChange();
+            document.getElementById('observacoes').value = dados.observacoes || '';
+            dataCriacaoOriginal = dados.dataCriacao || null;
+
+            // O fornecedor pode estar inativo/removido como fornecedor — garante a opção
+            const select = document.getElementById('fornecedorId');
+            if (dados.fornecedorId && !fornecedoresValidos[dados.fornecedorId]) {
+                const opt = document.createElement('option');
+                opt.value = dados.fornecedorId;
+                opt.textContent = (dados.fornecedorNome || ('#' + dados.fornecedorId)) + ' (não é mais fornecedor)';
+                select.appendChild(opt);
+            }
+            select.value = dados.fornecedorId || '';
+            document.getElementById('btnSalvar').disabled = false;
+
+            document.querySelector('h1').textContent = `Editar Insumo #${idEmEdicao}`;
+            document.querySelector('button.salvar').textContent = "Atualizar Insumo";
+            document.getElementById('feedback').textContent = `Dados do Insumo #${idEmEdicao} carregados.`;
+        }
+
+        window.iniciarCadastro = function() {
+            const nome = document.getElementById('nome').value.trim();
+            const fornecedorId = document.getElementById('fornecedorId').value;
+            const tipo = document.getElementById('tipo').value;
+            const unidade = document.getElementById('unidade').value;
+            const custoInput = parseFloat(document.getElementById('custoUnitario').value);
+            const estoqueInput = parseFloat(document.getElementById('estoqueAtual').value);
+            const ehFil = (tipo === 'filamento');
+            // Filamento: o sistema sempre armazena em grama / R$ por grama (KG → /1000, gramas → ×1000).
+            const fator = (ehFil && unidade === 'kg') ? 1000 : 1;
+
+            if (!nome) { alert("Informe o nome do insumo."); return; }
+            if (!fornecedorId) { alert("Selecione um fornecedor."); return; }
+            // Garante que o fornecedor é válido (ou já era o vínculo na edição)
+            if (!fornecedoresValidos[fornecedorId] && !idEmEdicao) {
+                alert("Fornecedor inválido. Selecione uma pessoa marcada como fornecedor.");
+                return;
+            }
+            if (isNaN(custoInput) || custoInput < 0) { alert("Informe um custo válido."); return; }
+            if (ehFil && !document.getElementById('tipoFilamento').value) { alert("Selecione o tipo de filamento."); return; }
+
+            const dados = {
+                nome,
+                fornecedorId,
+                fornecedorNome: fornecedoresValidos[fornecedorId] || document.getElementById('fornecedorId').selectedOptions[0]?.textContent || '',
+                tipo,
+                unidade,
+                custoUnitario: ehFil ? (custoInput / fator) : custoInput,
+                estoqueAtual: isNaN(estoqueInput) ? 0 : (ehFil ? estoqueInput * fator : estoqueInput),
+                observacoes: document.getElementById('observacoes').value.trim(),
+                dataCriacao: dataCriacaoOriginal || new Date().toISOString()
+            };
+            if (ehFil) {
+                dados.cor = { nome: document.getElementById('corNome').value.trim(), hex: document.getElementById('corHex').value || null };
+                dados.tipoFilamento = document.getElementById('tipoFilamento').value;
+                const precoInput = parseFloat(document.getElementById('precoUnitarioKg').value);
+                if (!isNaN(precoInput) && precoInput >= 0) dados.precoUnitario = precoInput / fator;
+            }
+
+            if (idEmEdicao) salvarInsumo(idEmEdicao, dados, 'atualizado');
+            else obterProximoId(dados);
+        }
+
+        function obterProximoId(dados) {
+            document.getElementById('feedback').textContent = "Buscando ID sequencial...";
+            empresaRef(CAMINHO_CONTADOR).transaction((currentData) => {
+                return currentData === null ? 1 : currentData + 1;
+            })
+            .then(result => {
+                if (result.committed) {
+                    const idParaSalvar = result.snapshot.val();
+                    salvarInsumo(idParaSalvar, { ...dados, idSequencial: idParaSalvar }, 'salvo');
+                } else {
+                    document.getElementById('feedback').textContent = "Falha temporária na transação. Tente novamente.";
+                }
+            })
+            .catch(error => {
+                document.getElementById('feedback').textContent = "Erro ao obter ID: " + error.message;
+            });
+        }
+
+        function salvarInsumo(id, dados, acao) {
+            empresaRef(CAMINHO_RTDB + '/' + id).set(dados)
+                .then(() => {
+                    document.getElementById('feedback').textContent = `Insumo #${id} ${acao} com sucesso!`;
+                    if (acao === 'salvo') {
+                        document.getElementById('insumoForm').reset();
+                    }
+                    setTimeout(() => { window.location.href = 'listagem_insumos.html'; }, 1200);
+                })
+                .catch((error) => {
+                    document.getElementById('feedback').textContent = `Erro ao salvar: ` + error.message;
+                });
+        }
+
+        // ── Cadastro rápido de fornecedor (grava em /pessoas como 'fornecedor') ──
+        window.abrirModalFornecedor = function () {
+            document.getElementById('nf_nome').value = '';
+            document.getElementById('nf_telefone').value = '';
+            document.getElementById('nf_email').value = '';
+            document.getElementById('nf_feedback').textContent = '';
+            document.getElementById('modalFornecedor').classList.add('open');
+            setTimeout(() => document.getElementById('nf_nome').focus(), 80);
+        };
+        window.fecharModalFornecedor = function () {
+            document.getElementById('modalFornecedor').classList.remove('open');
+        };
+
+        window.salvarFornecedorRapido = async function () {
+            const nome = document.getElementById('nf_nome').value.trim();
+            const fb = document.getElementById('nf_feedback');
+            if (!nome) { fb.style.color = '#dc3545'; fb.textContent = 'Informe o nome do fornecedor.'; return; }
+            const btn = document.getElementById('nf_salvar');
+            btn.disabled = true;
+            fb.style.color = '#4A93B0'; fb.textContent = 'Salvando...';
+            try {
+                const res = await empresaRef('contador_pessoas/proximoId').transaction(c => (c === null ? 1 : c + 1));
+                const id = res.snapshot.val();
+                // Mesma forma de cadastro_pessoas.html (papel fornecedor)
+                const dados = {
+                    nome,
+                    documento: '', telefone: document.getElementById('nf_telefone').value.trim(),
+                    email: document.getElementById('nf_email').value.trim(), endereco: '', cep: '', observacoes: '',
+                    tipo: 'fornecedor',
+                    tipos: { cliente: false, fornecedor: true },
+                    eventoOrigemId: null, eventoOrigemNome: null,
+                    dataCriacao: new Date().toISOString(),
+                    idSequencial: id
+                };
+                await empresaRef('pessoas/' + id).set(dados);
+                fornecedoresValidos[id] = nome;
+                renderFornecedores(id);           // recria a lista e já seleciona o novo
+                fecharModalFornecedor();
+                document.getElementById('feedback').textContent = `Fornecedor "${nome}" cadastrado e selecionado.`;
+            } catch (e) {
+                fb.style.color = '#dc3545'; fb.textContent = 'Erro: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

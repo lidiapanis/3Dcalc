@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HueForges</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="hueforge.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1150px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 8px; }
+
+        /* ── Painel: impressora carregada agora ── */
+        .painel-impressora { background: #f8fafb; border: 1px solid #e8eef1; border-radius: 8px; padding: 16px 18px; margin-bottom: 20px; }
+        .painel-impressora h2 { font-size: 1em; color: #4A93B0; margin: 0 0 10px; }
+        .slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .slots select { padding: 9px; border: 1px solid #ccc; border-radius: 5px; background: #fff; width: 100%; }
+        .contador-topo { text-align: center; font-size: 1.15em; font-weight: 700; color: #1B4C65; margin: 14px 0 6px; }
+        .sugestao-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .btn-sugerir { background: #6c757d; color: #fff; border: none; border-radius: 5px; padding: 9px 14px; cursor: pointer; font-size: .9em; }
+        .btn-sugerir:hover { background: #5a6268; }
+        #sugestaoTexto { font-size: .88em; color: #555; }
+        .btn-aplicar-sugestao { background: #4A93B0; color: #fff; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: .85em; }
+        .btn-aplicar-sugestao:hover { background: #3A7A96; }
+
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 180px; }
+        .filtro-sel { padding: 9px; border: 1px solid #ccc; border-radius: 5px; background: #fff; }
+        .chk-filtro { display: flex; align-items: center; gap: 6px; font-size: .9em; color: #555; white-space: nowrap; }
+        .add-btn { background-color: #28a745; color: #fff; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; }
+        .import-btn { background-color: #6c757d; color: #fff; border:none; padding:10px 15px; border-radius:5px; cursor:pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 5px 10px; margin-right: 5px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+
+        .hf-dots { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+        .hf-cor-tag { font-size: .78em; background: #eef1f5; border-radius: 10px; padding: 2px 8px; color: #444; }
+
+        .badge-status { display: inline-block; padding: 4px 11px; border-radius: 20px; font-size: 0.78em; font-weight: 700; white-space: nowrap; }
+        .badge-imprimivel { background: #d4edda; color: #155724; }
+        .badge-falta1 { background: #fff3cd; color: #856404; }
+        .badge-faltamN { background: #e2e3e5; color: #383d41; }
+        .badge-impossivel { background: #f8d7da; color: #721c24; }
+
+        .fonte-link { color: #4A93B0; }
+
+        /* ── Modal de importação de planilha ── */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 700; padding: 16px; }
+        .modal-bg.open { display: flex; }
+        .modal-cx { background: #fff; border-radius: 10px; width: 100%; max-width: 720px; max-height: 88vh; overflow-y: auto; padding: 22px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+        .modal-cx h3 { margin: 0 0 12px; color: #1B4C65; }
+        .map-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
+        .map-item { display: flex; flex-direction: column; gap: 4px; }
+        .map-item select { padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
+        #tabelaPreviewImport { width: 100%; border-collapse: collapse; font-size: .85em; margin-top: 8px; }
+        #tabelaPreviewImport th, #tabelaPreviewImport td { border: 1px solid #ddd; padding: 6px 8px; }
+        #tabelaPreviewImport th { background: #f2f2f2; }
+        .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+        .btn-pri { background: #28a745; color: #fff; border: none; border-radius: 6px; padding: 11px 18px; font-weight: 700; cursor: pointer; }
+        .btn-pri:disabled { background: #aaa; cursor: not-allowed; }
+        .btn-sec { background: none; border: 1px solid #ccc; color: #555; border-radius: 6px; padding: 11px 18px; cursor: pointer; }
+        #importFeedback { min-height: 1.1em; font-size: .9em; margin: 8px 0 0; color: #dc3545; }
+
+        html[data-theme="dark"] .painel-impressora { background: #1e1e2e !important; border-color: #333 !important; }
+        html[data-theme="dark"] .painel-impressora h2 { color: #7fc1de !important; }
+        html[data-theme="dark"] .contador-topo { color: #7fc1de !important; }
+        html[data-theme="dark"] .slots select, html[data-theme="dark"] .filtro-sel { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] .hf-cor-tag { background: #33384a !important; color: #cfd8dc !important; }
+        html[data-theme="dark"] .modal-cx { background: #1e1e2e !important; color: #e0e0e0; }
+        html[data-theme="dark"] .map-item select { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] #tabelaPreviewImport th { background: #2a2a3e !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>HueForges</h1>
+
+        <div class="painel-impressora">
+            <h2><i class="fas fa-print"></i> Impressora carregada agora (4 cores)</h2>
+            <div class="slots">
+                <select class="slotCor" data-slot="0" onchange="onSlotChange()"></select>
+                <select class="slotCor" data-slot="1" onchange="onSlotChange()"></select>
+                <select class="slotCor" data-slot="2" onchange="onSlotChange()"></select>
+                <select class="slotCor" data-slot="3" onchange="onSlotChange()"></select>
+            </div>
+            <div class="contador-topo" id="contadorTopo">— de — imprimíveis com a carga atual</div>
+            <div class="sugestao-row">
+                <button class="btn-sugerir" onclick="sugerirCombo()"><i class="fas fa-lightbulb"></i> Sugerir melhor combinação</button>
+                <span id="sugestaoTexto"></span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por nome...">
+            <label class="chk-filtro"><input type="checkbox" id="fApenasImprimiveis" onchange="aplicarFiltro()"> Só imprimíveis agora</label>
+            <label class="chk-filtro"><input type="checkbox" id="fFaltando1" onchange="aplicarFiltro()"> Faltando 1</label>
+            <select id="filtroCor" class="filtro-sel" onchange="aplicarFiltro()">
+                <option value="all">Todas as cores</option>
+            </select>
+            <select id="filtroNumCores" class="filtro-sel" onchange="aplicarFiltro()">
+                <option value="all">Nº de cores</option>
+                <option value="1">1 cor</option>
+                <option value="2">2 cores</option>
+                <option value="3">3 cores</option>
+                <option value="4">4 cores</option>
+                <option value="5">5+ cores</option>
+            </select>
+            <button class="import-btn" onclick="abrirImportar()"><i class="fas fa-file-import"></i> Importar planilha</button>
+            <a href="cadastro_hueforges.html" style="text-decoration: none;">
+                <button class="add-btn">+ Novo HueForge</button>
+            </a>
+        </div>
+
+        <table id="hueforgesTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Nº cores</th>
+                    <th>Cores</th>
+                    <th>Fonte</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <!-- Modal: Importar planilha -->
+    <div class="modal-bg" id="modalImportar">
+        <div class="modal-cx">
+            <h3><i class="fas fa-file-import"></i> Importar HueForges (planilha)</h3>
+            <p style="color:#777;font-size:.9em;margin:0 0 12px;">Colunas esperadas: <b>Nome</b>, <b>Cores</b> (separadas por vírgula/ponto e vírgula) e <b>Link</b> (opcional). Tentamos adivinhar pelo cabeçalho — confira o mapeamento.</p>
+            <input type="file" id="arquivoImport" accept=".xlsx,.xls,.csv" onchange="lerArquivoImport(this)">
+
+            <div id="mapaImportBox" style="display:none;">
+                <div class="map-grid" id="mapaImportGrid"></div>
+                <button class="btn-pri" onclick="prevalizarImport()" style="width:auto;">Pré-visualizar</button>
+            </div>
+
+            <div id="previewImportBox" style="display:none;">
+                <p style="margin:10px 0 4px;font-size:.88em;color:#555;" id="infoLinhasImport"></p>
+                <div style="overflow-x:auto;"><table id="tabelaPreviewImport"></table></div>
+            </div>
+
+            <p id="importFeedback"></p>
+            <div class="modal-foot">
+                <button class="btn-sec" onclick="fecharImportar()">Cancelar</button>
+                <button class="btn-pri" id="btnConfirmarImport" onclick="confirmarImport()" disabled>Importar HueForges</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "hueforges";
+        const CAMINHO_CONTADOR = "contador_hueforges/proximoId";
+        const CAMINHO_ESTADO = "hueforgeEstado";
+
+        let hueforgesData = [];
+        let coresCarregadas = ['', '', '', ''];
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('produtos')) return;
+            popularSlots();
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            iniciar();
+        })();
+
+        function popularSlots() {
+            const opts = '<option value="">— vazio —</option>' + Hueforge.PALETA.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            document.querySelectorAll('.slotCor').forEach(sel => { sel.innerHTML = opts; });
+        }
+
+        function mostrarEstado(html) {
+            document.getElementById('hueforgesTable').querySelector('tbody').innerHTML =
+                `<tr><td colspan="7" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        window.iniciar = async function () {
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando HueForges...');
+            try {
+                const [snapHf, snapEstado] = await Promise.all([
+                    empresaRef(CAMINHO_RTDB).once('value'),
+                    empresaRef(CAMINHO_ESTADO).once('value')
+                ]);
+                hueforgesData = [];
+                snapHf.forEach(child => {
+                    const d = child.val() || {};
+                    hueforgesData.push({ id: parseInt(child.key), nome: d.nome || '', fonteUrl: d.fonteUrl || null, cores: d.cores || [] });
+                });
+                const estado = snapEstado.val() || {};
+                coresCarregadas = (estado.coresCarregadas || ['', '', '', '']).slice(0, 4);
+                while (coresCarregadas.length < 4) coresCarregadas.push('');
+                document.querySelectorAll('.slotCor').forEach(sel => { sel.value = coresCarregadas[+sel.dataset.slot] || ''; });
+                popularFiltroCor();
+                aplicarFiltro();
+            } catch (error) {
+                console.error('Erro ao carregar HueForges:', error);
+                mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
+            }
+        };
+
+        function popularFiltroCor() {
+            const sel = document.getElementById('filtroCor');
+            const atual = sel.value;
+            const cores = [...new Set(hueforgesData.flatMap(h => h.cores || []))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            sel.innerHTML = '<option value="all">Todas as cores</option>' + cores.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+            if ([...sel.options].some(o => o.value === atual)) sel.value = atual;
+        }
+
+        window.onSlotChange = function () {
+            coresCarregadas = [...document.querySelectorAll('.slotCor')].map(s => s.value);
+            document.getElementById('sugestaoTexto').textContent = '';
+            empresaRef(CAMINHO_ESTADO).update({ coresCarregadas }).catch(() => {});
+            aplicarFiltro();
+        };
+
+        window.sugerirCombo = function () {
+            const { combo, desbloqueados } = Hueforge.sugerirMelhorCombo(hueforgesData, 4);
+            const total = hueforgesData.length;
+            const txt = document.getElementById('sugestaoTexto');
+            if (!combo.length) { txt.textContent = 'Nenhuma sugestão possível (catálogo vazio ou só itens de 5+ cores).'; return; }
+            txt.innerHTML = `Sugestão: <b>${combo.map(esc).join(', ')}</b> — desbloqueia ${desbloqueados} de ${total}. ` +
+                `<button class="btn-aplicar-sugestao" onclick='aplicarSugestao(${JSON.stringify(combo)})'>Aplicar</button>`;
+        };
+
+        window.aplicarSugestao = function (combo) {
+            coresCarregadas = [0, 1, 2, 3].map(i => combo[i] || '');
+            document.querySelectorAll('.slotCor').forEach(sel => { sel.value = coresCarregadas[+sel.dataset.slot] || ''; });
+            document.getElementById('sugestaoTexto').textContent = '';
+            empresaRef(CAMINHO_ESTADO).update({ coresCarregadas }).catch(() => {});
+            aplicarFiltro();
+        };
+
+        window.aplicarFiltro = function () {
+            const searchText = document.getElementById('searchBar').value.toLowerCase();
+            const soImprimiveis = document.getElementById('fApenasImprimiveis').checked;
+            const soFaltando1 = document.getElementById('fFaltando1').checked;
+            const fCor = document.getElementById('filtroCor').value;
+            const fNum = document.getElementById('filtroNumCores').value;
+
+            let imprimiveis = 0;
+            hueforgesData.forEach(h => { if (Hueforge.correlacionar(h.cores, coresCarregadas).podeImprimir) imprimiveis++; });
+            document.getElementById('contadorTopo').textContent = `${imprimiveis} de ${hueforgesData.length} imprimíveis com a carga atual`;
+
+            const filtrados = hueforgesData.filter(h => {
+                const matchNome = (h.nome || '').toLowerCase().includes(searchText);
+                const matchCor = (fCor === 'all') || (h.cores || []).includes(fCor);
+                const n = (h.cores || []).length;
+                const matchNum = (fNum === 'all') || (fNum === '5' ? n >= 5 : n === +fNum);
+                const corr = Hueforge.correlacionar(h.cores, coresCarregadas);
+                const matchImprimivel = !soImprimiveis || corr.podeImprimir;
+                const matchFaltando1 = !soFaltando1 || corr.status === 'falta1';
+                return matchNome && matchCor && matchNum && matchImprimivel && matchFaltando1;
+            });
+            renderizarTabela(filtrados);
+        };
+
+        function badgeStatus(corr) {
+            if (corr.status === 'imprimivel') return '<span class="badge-status badge-imprimivel">Imprimível</span>';
+            if (corr.status === 'falta1') return `<span class="badge-status badge-falta1">Falta 1: ${esc(corr.faltando[0])}</span>`;
+            if (corr.status === 'faltamN') return `<span class="badge-status badge-faltamN">Faltam ${corr.faltando.length}</span>`;
+            return '<span class="badge-status badge-impossivel">Precisa &gt;4 cores</span>';
+        }
+
+        function renderizarTabela(data) {
+            const tbody = document.getElementById('hueforgesTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Nenhum HueForge encontrado.</td></tr>';
+                return;
+            }
+            data.sort((a, b) => a.id - b.id).forEach(item => {
+                const row = tbody.insertRow();
+                const corr = Hueforge.correlacionar(item.cores, coresCarregadas);
+                row.insertCell().textContent = item.id;
+                row.insertCell().textContent = item.nome;
+                row.insertCell().textContent = (item.cores || []).length;
+                row.insertCell().innerHTML = `<span class="hf-dots">${(item.cores || []).map(c => `<span class="hf-cor-tag">${esc(c)}</span>`).join('')}</span>`;
+                row.insertCell().innerHTML = item.fonteUrl ? `<a class="fonte-link" href="${esc(item.fonteUrl)}" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i></a>` : '—';
+                row.insertCell().innerHTML = badgeStatus(corr);
+
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn'; editBtn.textContent = 'Editar';
+                editBtn.onclick = () => window.location.href = `cadastro_hueforges.html?id=${item.id}`;
+                actionsCell.appendChild(editBtn);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn'; deleteBtn.textContent = 'Deletar';
+                deleteBtn.onclick = () => deletarHueforge(item.id);
+                actionsCell.appendChild(deleteBtn);
+
+                ['ID', 'Nome', 'Nº cores', 'Cores', 'Fonte', 'Status'].forEach((lab, i) => { if (row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
+            });
+        }
+
+        window.deletarHueforge = function (id) {
+            if (confirm(`Tem certeza que deseja deletar o HueForge #${id}?`)) {
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => { iniciar(); })
+                    .catch((error) => { alert('Erro ao deletar: ' + error.message); });
+            }
+        };
+
+        // ── Importar planilha ──────────────────────────────────────────────────
+        const CAMPOS_IMPORT = [
+            { key: 'nome', label: 'Nome', syn: ['nome', 'name', 'título', 'titulo'] },
+            { key: 'cores', label: 'Cores', syn: ['cor', 'cores', 'color', 'colors'] },
+            { key: 'link', label: 'Link / Fonte', syn: ['link', 'url', 'fonte', 'source'] },
+        ];
+        let cabecalhosImport = [];
+        let linhasImport = [];
+        let linhasProntas = [];
+
+        window.abrirImportar = function () {
+            document.getElementById('arquivoImport').value = '';
+            document.getElementById('mapaImportBox').style.display = 'none';
+            document.getElementById('previewImportBox').style.display = 'none';
+            document.getElementById('importFeedback').textContent = '';
+            document.getElementById('btnConfirmarImport').disabled = true;
+            document.getElementById('modalImportar').classList.add('open');
+        };
+        window.fecharImportar = function () { document.getElementById('modalImportar').classList.remove('open'); };
+
+        window.lerArquivoImport = function (input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            document.getElementById('importFeedback').textContent = '';
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const matriz = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+                    if (!matriz.length) { document.getElementById('importFeedback').textContent = 'Arquivo vazio.'; return; }
+                    cabecalhosImport = (matriz[0] || []).map((c, i) => String(c).trim() || ('Coluna ' + (i + 1)));
+                    linhasImport = matriz.slice(1).filter(l => l.some(c => String(c).trim() !== ''));
+                    renderMapaImport();
+                } catch (err) {
+                    document.getElementById('importFeedback').textContent = 'Erro ao ler o arquivo: ' + err.message;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        function renderMapaImport() {
+            const grid = document.getElementById('mapaImportGrid');
+            grid.innerHTML = '';
+            CAMPOS_IMPORT.forEach(campo => {
+                const palpite = adivinharColunaImport(campo.syn);
+                const opts = ['<option value="">— não mapear —</option>']
+                    .concat(cabecalhosImport.map((c, i) => `<option value="${i}" ${i === palpite ? 'selected' : ''}>${esc(c)}</option>`))
+                    .join('');
+                const div = document.createElement('div');
+                div.className = 'map-item';
+                div.innerHTML = `<label>${campo.label}</label><select id="mapImport_${campo.key}">${opts}</select>`;
+                grid.appendChild(div);
+            });
+            document.getElementById('mapaImportBox').style.display = 'block';
+        }
+
+        function adivinharColunaImport(sinonimos) {
+            for (let i = 0; i < cabecalhosImport.length; i++) {
+                const h = cabecalhosImport[i].toLowerCase();
+                if (sinonimos.some(s => h.includes(s))) return i;
+            }
+            return -1;
+        }
+
+        function celulaImport(linha, idx) { return idx >= 0 ? String(linha[idx] != null ? linha[idx] : '').trim() : ''; }
+
+        window.prevalizarImport = function () {
+            const mapa = {};
+            CAMPOS_IMPORT.forEach(c => { const v = document.getElementById('mapImport_' + c.key).value; mapa[c.key] = v === '' ? -1 : parseInt(v); });
+            if (mapa.nome < 0) { document.getElementById('importFeedback').textContent = 'Mapeie ao menos a coluna de Nome.'; return; }
+            document.getElementById('importFeedback').textContent = '';
+
+            linhasProntas = linhasImport.map(l => {
+                const nome = celulaImport(l, mapa.nome);
+                const cores = Hueforge.normalizarLista(celulaImport(l, mapa.cores));
+                const link = celulaImport(l, mapa.link) || null;
+                return { nome, cores, link };
+            }).filter(r => r.nome);
+
+            const t = document.getElementById('tabelaPreviewImport');
+            const head = '<tr><th>Nome</th><th>Cores (normalizadas)</th><th>Link</th></tr>';
+            const corpo = linhasProntas.slice(0, 12).map(r =>
+                `<tr><td>${esc(r.nome)}</td><td>${r.cores.map(esc).join(', ') || '—'}</td><td>${r.link ? esc(r.link) : '—'}</td></tr>`
+            ).join('');
+            t.innerHTML = head + corpo;
+            document.getElementById('infoLinhasImport').textContent =
+                `${linhasProntas.length} HueForge(s) pronto(s) para importar` + (linhasProntas.length > 12 ? ' (mostrando os 12 primeiros)' : '') + '.';
+            document.getElementById('previewImportBox').style.display = 'block';
+            document.getElementById('btnConfirmarImport').disabled = linhasProntas.length === 0;
+        };
+
+        window.confirmarImport = async function () {
+            const btn = document.getElementById('btnConfirmarImport');
+            btn.disabled = true;
+            document.getElementById('importFeedback').style.color = '#4A93B0';
+            document.getElementById('importFeedback').textContent = 'Importando...';
+            let importados = 0;
+            try {
+                for (const r of linhasProntas) {
+                    const res = await empresaRef(CAMINHO_CONTADOR).transaction(c => (c === null ? 1 : c + 1));
+                    const id = res.snapshot.val();
+                    await empresaRef(CAMINHO_RTDB + '/' + id).set({
+                        idSequencial: id, nome: r.nome, cores: r.cores, fonteUrl: r.link,
+                        dataCriacao: new Date().toISOString()
+                    });
+                    importados++;
+                }
+                document.getElementById('importFeedback').style.color = '#28a745';
+                document.getElementById('importFeedback').textContent = `${importados} HueForge(s) importado(s) com sucesso!`;
+                setTimeout(() => { fecharImportar(); iniciar(); }, 1200);
+            } catch (e) {
+                document.getElementById('importFeedback').style.color = '#dc3545';
+                document.getElementById('importFeedback').textContent = `Erro na importação (${importados} já gravados): ${e.message}`;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

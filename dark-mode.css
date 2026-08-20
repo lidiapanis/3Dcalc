@@ -1,3 +1,57 @@
+/* ── Responsividade mobile (todas as páginas internas) ── */
+@media (max-width: 768px) {
+    body { padding: 14px !important; }
+    .container { padding: 18px 14px !important; max-width: 100% !important; }
+
+    /* Tabelas viram CARDS no mobile (sem rolagem horizontal escondendo botões) */
+    table { display: block; width: 100%; border: 0 !important; }
+    thead { display: none; }
+    tbody, tr, td { display: block; width: auto; }
+    tbody tr { border: 1px solid #ddd; border-radius: 8px; margin: 0 0 12px; padding: 4px 2px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    tbody td { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: right; border: none; border-bottom: 1px solid #f1f1f1; padding: 9px 12px; white-space: normal; word-break: break-word; }
+    tbody td:last-child { border-bottom: none; }
+    tbody td::before { content: attr(data-label); font-weight: 700; color: #666; text-align: left; flex: 0 0 auto; }
+    tbody td.actions, tbody td.col-imagem { justify-content: center; }
+    tbody td.actions::before, tbody td.col-imagem::before { display: none; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+    /* Botões de ação alinhados e uniformes (neutraliza margens de desktop, ex.: btn-del) */
+    .actions button { flex: 1 1 auto; min-width: 0; min-height: 42px; margin: 0 !important; }
+    html[data-theme="dark"] tbody tr { background: #1e1e2e !important; border-color: #333 !important; }
+    html[data-theme="dark"] tbody td { border-bottom-color: #333 !important; }
+    html[data-theme="dark"] tbody td::before { color: #90a4ae !important; }
+
+    /* Controles/filtros e ordenação empilham em coluna única */
+    .controls { flex-direction: column; align-items: stretch !important; }
+    .control-group { min-width: 0 !important; width: 100%; }
+    .sort-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sort-buttons button { margin-left: 0 !important; flex: 1; }
+
+    /* Alvos de toque ≥ 44px */
+    input, select, textarea, button { min-height: 44px; }
+
+    /* iOS: impede o zoom automático ao focar campos (acontece quando a fonte < 16px) */
+    input, select, textarea { font-size: 16px !important; }
+
+    /* Dashboard: grids em coluna única */
+    .charts-grid { grid-template-columns: 1fr !important; }
+    .metrics-grid { flex-direction: column; }
+
+    /* Modais quase em tela cheia */
+    .modal, .modal-lg, .ev-modal, .modal-insumo { max-width: 94vw !important; width: 94vw !important; }
+
+    h1 { font-size: 1.3em !important; }
+}
+
+/* ── Acessibilidade: foco visível em todas as páginas internas ── */
+:focus-visible {
+    outline: 2px solid #2E7496 !important;
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+html[data-theme="dark"] :focus-visible {
+    outline-color: #64b5f6 !important;
+}
+
 /* ── Dark Mode global para todas as páginas internas ── */
 
 html[data-theme="dark"],
@@ -32,6 +86,8 @@ html[data-theme="dark"] legend {
 html[data-theme="dark"] input[type="text"],
 html[data-theme="dark"] input[type="number"],
 html[data-theme="dark"] input[type="email"],
+html[data-theme="dark"] input[type="tel"],
+html[data-theme="dark"] input[type="date"],
 html[data-theme="dark"] input[type="file"],
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea {
@@ -119,5 +175,154 @@ html[data-theme="dark"] #previewImagem {
 }
 
 html[data-theme="dark"] .feedback {
+    color: #90caf9 !important;
+}
+
+/* ── Autocomplete / Search Dropdown ── */
+html[data-theme="dark"] .search-dropdown {
+    background-color: #1e1e2e !important;
+    border-color: #444 !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+html[data-theme="dark"] .dropdown-item {
+    color: #e0e0e0 !important;
+    border-bottom-color: #333 !important;
+}
+html[data-theme="dark"] .dropdown-item:hover,
+html[data-theme="dark"] .dropdown-item.focused {
+    background-color: #2a2a4e !important;
+}
+html[data-theme="dark"] .dropdown-item .item-price {
+    color: #66bb6a !important;
+}
+html[data-theme="dark"] .dropdown-empty {
+    color: #666 !important;
+}
+
+/* ── Tag de selecionado ── */
+html[data-theme="dark"] .selected-tag {
+    background-color: #1a2a4a !important;
+    color: #90caf9 !important;
+}
+html[data-theme="dark"] .selected-tag button {
+    color: #666 !important;
+}
+
+/* ── Modal ── */
+html[data-theme="dark"] .modal-backdrop {
+    background: rgba(0,0,0,0.65) !important;
+}
+html[data-theme="dark"] .modal {
+    background-color: #1e1e2e !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5) !important;
+}
+html[data-theme="dark"] .modal h3 {
+    color: #e0e0e0 !important;
+}
+html[data-theme="dark"] .modal label {
+    color: #b0bec5 !important;
+}
+html[data-theme="dark"] .btn-cancel-modal {
+    background-color: #2a2a3e !important;
+    border-color: #555 !important;
+    color: #b0bec5 !important;
+}
+
+/* ── Botões de ação inline ── */
+html[data-theme="dark"] .btn-add-product {
+    background-color: #2E7496 !important;
+}
+html[data-theme="dark"] .product-item {
+    border-bottom-color: #333 !important;
+}
+
+/* ── Info banner (busca_ml) ── */
+html[data-theme="dark"] .info-banner {
+    background-color: #0d2137 !important;
+    border-color: #1e4d7a !important;
+    color: #90caf9 !important;
+}
+html[data-theme="dark"] .info-banner a {
+    color: #64b5f6 !important;
+}
+
+/* ── Cards de resultado (busca_ml / monitoramento) ── */
+html[data-theme="dark"] .result-card,
+html[data-theme="dark"] .item-card {
+    background-color: #1e1e2e !important;
+    border-color: #333 !important;
+}
+html[data-theme="dark"] .card-body,
+html[data-theme="dark"] .card-footer {
+    border-top-color: #333 !important;
+}
+html[data-theme="dark"] .card-title {
+    color: #e0e0e0 !important;
+}
+html[data-theme="dark"] .card-seller,
+html[data-theme="dark"] .card-original,
+html[data-theme="dark"] .card-orig {
+    color: #666 !important;
+}
+html[data-theme="dark"] .card-price,
+html[data-theme="dark"] .card-no-price {
+    color: #66bb6a !important;
+}
+
+/* ── Categorias (busca_ml) ── */
+html[data-theme="dark"] .cat-btn {
+    background-color: #1e1e2e !important;
+    border-color: #444 !important;
+    color: #b0bec5 !important;
+}
+html[data-theme="dark"] .cat-btn:hover {
+    border-color: #e66a2e !important;
+    color: #e66a2e !important;
+}
+html[data-theme="dark"] .cat-btn.active {
+    background-color: #e66a2e !important;
+    color: #fff !important;
+}
+
+/* ── Estado vazio / erro ── */
+html[data-theme="dark"] .state-box {
+    color: #555 !important;
+}
+html[data-theme="dark"] .state-box small {
+    color: #444 !important;
+}
+
+/* ── Opções de frete (cadastro_orcamentos) ── */
+html[data-theme="dark"] .frete-opcao {
+    background-color: #1e1e2e !important;
+    border-color: #444 !important;
+}
+html[data-theme="dark"] .frete-opcao:hover {
+    background-color: #2a2a4e !important;
+    border-color: #4A93B0 !important;
+}
+html[data-theme="dark"] .frete-opcao.selected {
+    background-color: #1a2a4a !important;
+    border-color: #4A93B0 !important;
+}
+html[data-theme="dark"] .frete-empresa {
+    color: #e0e0e0 !important;
+}
+html[data-theme="dark"] .frete-nome {
+    color: #999 !important;
+}
+
+/* ── Configurações ── */
+html[data-theme="dark"] .integration-card {
+    background-color: #1e1e2e !important;
+    border-color: #444 !important;
+}
+html[data-theme="dark"] .integration-info h3,
+html[data-theme="dark"] .integration-info p {
+    color: #e0e0e0 !important;
+}
+html[data-theme="dark"] .info-box {
+    background-color: #0d2137 !important;
+    border-color: #1e4d7a !important;
     color: #90caf9 !important;
 }

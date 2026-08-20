@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listagem de Insumos</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 1000px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
+        #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
+        /* Ordenar/filtrar = ação neutra (cinza) */
+        .sort-buttons button { background-color: #6c757d; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #5a6268; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: middle; }
+        th { background-color: #f2f2f2; color: #333; }
+        .actions button { padding: 5px 10px; margin-right: 5px; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
+
+        /* ── Filtro (funil) na coluna Fornecedor ──────────────────────────────── */
+        .th-fornecedor { position: relative; }
+        .th-fornecedor .th-label { display: inline-flex; align-items: center; gap: 6px; }
+        .funnel-btn { background: none; border: none; cursor: pointer; color: #888; font-size: 0.85em; padding: 3px 5px; border-radius: 3px; transition: background 0.15s, color 0.15s; }
+        .funnel-btn:hover { color: #4A93B0; background: #e8f0fe; }
+        .funnel-btn.active { color: #fff; background: #4A93B0; }
+        .funnel-dropdown {
+            position: absolute; top: 100%; left: 0; margin-top: 4px; min-width: 210px; max-height: 280px; overflow-y: auto;
+            background: #fff; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+            z-index: 300; display: none; text-align: left; font-weight: normal;
+        }
+        .funnel-dropdown.open { display: block; }
+        .funnel-item {
+            padding: 9px 12px; cursor: pointer; font-size: 0.88em; color: #333;
+            border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; gap: 10px;
+        }
+        .funnel-item:last-child { border-bottom: none; }
+        .funnel-item:hover { background: #e8f0fe; }
+        .funnel-item.selected { background: #e0f0f8; font-weight: 600; color: #4A93B0; }
+        .funnel-item.funnel-clear { color: #4A93B0; font-weight: 600; border-bottom: 1px solid #ddd; }
+        .funnel-item .cnt { color: #999; font-size: 0.85em; font-weight: normal; flex-shrink: 0; }
+
+        /* ── Tipo / Cor / Estoque ── */
+        .filtro-sel { padding: 9px; border: 1px solid #ccc; border-radius: 5px; background: #fff; }
+        .badge-tipo { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 0.74em; font-weight: 700; }
+        .badge-material  { background: #e0f0f8; color: #2E7496; }
+        .badge-filamento { background: #fdeede; color: #c0631c; }
+        .cor-swatch { display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; margin-right: 5px; }
+        .estoque-zero { color: #dc3545; font-weight: 700; }
+        .add-btn { background-color: #28a745; color: #fff; }
+        /* Modal de entrada de estoque */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 700; padding: 16px; }
+        .modal-bg.open { display: flex; }
+        .modal-cx { background: #fff; border-radius: 10px; width: 100%; max-width: 420px; padding: 22px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+        .modal-cx h3 { margin: 0 0 6px; color: #1B4C65; }
+        .modal-cx p.sub { margin: 0 0 12px; color: #6a7c93; font-size: .9em; }
+        .modal-cx label { display: block; font-weight: 600; color: #555; margin: 10px 0 4px; }
+        .modal-cx input[type=number] { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 6px; font-size: 1.05em; }
+        .modal-cx .chk { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-weight: 500; color: #555; }
+        .modal-cx .chk input { width: 17px; height: 17px; }
+        .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+        .btn-pri { background: #28a745; color: #fff; border: none; border-radius: 6px; padding: 11px 18px; font-weight: 700; cursor: pointer; }
+        .btn-sec { background: none; border: 1px solid #ccc; color: #555; border-radius: 6px; padding: 11px 18px; cursor: pointer; }
+        #entradaFeedback { min-height: 1.1em; font-size: .9em; margin: 8px 0 0; color: #dc3545; }
+        html[data-theme="dark"] .modal-cx { background: #1e1e2e !important; color: #e0e0e0; }
+        html[data-theme="dark"] .modal-cx h3 { color: #7fc1de !important; }
+        html[data-theme="dark"] .modal-cx input[type=number] { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] .filtro-sel { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Insumos Cadastrados</h1>
+        <div class="controls">
+            <input type="text" id="searchBar" placeholder="Buscar por nome do insumo...">
+            <select id="filtroTipo" class="filtro-sel" onchange="aplicarFiltro()">
+                <option value="all">Todos os tipos</option>
+                <option value="material">Material</option>
+                <option value="filamento">Filamento</option>
+            </select>
+            <select id="filtroCor" class="filtro-sel" onchange="aplicarFiltro()">
+                <option value="all">Todas as cores</option>
+            </select>
+            <div class="sort-buttons">
+                <button onclick="ordenarTabela('id')">Ordenar por ID</button>
+                <button onclick="ordenarTabela('nome')">Ordenar por Nome</button>
+            </div>
+            <a href="cadastro_insumos.html" style="text-decoration: none;">
+                 <button style="background-color: #28a745; margin-left: 20px; color:#fff; border:none; padding:10px 15px; border-radius:5px; cursor:pointer;">+ Novo Insumo</button>
+            </a>
+        </div>
+
+        <table id="insumosTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th class="th-fornecedor">
+                        <span class="th-label">
+                            Fornecedor
+                            <button type="button" id="funnelBtn" class="funnel-btn" title="Filtrar por fornecedor" onclick="toggleFunnel(event)">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </span>
+                        <div class="funnel-dropdown" id="funnelDropdown"></div>
+                    </th>
+                    <th>Tipo</th>
+                    <th>Unidade</th>
+                    <th>Custo Unitário</th>
+                    <th>Estoque</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+
+        <p id="feedback"></p>
+    </div>
+
+    <!-- Modal: Entrada de estoque (compra) -->
+    <div class="modal-bg" id="modalEntrada">
+        <div class="modal-cx">
+            <h3><i class="fas fa-truck-ramp-box"></i> Entrada de estoque</h3>
+            <p class="sub" id="entradaInsumoNome">—</p>
+            <label for="entradaQtd">Quantidade comprada (<span id="entradaUnidade">un</span>)</label>
+            <input type="number" id="entradaQtd" min="0" step="0.01" placeholder="0" oninput="calcCustoMedio()">
+            <label for="entradaCusto">Custo unitário desta compra (R$) <small style="color:#999;font-weight:normal;">— opcional</small></label>
+            <input type="number" id="entradaCusto" min="0" step="0.0001" placeholder="—" oninput="calcCustoMedio()">
+            <label class="chk"><input type="checkbox" id="entradaAtualizaCusto" onchange="calcCustoMedio()"> Atualizar custo unitário (média ponderada)</label>
+            <p class="sub" id="entradaPreview" style="margin-top:10px;"></p>
+            <p id="entradaFeedback"></p>
+            <div class="modal-foot">
+                <button class="btn-sec" onclick="fecharEntrada()">Cancelar</button>
+                <button class="btn-pri" id="btnConfirmarEntrada" onclick="confirmarEntrada()">Confirmar entrada</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "insumos";
+
+        let insumosData = [];
+        let pessoasMap = {};   // id -> nome (para exibir nome atual do fornecedor)
+        let currentSort = 'id';
+        let filtroFornecedor = null;   // null = todos; senão nome do fornecedor
+
+        function formatarMoeda(valor) {
+            const v = parseFloat(valor);
+            if (isNaN(v)) return '—';
+            return `R$ ${v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+
+        window.ordenarTabela = function(key) {
+            currentSort = key;
+            if (key === 'id') insumosData.sort((a, b) => a.id - b.id);
+            else if (key === 'nome') insumosData.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+            aplicarFiltro();
+        }
+
+        window.aplicarFiltro = function() {
+            const searchText = document.getElementById('searchBar').value.toLowerCase();
+            const fTipo = document.getElementById('filtroTipo').value;
+            const fCor = document.getElementById('filtroCor').value;
+            const filtered = insumosData.filter(item => {
+                const matchNome = (item.nome || '').toLowerCase().includes(searchText);
+                const matchForn = (filtroFornecedor === null) || (nomeFornecedor(item) === filtroFornecedor);
+                const matchTipo = (fTipo === 'all') || (item.tipo === fTipo);
+                const matchCor = (fCor === 'all') || ((item.cor && item.cor.nome) === fCor);
+                return matchNome && matchForn && matchTipo && matchCor;
+            });
+            renderizarTabela(filtered);
+        }
+
+        function popularFiltroCor() {
+            const sel = document.getElementById('filtroCor');
+            const cores = [...new Set(insumosData.filter(i => i.cor && i.cor.nome).map(i => i.cor.nome))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            const atual = sel.value;
+            sel.innerHTML = '<option value="all">Todas as cores</option>' + cores.map(c => `<option value="${c}">${c}</option>`).join('');
+            if ([...sel.options].some(o => o.value === atual)) sel.value = atual;
+        }
+
+        function nomeFornecedor(item) {
+            return pessoasMap[item.fornecedorId] || item.fornecedorNome || '—';
+        }
+
+        // ── Filtro por Fornecedor (funil) ─────────────────────────────────────────
+        window.toggleFunnel = function(e) {
+            e.stopPropagation();
+            const dd = document.getElementById('funnelDropdown');
+            if (dd.classList.contains('open')) { dd.classList.remove('open'); return; }
+            construirFunnel();
+            dd.classList.add('open');
+        }
+
+        function construirFunnel() {
+            const dd = document.getElementById('funnelDropdown');
+            dd.innerHTML = '';
+            // Conta insumos por fornecedor (nomes únicos)
+            const counts = {};
+            insumosData.forEach(it => { const f = nomeFornecedor(it); counts[f] = (counts[f] || 0) + 1; });
+            const nomes = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            dd.appendChild(makeFunnelItem(null, 'Todos', insumosData.length, true));
+            nomes.forEach(n => dd.appendChild(makeFunnelItem(n, n, counts[n], false)));
+        }
+
+        function makeFunnelItem(valor, label, count, isTodos) {
+            const div = document.createElement('div');
+            div.className = 'funnel-item' + (isTodos ? ' funnel-clear' : '') + (filtroFornecedor === valor ? ' selected' : '');
+            const left = document.createElement('span');
+            if (isTodos) {
+                const ic = document.createElement('i');
+                ic.className = 'fas fa-list';
+                ic.style.marginRight = '6px';
+                left.appendChild(ic);
+            }
+            left.appendChild(document.createTextNode(label));
+            const cnt = document.createElement('span');
+            cnt.className = 'cnt'; cnt.textContent = count;
+            div.appendChild(left); div.appendChild(cnt);
+            div.addEventListener('click', (e) => { e.stopPropagation(); selecionarFornecedor(valor); });
+            return div;
+        }
+
+        function selecionarFornecedor(valor) {
+            filtroFornecedor = valor;
+            document.getElementById('funnelDropdown').classList.remove('open');
+            document.getElementById('funnelBtn').classList.toggle('active', valor !== null);
+            aplicarFiltro();
+        }
+
+        // Fecha o dropdown ao clicar fora
+        document.addEventListener('click', (e) => {
+            const dd = document.getElementById('funnelDropdown');
+            if (dd && !e.target.closest('.th-fornecedor')) dd.classList.remove('open');
+        });
+
+        function renderizarTabela(data) {
+            const tbody = document.getElementById('insumosTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhum insumo encontrado.</td></tr>';
+                return;
+            }
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                row.insertCell().textContent = item.id;
+
+                // Nome (com swatch de cor p/ filamento)
+                const nomeCell = row.insertCell();
+                if (item.cor && item.cor.hex) {
+                    const sw = document.createElement('span'); sw.className = 'cor-swatch'; sw.style.background = item.cor.hex;
+                    nomeCell.appendChild(sw);
+                }
+                nomeCell.appendChild(document.createTextNode(item.nome || ''));
+
+                row.insertCell().textContent = nomeFornecedor(item);
+
+                // Tipo (badge)
+                const tipoCell = row.insertCell();
+                const ehFil = item.tipo === 'filamento';
+                const badge = document.createElement('span');
+                badge.className = 'badge-tipo ' + (ehFil ? 'badge-filamento' : 'badge-material');
+                badge.textContent = ehFil ? ('Filamento' + (item.cor && item.cor.nome ? ' · ' + item.cor.nome : '')) : 'Material';
+                tipoCell.appendChild(badge);
+
+                const fator = fatorFilamento(item);
+                row.insertCell().textContent = item.unidade || '';
+                row.insertCell().textContent = formatarMoeda((Number(item.custoUnitario) || 0) * fator);
+
+                // Estoque (exibido na unidade do cadastro; filamento converte de grama)
+                const estCell = row.insertCell();
+                const est = (Number(item.estoqueAtual) || 0) / fator;
+                estCell.innerHTML = `<span class="${est <= 0 ? 'estoque-zero' : ''}">${est.toLocaleString('pt-BR')}</span> <small style="color:#999;">${item.unidade || ''}</small>`;
+
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'actions';
+                const addBtn = document.createElement('button');
+                addBtn.className = 'actions add-btn'; addBtn.innerHTML = '<i class="fas fa-plus"></i> Entrada';
+                addBtn.style.padding = '5px 10px';
+                addBtn.onclick = () => abrirEntrada(item.id);
+                actionsCell.appendChild(addBtn);
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-btn'; editBtn.textContent = 'Editar';
+                editBtn.onclick = () => editarInsumo(item.id);
+                actionsCell.appendChild(editBtn);
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-btn'; deleteBtn.textContent = 'Deletar';
+                deleteBtn.onclick = () => deletarInsumo(item.id);
+                actionsCell.appendChild(deleteBtn);
+                ['ID', 'Nome', 'Fornecedor', 'Tipo', 'Unidade', 'Custo Unitário', 'Estoque'].forEach((lab, i) => { if (row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
+            });
+        }
+
+        // Insumos reaproveita a permissão do módulo 'produtos'
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('produtos')) return;
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+            iniciar();
+        })();
+
+        function mostrarEstado(html) {
+            const tbody = document.getElementById('insumosTable').querySelector('tbody');
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        window.iniciar = async function () {
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando insumos...');
+            try { await carregarPessoasMap(); } catch (e) { /* fornecedores opcionais */ }
+            carregarInsumos();
+        };
+
+        async function carregarPessoasMap() {
+            try {
+                const snap = await empresaRef('pessoas').once('value');
+                pessoasMap = {};
+                if (snap.exists()) snap.forEach(p => { pessoasMap[p.key] = (p.val() || {}).nome || ('#' + p.key); });
+            } catch (e) { console.warn('Falha ao carregar pessoas:', e.message); }
+        }
+
+        function carregarInsumos() {
+            document.getElementById('feedback').textContent = "";
+            return empresaRef(CAMINHO_RTDB).once('value').then((snapshot) => {
+                insumosData = [];
+                snapshot.forEach((child) => {
+                    const d = child.val() || {};
+                    insumosData.push({
+                        id: parseInt(child.key),
+                        nome: d.nome,
+                        fornecedorId: d.fornecedorId,
+                        fornecedorNome: d.fornecedorNome,
+                        tipo: d.tipo || 'material',                 // legado sem tipo → material
+                        unidade: d.unidade,
+                        custoUnitario: d.custoUnitario,
+                        estoqueAtual: d.estoqueAtual,
+                        cor: d.cor || null
+                    });
+                });
+                popularFiltroCor();
+                ordenarTabela(currentSort);
+            }).catch((error) => {
+                console.error("Erro ao carregar insumos:", error);
+                mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar insumos.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
+            });
+        }
+
+        window.deletarInsumo = function(id) {
+            if (confirm(`Tem certeza que deseja deletar o Insumo # ${id}?`)) {
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
+                    .then(() => { alert(`Insumo # ${id} deletado com sucesso!`); carregarInsumos(); })
+                    .catch((error) => { alert("Erro ao deletar: " + error.message); });
+            }
+        }
+
+        window.editarInsumo = function(id) {
+            window.location.href = `cadastro_insumos.html?id=${id}`;
+        }
+
+        // Filamento é armazenado internamente em grama / R$ por grama. Quando o cadastro
+        // foi feito em KG, convertemos p/ exibição e entrada. Material: fator 1 (valor cru).
+        function fatorFilamento(item) { return (item && item.tipo === 'filamento' && item.unidade === 'kg') ? 1000 : 1; }
+
+        // ── Entrada de estoque (compra) ──
+        let entradaInsumoId = null;
+
+        window.abrirEntrada = function(id) {
+            const item = insumosData.find(i => i.id === id);
+            if (!item) return;
+            entradaInsumoId = id;
+            document.getElementById('entradaInsumoNome').textContent = `#${id} — ${item.nome || ''}`;
+            document.getElementById('entradaUnidade').textContent = item.unidade || 'un';
+            document.getElementById('entradaQtd').value = '';
+            document.getElementById('entradaCusto').value = (item.custoUnitario != null) ? (Number(item.custoUnitario) * fatorFilamento(item)) : '';
+            document.getElementById('entradaAtualizaCusto').checked = false;
+            document.getElementById('entradaFeedback').textContent = '';
+            document.getElementById('entradaPreview').innerHTML = '';
+            document.getElementById('modalEntrada').classList.add('open');
+            setTimeout(() => document.getElementById('entradaQtd').focus(), 60);
+        };
+        window.fecharEntrada = function() { document.getElementById('modalEntrada').classList.remove('open'); entradaInsumoId = null; };
+
+        window.calcCustoMedio = function() {
+            const item = insumosData.find(i => i.id === entradaInsumoId);
+            if (!item) return;
+            const fator = fatorFilamento(item);                                       // grama ↔ KG
+            const qtd = parseFloat(document.getElementById('entradaQtd').value) || 0;  // na unidade exibida
+            const novoCusto = parseFloat(document.getElementById('entradaCusto').value); // por unidade exibida
+            const estoqueAntigo = (Number(item.estoqueAtual) || 0) / fator;
+            const estoqueNovo = estoqueAntigo + qtd;
+            let txt = `Estoque: ${estoqueAntigo.toLocaleString('pt-BR')} → <b>${estoqueNovo.toLocaleString('pt-BR')}</b> ${item.unidade || ''}`;
+            if (document.getElementById('entradaAtualizaCusto').checked && !isNaN(novoCusto) && estoqueNovo > 0) {
+                const custoAntigo = (Number(item.custoUnitario) || 0) * fator;
+                const media = (estoqueAntigo * custoAntigo + qtd * novoCusto) / estoqueNovo;
+                txt += ` · Custo médio: ${formatarMoeda(custoAntigo)} → <b>${formatarMoeda(media)}</b>`;
+            }
+            document.getElementById('entradaPreview').innerHTML = txt;
+        };
+
+        window.confirmarEntrada = async function() {
+            const item = insumosData.find(i => i.id === entradaInsumoId);
+            if (!item) return;
+            const qtd = parseFloat(document.getElementById('entradaQtd').value);
+            const fb = document.getElementById('entradaFeedback');
+            if (isNaN(qtd) || qtd <= 0) { fb.textContent = 'Informe uma quantidade maior que zero.'; return; }
+            const novoCustoInput = parseFloat(document.getElementById('entradaCusto').value);
+            const atualizaCusto = document.getElementById('entradaAtualizaCusto').checked;
+            const btn = document.getElementById('btnConfirmarEntrada');
+            btn.disabled = true;
+
+            // Filamento: converte a entrada (KG) p/ o armazenamento interno (grama / R$ por grama).
+            const fator = fatorFilamento(item);
+            const qtdInterno = qtd * fator;
+            const estoqueAntigo = Number(item.estoqueAtual) || 0;       // grama (filamento) ou unidade crua
+            const estoqueNovo = estoqueAntigo + qtdInterno;
+            const upd = { estoqueAtual: estoqueNovo };
+            const novoCustoInterno = isNaN(novoCustoInput) ? NaN : (novoCustoInput / fator);
+            if (atualizaCusto && !isNaN(novoCustoInterno) && estoqueNovo > 0) {
+                upd.custoUnitario = (estoqueAntigo * (Number(item.custoUnitario) || 0) + qtdInterno * novoCustoInterno) / estoqueNovo;
+            }
+            try {
+                await empresaRef('insumos/' + entradaInsumoId).update(upd);
+                await empresaRef('movimentacoes_estoque').push({
+                    tipo: 'entrada_insumo', insumoId: String(entradaInsumoId), qtd: qtdInterno,
+                    custoUnit: isNaN(novoCustoInterno) ? null : novoCustoInterno,
+                    dataHora: new Date().toISOString(), ref: 'compra'
+                });
+                fecharEntrada();
+                carregarInsumos();
+            } catch (e) {
+                fb.textContent = 'Erro: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
     <style>
         /* Reutilize o CSS da listagem_produtos.html */
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
@@ -15,8 +16,8 @@
         h1 { color: #333; text-align: center; margin-bottom: 25px; }
         .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
         #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
-        .sort-buttons button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
-        .sort-buttons button:hover { background-color: #0056b3; }
+        .sort-buttons button { background-color: #4A93B0; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #3A7A96; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         th { background-color: #f2f2f2; color: #333; }
@@ -24,8 +25,8 @@
         .edit-btn { background-color: #ffc107; color: #333; }
         .delete-btn { background-color: #dc3545; color: white; }
         #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
-        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
-        .home-btn:hover { color: #0056b3; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #4A93B0; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #3A7A96; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
@@ -138,23 +139,19 @@
     
         // --- 3. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
         
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // Se estiver logado, inicia o carregamento dos dados
-                carregarClientes();
-                // Inicializa o filtro após a página estar carregada
-                document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
-            }
-        });
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('clientes')) return;
+            carregarClientes();
+            document.getElementById('searchBar').addEventListener('keyup', aplicarFiltro);
+        })();
     
         // --- 4. FUNÇÕES CRUD E DE BUSCA DE DADOS ---
     
         function carregarClientes() {
             document.getElementById('feedback').textContent = "Carregando clientes...";
-            database.ref(CAMINHO_RTDB).once('value', (snapshot) => {
+            empresaRef(CAMINHO_RTDB).once('value', (snapshot) => {
                 clientesData = [];
                 snapshot.forEach((childSnapshot) => {
                     const data = childSnapshot.val();
@@ -173,7 +170,7 @@
     
         window.deletarCliente = function(id) {
             if (confirm(`Tem certeza que deseja deletar o Cliente # ${id}?`)) {
-                database.ref(CAMINHO_RTDB + '/' + id).remove()
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
                     .then(() => {
                         alert(`Cliente # ${id} deletado com sucesso!`);
                         carregarClientes();

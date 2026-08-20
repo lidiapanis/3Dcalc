@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Evento</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    <script src="empresa.js"></script>
+    <script src="estoque.js"></script>
+    <script src="cores.js"></script>
+    <script src="barcode.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px 12px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 720px; width: 100%; margin: 0 auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        input[type="text"], input[type="number"], input[type="date"], select, textarea {
+            width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; background:#fff;
+        }
+        textarea { resize: vertical; min-height: 55px; }
+        .row2 { display:flex; gap:12px; flex-wrap:wrap; }
+        .row2 > div { flex:1; min-width:160px; }
+        button.salvar { background-color:#28a745; color:#fff; padding:12px 20px; border:none; border-radius:5px; cursor:pointer; width:100%; font-size:16px; margin-top:10px; }
+        button.salvar:hover { background-color:#218838; }
+        .feedback { text-align:center; margin-top:15px; font-weight:bold; color:#4A93B0; }
+
+        /* Estoque */
+        .estoque-linha { display:flex; gap:8px; align-items:flex-end; margin-bottom:8px; flex-wrap:wrap; padding-bottom:8px; border-bottom:1px solid #f0f0f0; }
+        .estoque-linha .prod-nome { flex:2; min-width:150px; font-weight:600; color:#333; padding-bottom:10px; }
+        .estoque-linha .campo { flex:0 0 130px; }
+        .estoque-linha .campo label { margin-top:0; font-size:0.78em; }
+        .estoque-linha .campo input { margin-bottom:0; }
+        .estoque-linha .btn-remove { background:#dc3545; color:#fff; border:none; border-radius:4px; padding:9px 11px; cursor:pointer; }
+        .estoque-vazio { color:#999; font-size:0.85em; margin:6px 0; }
+        .btn-add-produto { background:#4A93B0; color:#fff; border:none; border-radius:6px; padding:12px 16px; width:100%; font-size:15px; font-weight:700; cursor:pointer; margin-bottom:6px; }
+        .btn-add-produto:hover { background:#3A7A96; }
+
+        /* ── Modal "Adicionar produto ao evento" ─────────────────────────────── */
+        .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:500; opacity:0; pointer-events:none; transition:opacity 0.2s; padding:16px; }
+        .modal-backdrop.open { opacity:1; pointer-events:all; }
+        .modal { background:#fff; border-radius:10px; padding:24px; width:100%; max-width:460px; max-height:90vh; overflow-y:auto; box-shadow:0 8px 30px rgba(0,0,0,0.2); transform:scale(0.95); transition:transform 0.2s; }
+        .modal-backdrop.open .modal { transform:scale(1); }
+        .modal h3 { margin:0 0 18px; font-size:1.05em; color:#333; }
+        .modal label { font-size:0.82em; font-weight:600; color:#666; margin-bottom:3px; }
+        .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+        .btn-cancel-modal { padding:10px 18px; border:1px solid #ccc; border-radius:5px; background:none; cursor:pointer; font-size:0.9em; color:#555; }
+        .btn-confirm-modal { padding:10px 18px; background:#28a745; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:0.9em; font-weight:700; }
+        .ap-item { padding:10px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; gap:8px; }
+        .ap-item:hover { background:#f0f7fb; }
+        .ap-item small { color:#888; display:block; }
+        .ap-vazio { padding:10px 12px; color:#888; font-size:0.85em; }
+        .ap-custos { background:#f0f7fb; border:1px solid #d6e9f3; border-radius:6px; padding:10px 12px; margin:10px 0; font-size:0.85em; }
+        .ap-custos .linha { display:flex; justify-content:space-between; padding:3px 0; }
+        .ap-custos .sug { color:#28a745; font-weight:700; }
+        html[data-theme="dark"] .ap-item { border-bottom-color:#333 !important; }
+        html[data-theme="dark"] .ap-item:hover { background:#2a2a2a !important; }
+        html[data-theme="dark"] .ap-custos { background:#232323 !important; border-color:#333 !important; }
+
+        /* ── Importar lista por texto ─────────────────────────────────────────── */
+        .modal textarea { width:100%; padding:9px 11px; border:1px solid #ddd; border-radius:4px; font-size:0.9em; font-family:inherit; resize:vertical; min-height:120px; margin-bottom:10px; }
+        .imp-linha { padding:7px 10px; border-bottom:1px solid #f0f0f0; font-size:0.85em; display:flex; justify-content:space-between; gap:8px; }
+        .imp-linha.erro { color:#dc3545; background:#fff5f5; }
+        .imp-linha .imp-nome { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .imp-linha .imp-valor { white-space:nowrap; color:#28a745; font-weight:700; }
+        .imp-linha.erro .imp-valor { color:#dc3545; }
+        .imp-resumo { font-size:0.85em; color:#666; margin:8px 0; font-weight:600; }
+        html[data-theme="dark"] .imp-linha { border-bottom-color:#333 !important; }
+        html[data-theme="dark"] .imp-linha.erro { background:#3a2323 !important; }
+        html[data-theme="dark"] .imp-resumo { color:#ccc !important; }
+
+        /* Flyer / imagem do evento */
+        .flyer-box { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-top:5px; }
+        .flyer-box img { width:84px; height:84px; object-fit:cover; border:1px solid #e0e0e0; border-radius:8px; background:#fafafa; display:none; }
+        .flyer-box img.show { display:block; }
+        .flyer-acoes { display:flex; flex-direction:column; gap:8px; }
+        .btn-remover-flyer { background:#dc3545; color:#fff; border:none; border-radius:5px; padding:8px 12px; cursor:pointer; font-size:0.85em; align-self:flex-start; }
+        html[data-theme="dark"] .estoque-linha { border-bottom-color:#333 !important; }
+        html[data-theme="dark"] .estoque-linha .prod-nome { color:#e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Cadastro de Evento</h1>
+        <form id="eventoForm" onsubmit="return false;">
+            <fieldset>
+                <legend>Dados do Evento</legend>
+                <label for="nome">Nome do Evento:</label>
+                <input type="text" id="nome" required>
+
+                <label for="local">Local:</label>
+                <input type="text" id="local">
+
+                <div class="row2">
+                    <div>
+                        <label for="dataInicio">Data de Início:</label>
+                        <input type="date" id="dataInicio">
+                    </div>
+                    <div>
+                        <label for="dataFim">Data de Fim:</label>
+                        <input type="date" id="dataFim">
+                    </div>
+                    <div>
+                        <label for="status">Status:</label>
+                        <select id="status">
+                            <option value="planejado">Planejado</option>
+                            <option value="ativo">Ativo</option>
+                            <option value="encerrado">Encerrado</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label for="observacoes">Observações:</label>
+                <textarea id="observacoes"></textarea>
+
+                <label>Flyer / Imagem do evento <small style="font-weight:normal;color:#999;">(opcional — exibida na landing pública de cadastro)</small></label>
+                <div class="flyer-box">
+                    <img id="flyerPreview" alt="Pré-visualização do flyer">
+                    <div class="flyer-acoes">
+                        <input type="file" id="flyerInput" accept="image/*" onchange="previewFlyer(this)">
+                        <button type="button" class="btn-remover-flyer" id="btnRemoverFlyer" onclick="removerFlyer()" style="display:none;">Remover imagem</button>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset id="estoqueFieldset">
+                <legend>Estoque do evento</legend>
+                <p class="estoque-vazio" id="estoqueHintNovo" style="display:none;">
+                    Salve o evento primeiro para designar os produtos que serão levados.
+                </p>
+                <div id="estoqueArea">
+                    <button type="button" class="btn-add-produto" onclick="abrirModalAddProduto()"><i class="fas fa-plus"></i> Adicionar produto</button>
+                    <button type="button" class="btn-add-produto" style="background:#6741D9;" onclick="abrirModalImportar()"><i class="fas fa-file-import"></i> Importar lista (texto)</button>
+                    <small style="color:#999;">O preço no evento já vem preenchido com o preço de venda atual do produto, mas é editável.
+                    Ao salvar, a <b>Qtd levada</b> é dada baixa do estoque do produto (na cor escolhida); reduzir a quantidade (ou remover) <b>devolve</b> ao estoque, limitado ao que ainda não foi vendido.</small>
+                    <div id="estoqueLinhas" style="margin-top:14px;"></div>
+                </div>
+            </fieldset>
+
+            <button type="button" class="salvar" id="btnSalvar" onclick="iniciarCadastro()">Salvar Evento</button>
+        </form>
+        <p id="feedback" class="feedback"></p>
+    </div>
+
+    <!-- Modal: Adicionar produto ao evento (busca produto existente ou cria um novo na hora) -->
+    <div class="modal-backdrop" id="modalAddProduto" onclick="fecharModalAddProdutoFora(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3><i class="fas fa-cubes-stacked" style="color:#4A93B0;margin-right:8px"></i>Adicionar produto ao evento</h3>
+
+            <!-- Etapa 1: busca -->
+            <div id="apBuscaEtapa">
+                <label for="apBusca">Produto</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="apBusca" placeholder="Buscar por nome ou código..." autocomplete="off"
+                           oninput="apFiltrar()" onfocus="apFiltrar()" style="flex:1;">
+                    <button type="button" onclick="apEscanear()" title="Ler com a câmera"
+                            style="width:auto;background:#6741D9;color:#fff;border:none;border-radius:5px;padding:0 14px;cursor:pointer;"><i class="fas fa-camera"></i></button>
+                </div>
+                <button type="button" class="btn-add-produto" style="margin-top:10px;background:#28a745;" onclick="apAbrirCriar()"><i class="fas fa-plus"></i> Criar novo produto</button>
+                <div id="apLista" style="max-height:260px;overflow-y:auto;margin-top:10px;"></div>
+            </div>
+
+            <!-- Etapa 2: detalhes de um produto já existente -->
+            <div id="apDetalhesEtapa" style="display:none;">
+                <p style="display:flex;align-items:center;justify-content:space-between;margin:0 0 12px;">
+                    <b id="apNomeSel" style="color:#4A93B0;"></b>
+                    <a href="#" onclick="apVoltarBusca(); return false;" style="font-size:.85em;">trocar</a>
+                </p>
+                <label>Cor <small style="font-weight:normal;color:#999;">(opcional)</small></label>
+                <div id="apCorSeletor"></div>
+                <label style="margin-top:10px;">Filamento usado na produção <small style="font-weight:normal;color:#999;">(opcional)</small></label>
+                <select id="apFilamento" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;background:#fff;"></select>
+                <div class="row2" style="margin-top:10px;">
+                    <div>
+                        <label>Qtd levada</label>
+                        <input type="number" id="apQtd" min="1" step="1" value="1">
+                    </div>
+                    <div>
+                        <label>Preço no evento (R$)</label>
+                        <input type="number" id="apPreco" min="0" step="0.01" oninput="apPrecoManual = true">
+                    </div>
+                </div>
+                <p id="apFeedback" style="min-height:1.1em;font-size:.85em;color:#dc3545;margin:6px 0 0;"></p>
+            </div>
+
+            <!-- Etapa 3: criar produto rápido (custo simplificado) -->
+            <div id="apCriarEtapa" style="display:none;">
+                <p style="margin:0 0 12px;"><a href="#" onclick="apVoltarBusca(); return false;" style="font-size:.85em;">&larr; voltar à busca</a></p>
+                <label>Nome do produto *</label>
+                <input type="text" id="apNome" placeholder="Ex: Chaveiro Dragão">
+                <label>Código de barras <small style="font-weight:normal;color:#999;">(opcional)</small></label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="apCodigo" inputmode="numeric" placeholder="Digite, gere ou deixe em branco" style="flex:1;">
+                    <button type="button" onclick="apGerarCodigo()" title="Gerar código aleatório"
+                            style="width:auto;background:#6741D9;color:#fff;border:none;border-radius:5px;padding:0 14px;cursor:pointer;"><i class="fas fa-shuffle"></i></button>
+                </div>
+                <div class="row2">
+                    <div>
+                        <label>Peso da peça (g)</label>
+                        <input type="number" id="apPeso" min="0" step="0.1" value="50" oninput="apRecalcular()">
+                    </div>
+                    <div>
+                        <label>Tempo de impressão (h)</label>
+                        <input type="number" id="apTempo" min="0" step="0.01" value="3.5" oninput="apRecalcular()">
+                    </div>
+                </div>
+                <small style="display:block;color:#999;margin:-6px 0 10px;">Considerando filamento a R$100,00/kg, impressora 320W e R$1,00/kWh (padrão). Para uma receita completa (insumos, subprodutos), cadastre pelo Cadastro de Produtos.</small>
+                <div class="ap-custos">
+                    <div class="linha"><span>Custo Total</span><span id="apCustoTotal">R$ 0,00</span></div>
+                    <div class="linha"><span>Preço Sugerido</span><span class="sug" id="apSugerido">R$ 0,00</span></div>
+                </div>
+                <label>Preço de venda (R$)</label>
+                <input type="number" id="apPrecoNovo" min="0" step="0.01" oninput="apPrecoNovoManual = true">
+                <label style="margin-top:10px;">Cor <small style="font-weight:normal;color:#999;">(opcional)</small></label>
+                <div id="apCorSeletorNovo"></div>
+                <label style="margin-top:10px;">Quantidade a levar ao evento</label>
+                <input type="number" id="apQtdNovo" min="1" step="1" value="1">
+                <p id="apCriarFeedback" style="min-height:1.1em;font-size:.85em;color:#dc3545;margin:6px 0 0;"></p>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-cancel-modal" onclick="fecharModalAddProduto()">Cancelar</button>
+                <button class="btn-confirm-modal" id="apBtnConfirmarDetalhes" style="display:none;" onclick="apConfirmarDetalhes()"><i class="fas fa-check"></i> Adicionar</button>
+                <button class="btn-confirm-modal" id="apBtnConfirmarCriar" style="display:none;" onclick="apConfirmarCriar()"><i class="fas fa-check"></i> Criar e adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Importar lista de produtos por texto (cola texto ou sobe .txt) -->
+    <div class="modal-backdrop" id="modalImportar" onclick="fecharModalImportarFora(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3><i class="fas fa-file-import" style="color:#6741D9;margin-right:8px"></i>Importar produtos por texto</h3>
+            <p style="font-size:.82em;color:#999;margin:0 0 10px;">Uma linha por produto: <b>QUANTIDADE NOME DO PRODUTO VALOR</b> (a quantidade é opcional, padrão 1). Os produtos são criados <b>sem custo</b> (R$ 0,00) e já entram no estoque deste evento. Se já existir um produto com o mesmo nome, um novo é criado mesmo assim.</p>
+            <label>Colar texto</label>
+            <textarea id="impTexto" placeholder="2 Chaveiro Dragão 15,90&#10;Chaveiro Fênix 12,50&#10;3 Pingente Coração 8" oninput="impLimparPreview()"></textarea>
+            <label>Ou importar de um arquivo .txt</label>
+            <input type="file" id="impArquivo" accept=".txt,text/plain" onchange="impCarregarArquivo(this)">
+            <button type="button" class="btn-add-produto" style="margin-top:10px;background:#6741D9;" onclick="impAnalisar()"><i class="fas fa-magnifying-glass"></i> Analisar</button>
+            <div id="impResumo" class="imp-resumo" style="display:none;"></div>
+            <div id="impPreview" style="max-height:240px;overflow-y:auto;"></div>
+            <p id="impFeedback" style="min-height:1.1em;font-size:.85em;color:#dc3545;margin:6px 0 0;"></p>
+            <div class="modal-footer">
+                <button class="btn-cancel-modal" onclick="fecharModalImportar()">Cancelar</button>
+                <button class="btn-confirm-modal" id="impBtnConfirmar" style="display:none;" onclick="impConfirmarImportacao()"><i class="fas fa-check"></i> Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        const CAMINHO_RTDB = "eventos";
+        const CAMINHO_CONTADOR = "contador_eventos/proximoId";
+
+        let idEmEdicao = null;
+        let dataCriacaoOriginal = null;
+        let EMPRESA_ID = '1';
+        let flyerUrlAtual = null;      // URL do flyer já salvo (modo edição)
+        let removerFlyerFlag = false;  // usuário pediu para remover a imagem atual
+        var produtosMap = {};   // { id: { nome, precoVenda, imagemUrl, estoque, estoquePorFilamento } }
+        let filamentosList = [];       // [{ id, nome, cor }] — insumos tipo filamento
+        // estoqueOriginal é chaveado pelo id REAL da linha no RTDB (não é sempre produtoId — uma
+        // linha antiga "sem cor" usa produtoId como chave; uma linha nova com cor usa uma push key).
+        let estoqueOriginal = {};      // { estoqueId: {produtoId,corId,corNome,qtdLevada,precoEvento,filamentoId} } JÁ salvo (p/ delta no save)
+        function chaveEstoque(produtoId, corId) { return String(produtoId) + '|' + (corId || ''); }
+        let vendidoMap = {};           // { produtoId+'|'+(corId||''): qtd vendida no evento } — limita devolução
+
+        function formatarMoeda(v) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+
+        (async function () {
+            const ctx = await initEmpresa();
+            if (!ctx) return;
+            EMPRESA_ID = ctx.empresaId;
+            if (negarAcesso('orcamentos')) return;
+            await carregarProdutos();
+            await carregarFilamentos();
+            verificarModoEdicao();
+        })();
+
+        async function carregarProdutos() {
+            const snap = await empresaRef('produtos').once('value');
+            produtosMap = {};
+            if (snap.exists()) snap.forEach(c => {
+                const d = c.val() || {};
+                produtosMap[c.key] = {
+                    nome: d.nomePeca || ('#' + c.key), precoVenda: Number(d.precoVenda) || 0, imagemUrl: d.imagemUrl || null,
+                    estoque: Number(d.estoque) || 0, estoquePorFilamento: d.estoquePorFilamento || {},
+                    codigoBarras: d.codigoBarras || null, cores: d.cores || []
+                };
+            });
+        }
+
+        async function carregarFilamentos() {
+            const snap = await empresaRef('insumos').once('value');
+            filamentosList = [];
+            if (snap.exists()) snap.forEach(c => {
+                const d = c.val() || {};
+                if (d.tipo === 'filamento') filamentosList.push({ id: c.key, nome: d.nome || ('#' + c.key), cor: d.cor || null });
+            });
+        }
+
+        function opcoesFilamento(selId) {
+            let h = '<option value="">— cor —</option>';
+            filamentosList.forEach(f => {
+                const sel = (String(selId) === String(f.id)) ? 'selected' : '';
+                h += `<option value="${f.id}" ${sel}>${f.nome}${f.cor && f.cor.nome ? ' · ' + f.cor.nome : ''}</option>`;
+            });
+            return h;
+        }
+
+        function verificarModoEdicao() {
+            const id = new URLSearchParams(window.location.search).get('id');
+            if (id) {
+                idEmEdicao = id;
+                document.getElementById('estoqueFieldset').style.display = '';
+                document.getElementById('feedback').textContent = `Carregando Evento #${id}...`;
+                empresaRef(CAMINHO_RTDB + '/' + id).once('value').then(snap => {
+                    if (!snap.exists()) { document.getElementById('feedback').textContent = `Evento #${id} não encontrado.`; return; }
+                    preencherFormulario(snap.val());
+                }).catch(e => { document.getElementById('feedback').textContent = `Erro ao carregar: ${e.message}`; });
+            } else {
+                // Novo: esconde a área de estoque (precisa do id primeiro)
+                document.getElementById('estoqueArea').style.display = 'none';
+                document.getElementById('estoqueHintNovo').style.display = 'block';
+                document.getElementById('feedback').textContent = "Modo: Novo Evento.";
+            }
+        }
+
+        function preencherFormulario(dados) {
+            document.getElementById('nome').value = dados.nome || '';
+            document.getElementById('local').value = dados.local || '';
+            document.getElementById('dataInicio').value = dados.dataInicio || '';
+            document.getElementById('dataFim').value = dados.dataFim || '';
+            document.getElementById('status').value = dados.status || 'planejado';
+            document.getElementById('observacoes').value = dados.observacoes || '';
+            dataCriacaoOriginal = dados.dataCriacao || null;
+
+            flyerUrlAtual = dados.flyerUrl || null;
+            if (flyerUrlAtual) {
+                const img = document.getElementById('flyerPreview');
+                img.src = flyerUrlAtual;
+                img.classList.add('show');
+                document.getElementById('btnRemoverFlyer').style.display = '';
+            }
+
+            estoqueOriginal = dados.estoque || {};
+            carregarVendidoEDesenhar();
+
+            document.querySelector('h1').textContent = `Editar Evento #${idEmEdicao}`;
+            document.getElementById('btnSalvar').textContent = "Atualizar Evento";
+            document.getElementById('feedback').textContent = `Evento #${idEmEdicao} carregado.`;
+        }
+
+        async function carregarVendidoEDesenhar() {
+            vendidoMap = {};
+            try {
+                const vs = await empresaRef(CAMINHO_RTDB + '/' + idEmEdicao + '/vendas').once('value');
+                vs.forEach(c => { const v = c.val() || {}; if (v.status === 'cancelada') return; const chave = chaveEstoque(v.produtoId, v.corId); vendidoMap[chave] = (vendidoMap[chave] || 0) + (Number(v.qtd) || 0); });
+            } catch (e) { /* sem vendas → segue */ }
+            Object.keys(estoqueOriginal).forEach(estoqueId => {
+                const e = estoqueOriginal[estoqueId] || {};
+                adicionarLinhaEstoque(estoqueId, e.produtoId, e.qtdLevada, e.precoEvento, e.filamentoId, e.corId, e.corNome);
+            });
+        }
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+        // ══════════════════════════════════════════════════════════════
+        //  MODAL "Adicionar produto ao evento" — busca produto existente
+        //  (com câmera) ou cria um produto novo (custo simplificado) e já
+        //  designa ao evento. Só fica em memória: quem move estoque de
+        //  verdade é iniciarCadastro() ao salvar (ver montarMovimentacoesEstoque).
+        // ══════════════════════════════════════════════════════════════
+        let apProdutoSelId = null;
+        let apCorSelecionada = null;       // {corId,nome,hex} | null
+        let apCorSelecionadaNova = null;   // idem, para o produto criado na hora
+        let apPrecoManual = false;
+        let apPrecoNovoManual = false;
+
+        function abrirModalAddProduto() {
+            document.getElementById('apBusca').value = '';
+            document.getElementById('apLista').innerHTML = '';
+            apMostrarEtapa('busca');
+            document.getElementById('modalAddProduto').classList.add('open');
+            setTimeout(() => document.getElementById('apBusca').focus(), 60);
+        }
+        function fecharModalAddProduto() { document.getElementById('modalAddProduto').classList.remove('open'); }
+        function fecharModalAddProdutoFora(e) { if (e.target === e.currentTarget) fecharModalAddProduto(); }
+
+        function apMostrarEtapa(etapa) {
+            document.getElementById('apBuscaEtapa').style.display = (etapa === 'busca') ? '' : 'none';
+            document.getElementById('apDetalhesEtapa').style.display = (etapa === 'detalhes') ? '' : 'none';
+            document.getElementById('apCriarEtapa').style.display = (etapa === 'criar') ? '' : 'none';
+            document.getElementById('apBtnConfirmarDetalhes').style.display = (etapa === 'detalhes') ? '' : 'none';
+            document.getElementById('apBtnConfirmarCriar').style.display = (etapa === 'criar') ? '' : 'none';
+        }
+
+        // Produtos que já têm uma linha SEM cor no DOM não podem ser reofertados (evita
+        // duplicar a mesma linha "sem cor"); linhas coloridas não contam pra esse bloqueio.
+        function apJaSemCor() {
+            return new Set([...document.querySelectorAll('.estoque-linha')].filter(l => !l.dataset.corId).map(l => l.dataset.produtoId));
+        }
+
+        function apFiltrar() {
+            const termo = (document.getElementById('apBusca').value || '').toLowerCase().trim();
+            const lista = document.getElementById('apLista');
+            const jaSemCor = apJaSemCor();
+            const ids = Object.keys(produtosMap).filter(id => {
+                if (jaSemCor.has(id)) return false;
+                const p = produtosMap[id];
+                const n = (p.nome || '').toLowerCase();
+                return !termo || n.includes(termo) || id.includes(termo) || (p.codigoBarras && p.codigoBarras.includes(termo));
+            });
+            lista.innerHTML = ids.length
+                ? ids.slice(0, 30).map(id => `<div class="ap-item" onclick="apSelecionarExistente('${id}')">
+                    <span>${esc(produtosMap[id].nome)}<small>#${id}</small></span>
+                    <span style="color:#28a745;font-weight:700;white-space:nowrap;">${formatarMoeda(produtosMap[id].precoVenda)}</span>
+                  </div>`).join('')
+                : '<div class="ap-vazio">Nenhum produto disponível</div>';
+        }
+
+        function apEscanear() {
+            if (!window.Barcode || !Barcode.isSupported()) { alert('Câmera não disponível neste dispositivo/navegador.'); return; }
+            Barcode.open({
+                title: 'Escanear produto',
+                continuous: false,
+                onCode: (code) => {
+                    const jaSemCor = apJaSemCor();
+                    const id = Object.keys(produtosMap).find(pid => produtosMap[pid].codigoBarras === code && !jaSemCor.has(pid));
+                    if (!id) { alert('Nenhum produto disponível com esse código.'); return; }
+                    apSelecionarExistente(id);
+                }
+            });
+        }
+
+        function apSelecionarExistente(id) {
+            apProdutoSelId = id;
+            apPrecoManual = false;
+            const p = produtosMap[id];
+            document.getElementById('apNomeSel').textContent = `#${id} — ${p.nome}`;
+            document.getElementById('apFilamento').innerHTML = opcoesFilamento(null);
+            document.getElementById('apQtd').value = '1';
+            document.getElementById('apFeedback').textContent = '';
+
+            apCorSelecionada = null;
+            Cores.montarSeletor({
+                container: document.getElementById('apCorSeletor'),
+                empresaRef: empresaRef,
+                multi: false,
+                permitirNovo: true,
+                selecionadas: [],
+                onChange: (lista) => { apCorSelecionada = lista[0] || null; apAtualizarPrecoSugerido(); }
+            });
+            apAtualizarPrecoSugerido();
+            apMostrarEtapa('detalhes');
+        }
+
+        function apVoltarBusca() {
+            apProdutoSelId = null; apCorSelecionada = null;
+            apMostrarEtapa('busca');
+        }
+
+        // Preço sugerido: prioriza uma linha JÁ no DOM com o MESMO produto+cor; senão, qualquer
+        // linha do mesmo produto (outra cor); senão, o preço de venda cadastrado no produto.
+        function apAtualizarPrecoSugerido() {
+            if (!apProdutoSelId || apPrecoManual) return;
+            const corId = apCorSelecionada ? apCorSelecionada.corId : null;
+            const linhas = [...document.querySelectorAll('.estoque-linha')].filter(l => l.dataset.produtoId === String(apProdutoSelId));
+            const exata = linhas.find(l => (l.dataset.corId || '') === (corId || ''));
+            const alvo = exata || linhas[0];
+            const preco = alvo ? parseFloat(alvo.querySelector('.preco-evento').value) || 0 : produtosMap[apProdutoSelId].precoVenda;
+            document.getElementById('apPreco').value = Number(preco).toFixed(2);
+        }
+
+        function apConfirmarDetalhes() {
+            const fb = document.getElementById('apFeedback');
+            const qtd = parseFloat(document.getElementById('apQtd').value) || 0;
+            if (qtd <= 0) { fb.textContent = 'Informe uma quantidade maior que zero.'; return; }
+            const preco = parseFloat(document.getElementById('apPreco').value) || 0;
+            const filamentoId = document.getElementById('apFilamento').value || null;
+            const corId = apCorSelecionada ? apCorSelecionada.corId : null;
+            const corNome = apCorSelecionada ? apCorSelecionada.nome : null;
+
+            const novoEstoqueId = empresaRef(CAMINHO_RTDB + '/' + idEmEdicao + '/estoque').push().key;
+            adicionarLinhaEstoque(novoEstoqueId, apProdutoSelId, qtd, preco, filamentoId, corId, corNome);
+            fecharModalAddProduto();
+        }
+
+        // ── Etapa "Criar novo produto" (custo simplificado: só peso + tempo) ──
+        const AP_PRECO_ROLO_PADRAO = 100;    // R$/kg
+        const AP_KWH_PADRAO = 1;             // R$/kWh
+        const AP_CONSUMO_PADRAO = 320;       // W
+        const AP_MARGEM_PADRAO = 100;        // %
+
+        function apAbrirCriar() {
+            document.getElementById('apNome').value = '';
+            document.getElementById('apCodigo').value = '';
+            document.getElementById('apPeso').value = '50';
+            document.getElementById('apTempo').value = '3.5';
+            document.getElementById('apQtdNovo').value = '1';
+            document.getElementById('apCriarFeedback').textContent = '';
+            apPrecoNovoManual = false;
+            apCorSelecionadaNova = null;
+            Cores.montarSeletor({
+                container: document.getElementById('apCorSeletorNovo'),
+                empresaRef: empresaRef,
+                multi: false,
+                permitirNovo: true,
+                selecionadas: [],
+                onChange: (lista) => { apCorSelecionadaNova = lista[0] || null; }
+            });
+            apRecalcular();
+            apMostrarEtapa('criar');
+            setTimeout(() => document.getElementById('apNome').focus(), 60);
+        }
+
+        function apRecalcular() {
+            const peso = parseFloat(document.getElementById('apPeso').value) || 0;
+            const tempo = parseFloat(document.getElementById('apTempo').value) || 0;
+            const custoMaterial = (AP_PRECO_ROLO_PADRAO / 1000) * peso;
+            const custoEnergia = (AP_CONSUMO_PADRAO / 1000) * tempo * AP_KWH_PADRAO;
+            const custoTotal = custoMaterial + custoEnergia;
+            const sugerido = custoTotal * (1 + AP_MARGEM_PADRAO / 100);
+            document.getElementById('apCustoTotal').textContent = formatarMoeda(custoTotal);
+            document.getElementById('apSugerido').textContent = formatarMoeda(sugerido);
+            if (!apPrecoNovoManual) document.getElementById('apPrecoNovo').value = sugerido.toFixed(2);
+            return { custoMaterial, custoEnergia, custoTotal, sugerido };
+        }
+
+        async function apVerificarCodigoDuplicado(codigo) {
+            const snap = await empresaRef('produtos').orderByChild('codigoBarras').equalTo(codigo).once('value');
+            let conflito = null;
+            snap.forEach(c => { conflito = c.key; });
+            return conflito;
+        }
+
+        function apEan13CheckDigit(d12) { let s = 0; for (let i = 0; i < 12; i++) { const n = +d12[i]; s += (i % 2 === 0) ? n : n * 3; } return String((10 - (s % 10)) % 10); }
+        function apNovoEAN13() { let b = '2'; for (let i = 0; i < 11; i++) b += Math.floor(Math.random() * 10); return b + apEan13CheckDigit(b); }
+        async function apGerarCodigo() {
+            const fb = document.getElementById('apCriarFeedback');
+            let codigo, conflito, tentativas = 0;
+            fb.style.color = '#666'; fb.textContent = 'Gerando código...';
+            do {
+                codigo = apNovoEAN13(); tentativas++;
+                try { conflito = await apVerificarCodigoDuplicado(codigo); } catch (e) { conflito = null; }
+            } while (conflito && tentativas < 6);
+            document.getElementById('apCodigo').value = codigo;
+            fb.style.color = '#28a745'; fb.textContent = 'Código gerado: ' + codigo;
+        }
+
+        async function apConfirmarCriar() {
+            const fb = document.getElementById('apCriarFeedback');
+            const nome = document.getElementById('apNome').value.trim();
+            if (!nome) { fb.style.color = '#dc3545'; fb.textContent = 'O nome é obrigatório.'; return; }
+            const qtd = parseFloat(document.getElementById('apQtdNovo').value) || 0;
+            if (qtd <= 0) { fb.style.color = '#dc3545'; fb.textContent = 'Informe uma quantidade maior que zero.'; return; }
+
+            const codigo = document.getElementById('apCodigo').value.trim();
+            if (codigo) {
+                fb.style.color = '#666'; fb.textContent = 'Verificando código de barras...';
+                try {
+                    const conf = await apVerificarCodigoDuplicado(codigo);
+                    if (conf) { fb.style.color = '#dc3545'; fb.textContent = `Código já usado no produto #${conf}.`; return; }
+                } catch (e) { /* falha de rede na checagem não bloqueia */ }
+            }
+
+            const r = apRecalcular();
+            const precoDig = parseFloat(document.getElementById('apPrecoNovo').value);
+            const precoVenda = isNaN(precoDig) ? r.sugerido : precoDig;
+            const peso = parseFloat(document.getElementById('apPeso').value) || 0;
+            const tempo = parseFloat(document.getElementById('apTempo').value) || 0;
+            const corId = apCorSelecionadaNova ? apCorSelecionadaNova.corId : null;
+            const corNome = apCorSelecionadaNova ? apCorSelecionadaNova.nome : null;
+
+            const btn = document.getElementById('apBtnConfirmarCriar');
+            btn.disabled = true; fb.style.color = '#666'; fb.textContent = 'Criando produto...';
+            try {
+                const resultado = await empresaRef('contador_produtos/proximoId').transaction(cur => (cur === null ? 1 : cur + 1));
+                const id = resultado.snapshot.val();
+                const dados = {
+                    idSequencial: id,
+                    nomePeca: nome,
+                    nomeResumido: nome.substring(0, 30),
+                    codigoBarras: codigo,
+                    tags: [],
+                    modoCusto: 'simples',
+                    precoRolo: AP_PRECO_ROLO_PADRAO,
+                    pesoPeca: peso,
+                    taxaKWh: AP_KWH_PADRAO,
+                    consumoImpressora: AP_CONSUMO_PADRAO,
+                    tempoImpressao: tempo,
+                    margemLucro: AP_MARGEM_PADRAO,
+                    custoMaterial: r.custoMaterial,
+                    custoEnergia: r.custoEnergia,
+                    custoTotal: r.custoTotal,
+                    precoVendaSugerido: r.sugerido,
+                    precoVenda: precoVenda,
+                    cores: corId ? [{ corId, nome: corNome, hex: apCorSelecionadaNova.hex }] : [],
+                    estoque: 0,
+                    dataCriacao: new Date().toISOString()
+                };
+                await empresaRef('produtos/' + id).set(dados);
+                produtosMap[String(id)] = { nome, precoVenda, imagemUrl: null, estoque: 0, estoquePorFilamento: {}, codigoBarras: codigo || null, cores: dados.cores };
+
+                const novoEstoqueId = empresaRef(CAMINHO_RTDB + '/' + idEmEdicao + '/estoque').push().key;
+                adicionarLinhaEstoque(novoEstoqueId, String(id), qtd, precoVenda, null, corId, corNome);
+                fecharModalAddProduto();
+            } catch (e) {
+                fb.style.color = '#dc3545'; fb.textContent = 'Erro ao salvar: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  MODAL "Importar lista de produtos por texto" — cada linha vira
+        //  um produto novo (sem custo, sem checar duplicidade de nome) já
+        //  designado ao evento. Igual ao "Criar produto" acima, só a
+        //  linha de estoque do evento fica pendente até Salvar Evento.
+        // ══════════════════════════════════════════════════════════════
+        let impLinhasValidas = [];   // [{ nome, valor, qtd }] — só as linhas OK da última análise
+
+        function abrirModalImportar() {
+            document.getElementById('impTexto').value = '';
+            document.getElementById('impArquivo').value = '';
+            document.getElementById('impFeedback').textContent = '';
+            impLimparPreview();
+            document.getElementById('modalImportar').classList.add('open');
+            setTimeout(() => document.getElementById('impTexto').focus(), 60);
+        }
+        function fecharModalImportar() { document.getElementById('modalImportar').classList.remove('open'); }
+        function fecharModalImportarFora(e) { if (e.target === e.currentTarget) fecharModalImportar(); }
+
+        function impCarregarArquivo(input) {
+            const arquivo = input.files && input.files[0];
+            if (!arquivo) return;
+            const reader = new FileReader();
+            reader.onload = () => { document.getElementById('impTexto').value = reader.result; impAnalisar(); };
+            reader.onerror = () => { document.getElementById('impFeedback').textContent = 'Não foi possível ler o arquivo.'; };
+            reader.readAsText(arquivo, 'utf-8');
+        }
+
+        function impLimparPreview() {
+            impLinhasValidas = [];
+            document.getElementById('impResumo').style.display = 'none';
+            document.getElementById('impPreview').innerHTML = '';
+            document.getElementById('impBtnConfirmar').style.display = 'none';
+            document.getElementById('impFeedback').textContent = '';
+        }
+
+        // "2 Chaveiro Dragão 15,90" → {qtd:2, nome:'Chaveiro Dragão', valor:15.9}
+        // "Chaveiro Fênix 12,50"    → {qtd:1, nome:'Chaveiro Fênix', valor:12.5}
+        function impParseLinha(linha) {
+            const tokens = linha.trim().split(/\s+/).filter(Boolean);
+            if (tokens.length < 2) return { erro: 'linha incompleta (falta nome e/ou valor)' };
+
+            let qtd = 1;
+            if (/^\d+$/.test(tokens[0])) { qtd = parseInt(tokens[0], 10); tokens.shift(); }
+            if (qtd <= 0) return { erro: 'quantidade inválida' };
+            if (tokens.length < 2) return { erro: 'falta o nome ou o valor' };
+
+            const tokenValor = tokens[tokens.length - 1];
+            const m = tokenValor.replace(/^r\$\s*/i, '').match(/^(\d+)(?:[.,](\d{1,2}))?$/);
+            if (!m) return { erro: `valor de venda inválido: "${tokenValor}"` };
+            const valor = parseFloat(m[1] + '.' + (m[2] || '0'));
+
+            const nome = tokens.slice(0, -1).join(' ').trim();
+            if (!nome) return { erro: 'nome do produto vazio' };
+
+            return { qtd, nome, valor };
+        }
+
+        function impAnalisar() {
+            const linhas = document.getElementById('impTexto').value.split('\n').map(l => l.trim()).filter(Boolean);
+            const preview = document.getElementById('impPreview');
+            const resumo = document.getElementById('impResumo');
+            const btnConfirmar = document.getElementById('impBtnConfirmar');
+            impLinhasValidas = [];
+            preview.innerHTML = '';
+
+            if (!linhas.length) {
+                document.getElementById('impFeedback').textContent = 'Cole um texto ou escolha um arquivo .txt primeiro.';
+                resumo.style.display = 'none';
+                btnConfirmar.style.display = 'none';
+                return;
+            }
+            document.getElementById('impFeedback').textContent = '';
+
+            let erros = 0;
+            linhas.forEach(linha => {
+                const r = impParseLinha(linha);
+                const div = document.createElement('div');
+                if (r.erro) {
+                    erros++;
+                    div.className = 'imp-linha erro';
+                    div.innerHTML = `<span class="imp-nome">${esc(linha)}</span><span class="imp-valor">${esc(r.erro)}</span>`;
+                } else {
+                    impLinhasValidas.push(r);
+                    div.className = 'imp-linha';
+                    div.innerHTML = `<span class="imp-nome">${r.qtd}× ${esc(r.nome)}</span><span class="imp-valor">${formatarMoeda(r.valor)}</span>`;
+                }
+                preview.appendChild(div);
+            });
+
+            resumo.style.display = 'block';
+            resumo.textContent = `${impLinhasValidas.length} produto(s) serão criados e adicionados ao evento` + (erros ? ` · ${erros} linha(s) com erro serão ignoradas` : '');
+            btnConfirmar.style.display = impLinhasValidas.length ? '' : 'none';
+        }
+
+        async function impConfirmarImportacao() {
+            const fb = document.getElementById('impFeedback');
+            if (!impLinhasValidas.length) return;
+            const btn = document.getElementById('impBtnConfirmar');
+            btn.disabled = true; fb.style.color = '#666'; fb.textContent = 'Importando...';
+            try {
+                const qtdItens = impLinhasValidas.length;
+                const res = await empresaRef('contador_produtos/proximoId').transaction(cur => (cur || 0) + qtdItens);
+                const idFinal = res.snapshot.val();
+                const idInicial = idFinal - qtdItens + 1;
+
+                const updates = {};
+                const dataCriacao = new Date().toISOString();
+                impLinhasValidas.forEach((item, idx) => {
+                    const id = idInicial + idx;
+                    updates['produtos/' + id] = {
+                        idSequencial: id,
+                        nomePeca: item.nome,
+                        nomeResumido: item.nome.substring(0, 30),
+                        codigoBarras: '',
+                        tags: [],
+                        modoCusto: 'sem',
+                        custoMaterial: 0,
+                        custoEnergia: 0,
+                        custoTotal: 0,
+                        precoVendaSugerido: 0,
+                        precoVenda: item.valor,
+                        estoque: 0,
+                        dataCriacao: dataCriacao
+                    };
+                });
+                await empresaRef('').update(updates);
+
+                impLinhasValidas.forEach((item, idx) => {
+                    const id = String(idInicial + idx);
+                    produtosMap[id] = { nome: item.nome, precoVenda: item.valor, imagemUrl: null, estoque: 0, estoquePorFilamento: {}, codigoBarras: null, cores: [] };
+                    const novoEstoqueId = empresaRef(CAMINHO_RTDB + '/' + idEmEdicao + '/estoque').push().key;
+                    adicionarLinhaEstoque(novoEstoqueId, id, item.qtd, item.valor, null, null, null);
+                });
+
+                fecharModalImportar();
+            } catch (e) {
+                fb.style.color = '#dc3545'; fb.textContent = 'Erro ao importar: ' + e.message;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function adicionarLinhaEstoque(estoqueId, produtoId, qtdLevada, precoEvento, filamentoId, corId, corNome) {
+            const cont = document.getElementById('estoqueLinhas');
+            const p = produtosMap[produtoId] || { nome: '#' + produtoId, precoVenda: 0, estoque: 0 };
+            // precoEvento default = precoVenda ATUAL do produto (apenas sugestão; editável)
+            const preco = (precoEvento != null && precoEvento !== '') ? precoEvento : p.precoVenda;
+            const qtd = (qtdLevada != null && qtdLevada !== '') ? qtdLevada : 1;
+            const original = Number((estoqueOriginal[estoqueId] || {}).qtdLevada) || 0;   // já designado (esta linha)
+            const vendido = Number(vendidoMap[chaveEstoque(produtoId, corId)]) || 0;
+            const dispProduto = Number(p.estoque) || 0;                                    // peças prontas livres no estoque (geral do produto)
+
+            const div = document.createElement('div');
+            div.className = 'estoque-linha';
+            div.dataset.estoqueId = estoqueId;
+            div.dataset.produtoId = produtoId;
+            div.dataset.corId = corId || '';
+            div.dataset.corNome = corNome || '';
+            div.dataset.original = original;
+            div.dataset.vendido = vendido;
+            div.innerHTML = `
+                <span class="prod-nome">${p.nome}${corNome ? ' <small style="font-weight:normal;color:#888;">· ' + corNome + '</small>' : ''}<br>
+                    <small style="font-weight:normal;color:#888;">Estoque livre: ${dispProduto} · já designado: ${original}${vendido ? ' · vendido: ' + vendido : ''}</small>
+                </span>
+                <div class="campo">
+                    <label>Cor (filamento)</label>
+                    <select class="fil-evento">${opcoesFilamento(filamentoId)}</select>
+                </div>
+                <div class="campo">
+                    <label>Qtd levada</label>
+                    <input type="number" class="qtd-levada" min="${vendido}" step="1" value="${qtd}">
+                </div>
+                <div class="campo">
+                    <label>Preço no evento (R$)</label>
+                    <input type="number" class="preco-evento" min="0" step="0.01" value="${Number(preco).toFixed(2)}">
+                </div>
+                <button type="button" class="btn-remove" title="Remover" onclick="this.closest('.estoque-linha').remove();">×</button>`;
+            cont.appendChild(div);
+        }
+
+        // ── Flyer / imagem do evento ──
+        function previewFlyer(input) {
+            const f = input.files && input.files[0];
+            if (!f) return;
+            const img = document.getElementById('flyerPreview');
+            img.src = URL.createObjectURL(f);
+            img.classList.add('show');
+            document.getElementById('btnRemoverFlyer').style.display = '';
+            removerFlyerFlag = false;
+        }
+
+        function removerFlyer() {
+            const img = document.getElementById('flyerPreview');
+            img.src = '';
+            img.classList.remove('show');
+            document.getElementById('flyerInput').value = '';
+            document.getElementById('btnRemoverFlyer').style.display = 'none';
+            // Só precisa marcar para remover no salvar se já havia imagem salva.
+            removerFlyerFlag = !!flyerUrlAtual;
+        }
+
+        // Sobe o arquivo novo se houver. Retorna:
+        //  string → nova URL | null → remover a atual | undefined → manter como está
+        async function resolverFlyer(eventoId) {
+            const file = document.getElementById('flyerInput').files[0];
+            if (file) {
+                const ref = firebase.storage().ref('eventos/' + EMPRESA_ID + '/' + eventoId + '/flyer_' + Date.now() + '_' + file.name);
+                await ref.put(file);
+                return await ref.getDownloadURL();
+            }
+            if (removerFlyerFlag) return null;
+            return undefined;
+        }
+
+        function coletarEstoque() {
+            const estoque = {};
+            document.querySelectorAll('.estoque-linha').forEach(l => {
+                const estoqueId = l.dataset.estoqueId;
+                const qtdLevada = parseFloat(l.querySelector('.qtd-levada').value) || 0;
+                const precoEvento = parseFloat(l.querySelector('.preco-evento').value) || 0;
+                const filamentoId = l.querySelector('.fil-evento').value || null;
+                estoque[estoqueId] = { produtoId: parseInt(l.dataset.produtoId), corId: l.dataset.corId || null, corNome: l.dataset.corNome || null, qtdLevada, precoEvento, filamentoId };
+            });
+            return estoque;
+        }
+
+        /* Designar/devolver é MOVIMENTO de estoque: compara o estoque novo com o já salvo
+         * (estoqueOriginal) e aplica o delta de qtdLevada em produto.estoque + estoquePorFilamento.
+         *   delta > 0 → designar (produto.estoque -= delta) — sem checagem de estoque livre
+         *               (pode ir negativo, sinalizando produção pendente para o evento).
+         *   delta < 0 → devolver (produto.estoque += |delta|) — bloqueia se cair abaixo do vendido.
+         * Retorna { updates, movs } ou { erro }. */
+        function montarMovimentacoesEstoque(novoEstoque) {
+            const updates = {};
+            const movs = [];
+            const dataHora = new Date().toISOString();
+            const estoqueIds = new Set([...Object.keys(estoqueOriginal), ...Object.keys(novoEstoque)]);
+            for (const estoqueId of estoqueIds) {
+                const novo = novoEstoque[estoqueId];
+                const antigo = estoqueOriginal[estoqueId] || {};
+                const oldQ = Number(antigo.qtdLevada) || 0;
+                const newQ = novo ? (Number(novo.qtdLevada) || 0) : 0;
+                const produtoId = (novo && novo.produtoId != null) ? novo.produtoId : antigo.produtoId;
+                const corId = (novo ? novo.corId : antigo.corId) || null;
+                const vendido = Number(vendidoMap[chaveEstoque(produtoId, corId)]) || 0;
+                const filId = (novo && novo.filamentoId) || antigo.filamentoId || null;
+                const p = produtosMap[produtoId] || { nome: '#' + produtoId, estoque: 0, estoquePorFilamento: {} };
+
+                if (newQ < vendido) return { erro: `"${p.nome}": não dá para deixar ${newQ} levado(s) — já foram vendidos ${vendido}.` };
+
+                const delta = newQ - oldQ;
+                if (delta > 0) {
+                    // Sem checagem de estoque livre aqui: dá para designar mesmo sem estoque
+                    // pronto (fica negativo, sinalizando produção pendente). A venda no PDV
+                    // continua limitada por (qtdLevada − vendido).
+                    updates['produtos/' + produtoId + '/estoque'] = (Number(p.estoque) || 0) - delta;
+                    if (filId) {
+                        const epf = Number((p.estoquePorFilamento || {})[filId]) || 0;
+                        updates['produtos/' + produtoId + '/estoquePorFilamento/' + filId] = epf - delta;
+                    }
+                    movs.push({ tipo: 'evento_saida', produtoId: String(produtoId), filamentoId: filId, qtd: delta, dataHora, ref: 'evento#' + idEmEdicao });
+                } else if (delta < 0) {
+                    const ret = -delta;
+                    updates['produtos/' + produtoId + '/estoque'] = (Number(p.estoque) || 0) + ret;
+                    if (filId) {
+                        const epf = Number((p.estoquePorFilamento || {})[filId]) || 0;
+                        updates['produtos/' + produtoId + '/estoquePorFilamento/' + filId] = epf + ret;
+                    }
+                    movs.push({ tipo: 'evento_retorno', produtoId: String(produtoId), filamentoId: filId, qtd: ret, dataHora, ref: 'evento#' + idEmEdicao });
+                }
+                // Persiste/remove a linha de estoque do evento (null remove a linha devolvida por inteiro)
+                updates['eventos/' + idEmEdicao + '/estoque/' + estoqueId] = novo ? novo : null;
+            }
+            return { updates, movs };
+        }
+
+        window.iniciarCadastro = async function() {
+            const nome = document.getElementById('nome').value.trim();
+            if (!nome) { alert("Informe o nome do evento."); return; }
+
+            const meta = {
+                nome,
+                local: document.getElementById('local').value.trim(),
+                dataInicio: document.getElementById('dataInicio').value || null,
+                dataFim: document.getElementById('dataFim').value || null,
+                status: document.getElementById('status').value,
+                observacoes: document.getElementById('observacoes').value.trim(),
+                dataCriacao: dataCriacaoOriginal || new Date().toISOString()
+            };
+
+            const fb = document.getElementById('feedback');
+            const btn = document.getElementById('btnSalvar');
+            btn.disabled = true;
+
+            try {
+                if (idEmEdicao) {
+                    fb.textContent = "Atualizando...";
+                    // Designar/devolver = movimento de estoque (delta vs. o já designado)
+                    const mov = montarMovimentacoesEstoque(coletarEstoque());
+                    if (mov.erro) { fb.textContent = mov.erro; btn.disabled = false; return; }
+                    const flyer = await resolverFlyer(idEmEdicao);       // string | null | undefined
+                    if (flyer !== undefined) meta.flyerUrl = flyer;      // null remove; string atualiza
+                    // meta (campos do evento) + linhas de estoque + deltas em produtos + logs — tudo atômico
+                    Object.keys(meta).forEach(k => { mov.updates[CAMINHO_RTDB + '/' + idEmEdicao + '/' + k] = meta[k]; });
+                    mov.movs.forEach(m => { const k = empresaRef('movimentacoes_estoque').push().key; mov.updates['movimentacoes_estoque/' + k] = m; });
+                    await empresaRef('').update(mov.updates);
+                    fb.textContent = `Evento #${idEmEdicao} atualizado!`;
+                    setTimeout(() => location.href = 'listagem_eventos.html', 1200);
+                } else {
+                    fb.textContent = "Buscando ID...";
+                    const res = await empresaRef(CAMINHO_CONTADOR).transaction(c => c === null ? 1 : c + 1);
+                    if (!res.committed) { fb.textContent = "Falha na transação. Tente de novo."; btn.disabled = false; return; }
+                    const novoId = res.snapshot.val();
+                    const flyer = await resolverFlyer(novoId);
+                    const dados = { ...meta, idSequencial: novoId };
+                    if (flyer) dados.flyerUrl = flyer;
+                    await empresaRef(CAMINHO_RTDB + '/' + novoId).set(dados);
+                    fb.textContent = `Evento #${novoId} criado! Designe o estoque...`;
+                    setTimeout(() => location.href = `cadastro_eventos.html?id=${novoId}`, 1000);
+                }
+            } catch (e) {
+                fb.textContent = "Erro ao salvar: " + e.message;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

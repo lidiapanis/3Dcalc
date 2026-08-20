@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações</title>
+  <script src="config.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+  <script src="empresa.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f7f6; padding: 32px 16px; margin: 0;
+      color: #333;
+    }
+    .container {
+      max-width: 680px; margin: 0 auto;
+      background: #fff; border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.08); padding: 32px;
+    }
+    h1 { color: #333; font-size: 1.4em; margin: 0 0 28px; display: flex; align-items: center; gap: 10px; }
+    h1 i { color: #4A93B0; }
+
+    .integration-card {
+      border: 1px solid #e0e0e0; border-radius: 8px;
+      padding: 20px 24px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      flex-wrap: wrap;
+    }
+    .integration-info { flex: 1; min-width: 200px; }
+    .integration-info h3 { margin: 0 0 4px; font-size: 1em; color: #333; display: flex; align-items: center; gap: 8px; }
+    .integration-info p  { margin: 0; font-size: 0.82em; color: #777; line-height: 1.4; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 20px; font-size: 0.78em; font-weight: 700;
+    }
+    .badge-ok  { background: #d4edda; color: #155724; }
+    .badge-err { background: #f8d7da; color: #721c24; }
+    .badge-wait{ background: #fff3cd; color: #856404; }
+
+    .btn-auth {
+      padding: 9px 18px; border: none; border-radius: 5px; cursor: pointer;
+      font-size: 0.88em; font-weight: 700; display: flex; align-items: center; gap: 6px;
+      transition: background 0.2s; white-space: nowrap;
+    }
+    .btn-auth-me  { background: #4A93B0; color: #fff; }
+    .btn-auth-me:hover { background: #3A7A96; }
+    .btn-auth-ml  { background: #e8a000; color: #fff; }
+    .btn-auth-ml:hover { background: #c98800; }
+    /* Salvar/confirmar = verde */
+    .btn-save { background: #28a745; color: #fff; }
+    .btn-save:hover { background: #218838; }
+    .btn-auth:disabled { background: #aaa; cursor: not-allowed; }
+
+    .expiry { font-size: 0.78em; color: #888; margin-top: 4px; }
+
+    .info-box {
+      background: #f0f7fb; border: 1px solid #bee3f8; border-radius: 6px;
+      padding: 12px 16px; font-size: 0.82em; color: #2c5282; margin-top: 8px;
+    }
+    .info-box i { margin-right: 6px; }
+  </style>
+  <link rel="stylesheet" href="dark-mode.css">
+  <script src="theme.js"></script>
+</head>
+<body>
+<div class="container">
+  <h1><i class="fas fa-cog"></i> Configurações de Integrações</h1>
+
+  <!-- Melhor Envio -->
+  <div class="integration-card" id="cardME">
+    <div class="integration-info">
+      <h3><i class="fas fa-truck" style="color:#4A93B0;"></i> Melhor Envio</h3>
+      <p>Cálculo de frete em tempo real com Correios, Jadlog, Loggi e outras transportadoras.</p>
+      <div id="meBadge" class="badge badge-wait"><i class="fas fa-spinner fa-spin"></i> Verificando...</div>
+      <div class="expiry" id="meExpiry"></div>
+    </div>
+    <button class="btn-auth btn-auth-me" id="btnME" onclick="autorizarME()">
+      <i class="fas fa-link"></i> Autorizar Melhor Envio
+    </button>
+  </div>
+
+  <!-- Mercado Livre -->
+  <div class="integration-card" id="cardML">
+    <div class="integration-info">
+      <h3><i class="fas fa-tags" style="color:#e8a000;"></i> Mercado Livre</h3>
+      <p>Monitoramento de preços e destaques de produtos no ML.</p>
+      <div id="mlBadge" class="badge badge-wait"><i class="fas fa-spinner fa-spin"></i> Verificando...</div>
+    </div>
+    <button class="btn-auth btn-auth-ml" id="btnML" onclick="autorizarML()">
+      <i class="fas fa-link"></i> Autorizar Mercado Livre
+    </button>
+  </div>
+
+  <div class="info-box">
+    <i class="fas fa-info-circle"></i>
+    A autorização abre uma janela do provedor. Após concluir, ela fecha automaticamente e o status é atualizado.
+  </div>
+
+  <!-- Aparência / Marca -->
+  <h2 style="font-size:1.1em;color:#333;margin:30px 0 12px;"><i class="fas fa-palette" style="color:#4A93B0;"></i> Aparência / Marca</h2>
+  <div class="integration-card" style="flex-direction:column;align-items:stretch;gap:18px;">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <img id="logoPreview" src="kombinei-logo.svg" alt="Logo" style="width:64px;height:64px;object-fit:contain;border:1px solid #e0e0e0;border-radius:8px;background:#fff;padding:4px;">
+      <div>
+        <label style="font-weight:600;color:#555;display:block;margin-bottom:6px;">Logo da empresa</label>
+        <input type="file" id="logoInput" accept="image/*" onchange="previewLogo(this)">
+      </div>
+    </div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap;">
+      <div><label style="font-weight:600;color:#555;display:block;margin-bottom:4px;">Cor primária <small style="font-weight:normal;color:#999;">(menu lateral)</small></label><input type="color" id="corPrimaria" value="#1B4C65" style="width:64px;height:40px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:none;"></div>
+      <div><label style="font-weight:600;color:#555;display:block;margin-bottom:4px;">Cor secundária <small style="font-weight:normal;color:#999;">(hover/ativo)</small></label><input type="color" id="corSecundaria" value="#26617E" style="width:64px;height:40px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:none;"></div>
+      <div><label style="font-weight:600;color:#555;display:block;margin-bottom:4px;">Cor de destaque <small style="font-weight:normal;color:#999;">(marca)</small></label><input type="color" id="corDestaque" value="#4A93B0" style="width:64px;height:40px;border:1px solid #ddd;border-radius:6px;cursor:pointer;background:none;"></div>
+    </div>
+    <button class="btn-auth btn-save" id="btnSalvarBranding" onclick="salvarBranding()" style="align-self:flex-start;"><i class="fas fa-save"></i> Salvar aparência</button>
+    <p id="brandingFeedback" style="font-weight:bold;margin:0;"></p>
+  </div>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+    authDomain:        "calculo3d.firebaseapp.com",
+    databaseURL:       "https://calculo3d-default-rtdb.firebaseio.com",
+    projectId:         "calculo3d",
+    storageBucket:     "calculo3d.firebasestorage.app",
+    messagingSenderId: "372705279593",
+    appId:             "1:372705279593:web:0b584c7a71dd3675a96cf8",
+  };
+  firebase.initializeApp(firebaseConfig);
+  let EMPRESA_ID = '1';
+
+  (async function () {
+    const ctx = await initEmpresa();   // redireciona se não autenticado/inativo; carrega branding
+    if (!ctx) return;
+    EMPRESA_ID = ctx.empresaId;
+    verificarStatus();
+    carregarBrandingForm();            // window.EMPRESA_BRANDING já foi populado por initEmpresa
+  })();
+
+  // ── Aparência / Marca ──────────────────────────────────────────────────────
+  const BRAND_DEFAULT = { corPrimaria: '#1B4C65', corSecundaria: '#26617E', corDestaque: '#4A93B0' };
+
+  function carregarBrandingForm() {
+    const b = window.EMPRESA_BRANDING || {};
+    document.getElementById('corPrimaria').value   = b.corPrimaria   || BRAND_DEFAULT.corPrimaria;
+    document.getElementById('corSecundaria').value = b.corSecundaria || BRAND_DEFAULT.corSecundaria;
+    document.getElementById('corDestaque').value   = b.corDestaque   || BRAND_DEFAULT.corDestaque;
+    if (b.logoUrl) document.getElementById('logoPreview').src = b.logoUrl;
+  }
+
+  function previewLogo(input) {
+    const f = input.files && input.files[0];
+    if (f) document.getElementById('logoPreview').src = URL.createObjectURL(f);
+  }
+
+  async function salvarBranding() {
+    const fb = document.getElementById('brandingFeedback');
+    const branding = {
+      corPrimaria:   document.getElementById('corPrimaria').value,
+      corSecundaria: document.getElementById('corSecundaria').value,
+      corDestaque:   document.getElementById('corDestaque').value,
+    };
+    const atual = window.EMPRESA_BRANDING || {};
+    if (atual.logoUrl) branding.logoUrl = atual.logoUrl;
+
+    fb.style.color = '#4A93B0';
+    fb.textContent = 'Salvando...';
+    document.getElementById('btnSalvarBranding').disabled = true;
+    try {
+      const file = document.getElementById('logoInput').files[0];
+      if (file) {
+        const ref = firebase.storage().ref('branding/' + EMPRESA_ID + '/logo_' + Date.now() + '_' + file.name);
+        await ref.put(file);
+        branding.logoUrl = await ref.getDownloadURL();
+      }
+      await firebase.firestore().doc('empresas/' + EMPRESA_ID).set({ branding }, { merge: true });
+      window.aplicarBranding(branding);   // reflete imediatamente nesta página
+      fb.style.color = '#28a745';
+      fb.textContent = 'Aparência salva! Recarregue o sistema para ver no menu lateral.';
+    } catch (e) {
+      fb.style.color = '#dc3545';
+      fb.textContent = 'Erro ao salvar: ' + e.message;
+    } finally {
+      document.getElementById('btnSalvarBranding').disabled = false;
+    }
+  }
+
+  // ── Status ──────────────────────────────────────────────────────────────────
+  // Fetch com timeout para o badge nunca ficar preso em "Verificando...".
+  function fetchComTimeout(url, ms = 8000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(t));
+  }
+  function badgeErroVerificacao(badgeId) {
+    const badge = document.getElementById(badgeId);
+    if (badge) {
+      badge.className = "badge badge-err";
+      badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Não foi possível verificar';
+    }
+  }
+
+  // Integração desligada → mostra "Em breve" (desabilitado) e NÃO consulta a API.
+  async function verificarStatus() {
+    if (flagAtiva('melhorEnvio')) verificarStatusME();
+    else                          desativarCard('meBadge', 'btnME');
+
+    if (flagAtiva('mercadoLivre')) verificarStatusML();
+    else                           desativarCard('mlBadge', 'btnML');
+  }
+
+  function desativarCard(badgeId, btnId) {
+    const badge = document.getElementById(badgeId);
+    if (badge) {
+      badge.className = "badge badge-wait";
+      badge.innerHTML = '<i class="fas fa-clock"></i> Em breve';
+    }
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.disabled = true;
+      btn.title = "Integração temporariamente desativada";
+    }
+  }
+
+  async function verificarStatusME() {
+    try {
+      const resp = await fetchComTimeout("/api/frete/status");
+      const json = await resp.json();
+      const badge  = document.getElementById("meBadge");
+      const expiry = document.getElementById("meExpiry");
+      if (json.data?.autorizado) {
+        badge.className  = "badge badge-ok";
+        badge.innerHTML  = '<i class="fas fa-check-circle"></i> Autorizado';
+        document.getElementById("btnME").innerHTML = '<i class="fas fa-sync-alt"></i> Reautorizar';
+        if (json.data.expires_at) {
+          const exp = new Date(json.data.expires_at);
+          expiry.textContent = "Expira em: " + exp.toLocaleDateString("pt-BR");
+        }
+      } else {
+        badge.className = "badge badge-err";
+        badge.innerHTML = '<i class="fas fa-times-circle"></i> Não autorizado';
+      }
+    } catch {
+      badgeErroVerificacao("meBadge");
+    }
+  }
+
+  async function verificarStatusML() {
+    try {
+      const resp = await fetchComTimeout("/api/monitor/ml-status");
+      const json = await resp.json();
+      const badge = document.getElementById("mlBadge");
+      if (json.data?.autorizado) {
+        badge.className = "badge badge-ok";
+        badge.innerHTML = '<i class="fas fa-check-circle"></i> Autorizado';
+        document.getElementById("btnML").innerHTML = '<i class="fas fa-sync-alt"></i> Reautorizar';
+      } else {
+        badge.className = "badge badge-err";
+        badge.innerHTML = '<i class="fas fa-times-circle"></i> Não autorizado';
+      }
+    } catch {
+      badgeErroVerificacao("mlBadge");
+    }
+  }
+
+  // ── OAuth ────────────────────────────────────────────────────────────────────
+  function autorizarME() {
+    if (!flagAtiva('melhorEnvio')) return;   // integração desligada
+    const url = "https://melhorenvio.com.br/oauth/authorize"
+      + "?client_id=25835"
+      + "&redirect_uri=" + encodeURIComponent("https://calculo3d.web.app/me-callback.html")
+      + "&response_type=code"
+      + "&scope=shipping-calculate%20cart-read%20cart-write";
+    window.open(url, "_blank", "width=700,height=700");
+    // Reavalia status após 8 segundos (usuário conclui o fluxo)
+    setTimeout(verificarStatusME, 8000);
+    setTimeout(verificarStatusME, 15000);
+  }
+
+  async function autorizarML() {
+    if (!flagAtiva('mercadoLivre')) return;   // integração desligada
+    // Mesma lógica PKCE do monitoramento.html
+    const verifier   = gerarCodeVerifier();
+    const challenge  = await gerarCodeChallenge(verifier);
+    localStorage.setItem("ml_pkce_verifier", verifier);
+    const authUrl = "https://auth.mercadolivre.com.br/authorization"
+      + "?response_type=code&client_id=1479387515607586"
+      + "&redirect_uri=" + encodeURIComponent("https://calculo3d.web.app/ml-callback.html")
+      + "&scope=read%20offline_access"
+      + "&code_challenge=" + challenge + "&code_challenge_method=S256";
+    window.open(authUrl, "_blank", "width=600,height=700");
+    setTimeout(verificarStatusML, 8000);
+    setTimeout(verificarStatusML, 15000);
+  }
+
+  // PKCE helpers
+  function base64urlEncode(bytes) {
+    return btoa(String.fromCharCode(...bytes)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  }
+  function gerarCodeVerifier() {
+    const arr = new Uint8Array(32); crypto.getRandomValues(arr); return base64urlEncode(arr);
+  }
+  async function gerarCodeChallenge(verifier) {
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+    return base64urlEncode(new Uint8Array(hash));
+  }
+</script>
+</body>
+</html>

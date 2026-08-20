@@ -4,395 +4,1223 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cadastro de Orçamentos</title>
+    <script src="config.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <style>
-        /* Reutilize o CSS anterior e adicione regras específicas */
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding-top: 50px; }
-        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 800px; width: 100%; }
-        h1 { color: #333; text-align: center; margin-bottom: 25px; }
-        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
-        legend { font-weight: bold; color: #007bff; padding: 0 10px; }
-        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
-        select, input[type="number"], input[type="text"] { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .product-item { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; border-bottom: 1px dashed #eee; padding-bottom: 5px;}
-        .product-item select, .product-item input { flex-grow: 1; }
-        .product-item .delete-btn { width: 40px; height: 40px; background-color: #dc3545; color: white; border-radius: 4px; cursor: pointer; border: none; font-size: 1.2em;}
-        #addProductBtn { background-color: #17a2b8; color: white; margin-top: 10px; width: auto; padding: 8px 15px; }
-        #totalArea { font-size: 1.5em; font-weight: bold; color: #28a745; text-align: right; padding-top: 10px; border-top: 2px solid #28a745; margin-top: 20px; }
-        .actions-bar { display: flex; justify-content: space-between; align-items: center; }
-        button[type="button"] { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; transition: background-color 0.3s; margin-top: 15px; }
-        button[type="button"]:hover { background-color: #218838; }
-        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #007bff; }
-        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
-        .home-btn:hover { color: #0056b3; }
-    </style>
+    <script src="empresa.js"></script>
+    <script src="estoque.js"></script>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; margin: 0; padding: 40px 16px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 800px; width: 100%; }
+        h1 { color: #333; text-align: center; margin-bottom: 25px; }
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 20px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; margin-bottom: 4px; }
+        input[type="number"], input[type="text"], input[type="email"], input[type="tel"] {
+            width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;
+        }
+
+        /* ── Pesquisa autocomplete ─────────────────────────────────────────── */
+        .search-row { display: flex; gap: 8px; align-items: flex-start; }
+        .search-wrapper { position: relative; flex: 1; }
+        .search-wrapper input[type="text"] { width: 100%; padding: 10px 36px 10px 10px; }
+        .search-clear {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: #aaa; cursor: pointer; font-size: 0.85em;
+            padding: 0; display: none;
+        }
+        .search-clear.visible { display: block; }
+        .search-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0; background: #fff;
+            border: 1px solid #ddd; border-top: none; border-radius: 0 0 4px 4px;
+            max-height: 220px; overflow-y: auto; z-index: 200; display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .search-dropdown.open { display: block; }
+        .dropdown-item {
+            padding: 9px 12px; cursor: pointer; font-size: 0.9em;
+            border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.15s;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover, .dropdown-item.focused { background: #e8f0fe; }
+        .dropdown-item .item-price { color: #28a745; font-weight: 600; font-size: 0.85em; white-space: nowrap; margin-left: 8px; }
+        .dropdown-empty { padding: 10px 12px; color: #aaa; font-size: 0.88em; text-align: center; }
+        .selected-tag {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #e8f0fe; color: #1a56cc; border-radius: 4px;
+            padding: 5px 10px; font-size: 0.85em; font-weight: 600; margin-top: 5px;
+        }
+        .selected-tag button { background: none; border: none; color: #888; cursor: pointer; padding: 0; font-size: 0.9em; }
+
+        /* ── Botão + novo cliente ──────────────────────────────────────────── */
+        .btn-add-inline {
+            width: 40px; height: 40px; flex-shrink: 0;
+            background: #28a745; color: #fff; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 1.1em; display: flex; align-items: center;
+            justify-content: center; transition: background 0.2s; margin-top: 0;
+        }
+        .btn-add-inline:hover { background: #218838; }
+
+        /* ── Linha de produto ─────────────────────────────────────────────── */
+        .product-item {
+            display: flex; gap: 8px; margin-bottom: 10px;
+            align-items: center; border-bottom: 1px dashed #eee; padding-bottom: 10px;
+        }
+        .product-item .prod-search-wrap { flex: 1; position: relative; }
+        .product-item .prod-search-wrap input[type="text"] { width: 100%; }
+        .product-item .prod-search-wrap .search-dropdown { top: 100%; }
+        .product-item .input-quantidade {
+            width: 80px; flex-shrink: 0; padding: 10px 8px; border: 1px solid #ddd; border-radius: 4px;
+        }
+        .delete-btn {
+            width: 38px; height: 38px; flex-shrink: 0;
+            background: #dc3545; color: #fff; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 1em;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        .delete-btn:hover { background: #c82333; }
+
+        /* ── Rodapé do fieldset de produtos ──────────────────────────────── */
+        .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+        .btn-add-product {
+            background: #17a2b8; color: #fff; padding: 8px 15px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 0.9em; font-weight: 600;
+            display: flex; align-items: center; gap: 6px; transition: background 0.2s;
+        }
+        .btn-add-product:hover { background: #138496; }
+        #totalArea { font-size: 1.4em; font-weight: bold; color: #28a745; }
+
+        /* ── Alinhamento mobile da seção de produtos ──────────────────────── */
+        @media (max-width: 768px) {
+            /* "+" criar produto: centraliza no campo e não estoura a altura (min-height global de 44px) */
+            .btn-create-prod-inline { top: 50%; transform: translateY(-50%); min-height: 0; }
+            /* Linha do produto: busca ocupa a largura toda; qtd/brinde/lixo embaixo, alinhados */
+            .product-item { flex-wrap: wrap; }
+            .product-item .prod-search-wrap { flex: 1 1 100%; }
+            /* Rodapé: "Adicionar Produto" largura total + total embaixo, alinhados à esquerda */
+            .actions-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+            .actions-bar > div:first-child { width: 100%; }
+            .btn-add-product { width: 100%; justify-content: center; }
+        }
+
+        /* ── Calcular frete ────────────────────────────────────────────────── */
+        .frete-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 2px; }
+        .btn-calc-frete {
+            background: #4A93B0; color: #fff; padding: 10px 14px; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 0.88em; font-weight: 600;
+            display: flex; align-items: center; gap: 6px; transition: background 0.2s;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .btn-calc-frete:hover    { background: #3A7A96; }
+        .btn-calc-frete:disabled { background: #aaa; cursor: not-allowed; }
+
+        .frete-opcoes { margin-top: 10px; }
+        .frete-opcao {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 9px 13px; border: 1px solid #ddd; border-radius: 5px;
+            margin-bottom: 6px; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+        }
+        .frete-opcao:hover    { background: #f0f7fb; border-color: #4A93B0; }
+        .frete-opcao.selected { background: #e0f0f8; border-color: #4A93B0; }
+        .frete-empresa { font-size: 0.88em; font-weight: 700; color: #333; }
+        .frete-nome    { font-size: 0.8em;  color: #666; margin-left: 5px; }
+        .frete-preco   { font-weight: 700; color: #28a745; white-space: nowrap; }
+        .frete-prazo   { font-size: 0.75em; color: #888; text-align: right; }
+
+        /* ── Botão salvar ─────────────────────────────────────────────────── */
+        .btn-salvar {
+            background: #28a745; color: #fff; padding: 13px 20px; border: none;
+            border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px;
+            font-weight: 600; transition: background 0.3s; margin-top: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-salvar:hover { background: #218838; }
+
+        .feedback { text-align: center; margin-top: 15px; font-weight: bold; color: #4A93B0; }
+
+        /* ── Modal novo cliente ───────────────────────────────────────────── */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            display: flex; align-items: center; justify-content: center; z-index: 500;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-backdrop.open { opacity: 1; pointer-events: all; }
+        .modal {
+            background: #fff; border-radius: 10px; padding: 28px;
+            width: 100%; max-width: 420px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            transform: scale(0.95); transition: transform 0.2s;
+        }
+        .modal-backdrop.open .modal { transform: scale(1); }
+        .modal h3 { margin: 0 0 18px; font-size: 1.05em; color: #333; }
+        .modal label { font-size: 0.82em; font-weight: 600; color: #666; margin-bottom: 3px; }
+        .modal input { width: 100%; padding: 9px 11px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em; margin-bottom: 10px; }
+        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+        .btn-cancel-modal { padding: 9px 18px; border: 1px solid #ccc; border-radius: 5px; background: none; cursor: pointer; font-size: 0.9em; color: #555; }
+        .btn-confirm-modal { padding: 9px 18px; background: #28a745; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 0.9em; font-weight: 700; }
+
+        /* ── Botão "+" Criar Produto dentro do combobox ───────────────────────── */
+        .product-item .prod-search-wrap input.prod-search-input { padding-right: 40px; }
+        .btn-create-prod-inline {
+            position: absolute; right: 5px; top: 6px;
+            width: 30px; height: 30px; background: #28a745; color: #fff; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 0.85em;
+            display: flex; align-items: center; justify-content: center; transition: background 0.2s; z-index: 2;
+        }
+        .btn-create-prod-inline:hover { background: #218838; }
+
+        /* ── Checkbox Brinde por item ─────────────────────────────────────────── */
+        .brinde-check {
+            display: flex; align-items: center; gap: 4px; font-size: 0.78em; color: #666;
+            white-space: nowrap; cursor: pointer; user-select: none; flex-shrink: 0; margin: 0;
+        }
+        .brinde-check input { width: 16px; height: 16px; cursor: pointer; margin: 0; }
+
+        /* ── Modal grande/rolável (Novo Produto completo) ─────────────────────── */
+        .modal.modal-lg { max-width: 540px; }
+        .modal-scroll { max-height: 66vh; overflow-y: auto; padding-right: 6px; margin-bottom: 10px; }
+        .modal fieldset { padding: 10px 12px; margin-bottom: 12px; }
+        .modal fieldset legend { font-size: 0.82em; }
+        #np_tipoFilamento { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; margin-bottom: 6px; background: #fff; }
+        .np-rec-linha { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+        .np-rec-linha select { flex: 1; min-width: 0; padding: 7px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.82em; margin: 0; }
+        .np-rec-linha input { width: 64px; flex-shrink: 0; padding: 7px; margin: 0; }
+        .np-rec-sub { width: 62px; text-align: right; font-weight: 700; color: #28a745; font-size: 0.78em; flex-shrink: 0; }
+        .np-rec-x { width: 30px; height: 32px; background: #f8d7da; color: #c0392b; border: none; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+        .np-btn-add { background: #4A93B0; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; font-size: 0.8em; cursor: pointer; margin-top: 2px; }
+        .np-btn-add:hover { background: #3A7A96; }
+        .np-custos { background: #f0f7fb; border: 1px solid #d6e9f3; border-radius: 6px; padding: 10px 12px; margin: 10px 0; font-size: 0.85em; }
+        .np-custos .linha { display: flex; justify-content: space-between; padding: 3px 0; }
+        .np-custos .linha.total { border-top: 1px dashed #c4d8e2; margin-top: 4px; padding-top: 6px; font-weight: 700; color: #e66a2e; }
+        .np-custos .sug { color: #28a745; font-weight: 700; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Cadastro de Orçamento</h1>
-        <form id="orcamentoForm">
+
+<!-- Modal: Novo Produto (completo — espelha cadastro_produtos.html) -->
+<div class="modal-backdrop" id="modalProduto" onclick="fecharModalProduto(event)">
+    <div class="modal modal-lg" onclick="event.stopPropagation()">
+        <h3><i class="fas fa-box" style="color:#4A93B0;margin-right:8px"></i>Novo Produto</h3>
+        <div class="modal-scroll">
+            <label>Nome do Produto *</label>
+            <input type="text" id="novoProdutoNome" placeholder="Ex: Chaveiro Dragão">
+
+            <label>Nome Resumido <small style="color:#999;font-weight:normal;">(máx. 30)</small></label>
+            <input type="text" id="novoProdutoResumido" maxlength="30" placeholder="Opcional">
+
+            <label>Código de Barras <small style="color:#999;font-weight:normal;">(opcional, único)</small></label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="novoProdutoCodigo" inputmode="numeric" placeholder="Digite, gere ou deixe em branco" style="flex:1; margin-bottom:0;">
+                <button type="button" onclick="gerarCodigoNovoProduto()" title="Gerar código aleatório" style="width:auto; background:#6741D9; color:#fff; border:none; border-radius:5px; padding:0 14px; cursor:pointer;"><i class="fas fa-shuffle"></i></button>
+            </div>
+
             <fieldset>
-                <legend>Informações Gerais</legend>
-                <label for="cliente">Vincular Cliente:</label>
-                <select id="cliente" required>
-                    <option value="">Carregando Clientes...</option>
-                </select>
-                <label for="nomeOrcamento">Nome/Descrição do Orçamento:</label>
-                <input type="text" id="nomeOrcamento" required>
+                <legend>Material (Filamento)</legend>
+                <label>Tipo de filamento</label>
+                <select id="np_tipoFilamento" onchange="recalcularNovoProduto()"><option value="">— selecione —</option></select>
+                <label>Preço do Rolo (1kg) — R$</label>
+                <input type="number" id="np_precoRolo" min="0" step="0.01" value="100" oninput="recalcularNovoProduto()">
+                <small id="np_precoRoloHint" style="display:block;color:#888;font-size:.8em;margin-top:2px;"></small>
+                <label>Peso da Peça (g)</label>
+                <input type="number" id="np_peso" min="0" step="0.1" value="50" oninput="recalcularNovoProduto()">
             </fieldset>
 
             <fieldset>
-                <legend>Produtos do Orçamento</legend>
-                <div id="produtosContainer">
-                    </div>
-                <div class="actions-bar">
-                    <button type="button" id="addProductBtn" onclick="adicionarLinhaProduto()">
+                <legend>Energia Elétrica</legend>
+                <label>Valor do kWh (R$)</label>
+                <input type="number" id="np_kwh" min="0" step="0.0001" value="1" oninput="recalcularNovoProduto()">
+                <label>Consumo da Impressora (W)</label>
+                <input type="number" id="np_consumo" min="0" step="1" value="320" oninput="recalcularNovoProduto()">
+                <label>Tempo de Impressão (h)</label>
+                <input type="number" id="np_tempo" min="0" step="0.01" value="3.5" oninput="recalcularNovoProduto()">
+            </fieldset>
+
+            <fieldset>
+                <legend>Margem</legend>
+                <label>Margem de Lucro (%)</label>
+                <input type="number" id="np_margem" min="0" step="1" value="100" oninput="recalcularNovoProduto()">
+            </fieldset>
+
+            <fieldset>
+                <legend>Receita (opcional)</legend>
+                <label style="margin-top:0;">Insumos</label>
+                <div id="np_insumos"></div>
+                <button type="button" class="np-btn-add" onclick="addInsumoModal()"><i class="fas fa-plus"></i> Adicionar insumo</button>
+                <label>Subprodutos</label>
+                <div id="np_subprodutos"></div>
+                <button type="button" class="np-btn-add" onclick="addSubprodutoModal()"><i class="fas fa-plus"></i> Adicionar subproduto</button>
+            </fieldset>
+
+            <div class="np-custos">
+                <div class="linha"><span>Custo do Material</span><span id="npCustoMaterial">R$ 0,00</span></div>
+                <div class="linha"><span>Custo da Energia</span><span id="npCustoEnergia">R$ 0,00</span></div>
+                <div class="linha total"><span>Custo Total</span><span id="npCustoTotal">R$ 0,00</span></div>
+                <div class="linha"><span>Preço Sugerido</span><span class="sug" id="npSugerido">R$ 0,00</span></div>
+            </div>
+
+            <label>Preço de Venda (R$) <small style="color:#999;font-weight:normal;">— editável, sobrescreve o sugerido</small></label>
+            <input type="number" id="novoProdutoPreco" min="0" step="0.01" placeholder="0,00" oninput="npPrecoManual = true">
+            <small><a href="#" onclick="usarSugeridoModal(); return false;">↺ usar preço sugerido</a></small>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" onclick="fecharModalProduto()">Cancelar</button>
+            <button class="btn-confirm-modal" onclick="salvarNovoProduto()"><i class="fas fa-check"></i> Salvar Produto</button>
+        </div>
+        <p id="modalProdutoFeedback" style="margin:8px 0 0;font-size:0.82em;color:#dc3545;min-height:18px"></p>
+    </div>
+</div>
+
+<!-- Modal: Novo Cliente -->
+<div class="modal-backdrop" id="modalCliente" onclick="fecharModalCliente(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3><i class="fas fa-user-plus" style="color:#28a745;margin-right:8px"></i>Novo Cliente</h3>
+        <label>Nome *</label>
+        <input type="text" id="novoClienteNome" placeholder="Nome completo">
+        <label>Telefone</label>
+        <input type="tel" id="novoClienteTelefone" placeholder="(00) 00000-0000" maxlength="15" oninput="formatarTelefone(this)">
+        <label>E-mail</label>
+        <input type="email" id="novoClienteEmail" placeholder="email@exemplo.com">
+        <div class="modal-footer">
+            <button class="btn-cancel-modal" onclick="fecharModalCliente()">Cancelar</button>
+            <button class="btn-confirm-modal" onclick="salvarNovoCliente()"><i class="fas fa-check"></i> Salvar Cliente</button>
+        </div>
+        <p id="modalFeedback" style="margin:8px 0 0;font-size:0.82em;color:#dc3545;min-height:18px"></p>
+    </div>
+</div>
+
+<div class="container">
+    <h1 id="pageTitulo">Novo Orçamento</h1>
+    <form id="orcamentoForm" onsubmit="return false">
+
+        <fieldset>
+            <legend>Informações Gerais</legend>
+
+            <label>Vincular Cliente:</label>
+            <div class="search-row">
+                <div class="search-wrapper" id="clienteSearchWrapper">
+                    <input type="text" id="clienteSearchInput" placeholder="Digite o nome do cliente..." autocomplete="off"
+                        oninput="filtrarClientes(this.value)"
+                        onkeydown="navDropdown(event,'clienteDropdown')"
+                        onfocus="abrirDropdownCliente()">
+                    <button type="button" class="search-clear" id="clienteClear" onclick="limparCliente()" title="Limpar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="search-dropdown" id="clienteDropdown"></div>
+                    <input type="hidden" id="clienteId">
+                </div>
+                <button type="button" class="btn-add-inline" onclick="abrirModalCliente()" title="Adicionar novo cliente">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div id="clienteSelecionadoTag" style="display:none">
+                <span class="selected-tag">
+                    <i class="fas fa-user"></i>
+                    <span id="clienteSelecionadoNome"></span>
+                    <button type="button" onclick="limparCliente()" title="Remover"><i class="fas fa-times"></i></button>
+                </span>
+            </div>
+
+            <label for="nomeOrcamento">Nome/Descrição do Orçamento:</label>
+            <input type="text" id="nomeOrcamento" placeholder="Ex: Orçamento peças impressora" required>
+        </fieldset>
+
+        <fieldset>
+            <legend>Produtos do Orçamento</legend>
+            <div id="produtosContainer"></div>
+            <div class="actions-bar">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button type="button" class="btn-add-product" onclick="adicionarLinhaProduto()">
                         <i class="fas fa-plus"></i> Adicionar Produto
                     </button>
-                    <div id="totalArea">Total: R$ 0,00</div>
                 </div>
-            </fieldset>
+                <div id="totalArea">Total: R$ 0,00</div>
+            </div>
+        </fieldset>
 
-            <button type="button" onclick="iniciarCadastro()">Salvar Orçamento</button>
-        </form>
-        <p id="feedback" class="feedback"></p>
-    </div>
+        <fieldset>
+            <legend>Entrega</legend>
 
-    <script>
-        // --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE (NO TOPO) ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
-            authDomain: "calculo3d.firebaseapp.com",
-            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
-            projectId: "calculo3d",
-            storageBucket: "calculo3d.firebasestorage.app",
-            messagingSenderId: "372705279593",
-            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
-            measurementId: "G-V2QT1GVLS0"
+            <!-- Bloco Melhor Envio — exibido só quando KOMBINEI_FLAGS.melhorEnvio === true -->
+            <div id="meFreteBlock">
+                <label for="cepDestino">CEP de Destino:</label>
+                <div class="frete-row">
+                    <input type="text" id="cepDestino" placeholder="00000-000" maxlength="9"
+                           style="max-width:160px;" oninput="formatarCep(this)">
+                    <button type="button" class="btn-calc-frete" id="btnCalcFrete" onclick="calcularFrete()">
+                        <i class="fas fa-truck"></i> Calcular Frete
+                    </button>
+                </div>
+                <div class="frete-opcoes" id="freteOpcoes" style="display:none;"></div>
+            </div>
+
+            <label for="frete" style="margin-top:12px;">
+                Frete (R$): <small id="freteHint" style="color:#999;font-weight:normal;">Selecionado acima ou insira manualmente</small>
+            </label>
+            <input type="number" id="frete" min="0" step="0.01" placeholder="0,00" value="0" oninput="calcularTotal()">
+
+            <label for="prazoEntrega">Prazo de Entrega:</label>
+            <input type="date" id="prazoEntrega">
+        </fieldset>
+
+        <button type="button" class="btn-salvar" id="btnSalvar" onclick="iniciarCadastro()">
+            <i class="fas fa-save"></i> Salvar Orçamento
+        </button>
+    </form>
+    <p id="feedback" class="feedback"></p>
+</div>
+
+<script>
+    // ── Firebase ────────────────────────────────────────────────────────────────
+    const firebaseConfig = {
+        apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+        authDomain: "calculo3d.firebaseapp.com",
+        databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+        projectId: "calculo3d",
+        storageBucket: "calculo3d.firebasestorage.app",
+        messagingSenderId: "372705279593",
+        appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+        measurementId: "G-V2QT1GVLS0"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+
+    const CAMINHO_ORCAMENTOS = "orcamentos";
+    const CAMINHO_CONTADOR   = "contador_orcamentos/proximoId";
+    const CAMINHO_CLIENTES   = "clientes";
+    const CAMINHO_PRODUTOS   = "produtos";
+
+    let listaProdutos = {};   // { id: { nome, preco, peso } }
+    let listaClientes = {};   // { id: { nome, telefone, email } }
+    let insumosMap    = {};   // { id: { nome, unidade, custoUnitario } } — receita
+    let produtosMap   = {};   // { id: { nome, custoTotal } } — subprodutos
+    let idEmEdicao    = null;
+    let linhaAtivaModal = null;  // linha que abriu o modal "Criar Produto"
+    let npPrecoManual = false;   // preço de venda no modal foi editado à mão?
+
+    // ── Auth + Multi-tenant ──────────────────────────────────────────────────────
+    (async function () {
+        if (!(await initEmpresa())) return;
+        if (negarAcesso('orcamentos')) return;
+        aplicarFlags();
+        verificarCarregamentoInicial();
+    })();
+
+    // Esconde a UI do Melhor Envio quando a integração está desligada.
+    // O frete passa a ser sempre manual (campo #frete continua visível).
+    function aplicarFlags() {
+        if (!flagAtiva('melhorEnvio')) {
+            const bloco = document.getElementById('meFreteBlock');
+            if (bloco) bloco.style.display = 'none';
+            const hint = document.getElementById('freteHint');
+            if (hint) hint.textContent = 'Insira o valor manualmente';
+        }
+    }
+
+    function verificarCarregamentoInicial() {
+        const id = new URLSearchParams(window.location.search).get('id');
+        Promise.all([carregarClientes(), carregarProdutos(), carregarInsumos()])
+            .then(() => {
+                if (id) {
+                    idEmEdicao = id;
+                    carregarOrcamentoParaEdicao(id);
+                } else {
+                    adicionarLinhaProduto();
+                }
+            })
+            .catch(err => {
+                document.getElementById('feedback').textContent = "Erro ao carregar dados: " + err;
+            });
+    }
+
+    // ── Utilitários ─────────────────────────────────────────────────────────────
+    function formatarMoeda(v) {
+        return `R$ ${parseFloat(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+    }
+    function fecharTodosDropdowns(exceto) {
+        document.querySelectorAll('.search-dropdown.open').forEach(d => {
+            if (d !== exceto) d.classList.remove('open');
+        });
+    }
+    // Fecha dropdowns ao clicar fora — ignora cliques dentro dos wrappers de busca
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrapper') && !e.target.closest('.prod-search-wrap')) {
+            fecharTodosDropdowns(null);
+        }
+    });
+
+    // ── Pesquisa de Cliente ──────────────────────────────────────────────────────
+    // Lê de /pessoas filtrando tipos.cliente=true. Cai em /clientes só como
+    // fallback enquanto /pessoas estiver vazio (migração ainda não rodou).
+    async function carregarClientes() {
+        listaClientes = {};
+        const pessoasSnap = await empresaRef('pessoas').once('value');
+        if (pessoasSnap.exists()) {
+            pessoasSnap.forEach(p => {
+                const d = p.val() || {};
+                // Aceita o campo novo (tipo: 'cliente'|'ambos') e o legado (tipos.cliente)
+                const ehCliente = (d.tipo === 'cliente' || d.tipo === 'ambos') || (d.tipos && d.tipos.cliente);
+                if (ehCliente) listaClientes[p.key] = d;
+            });
+        } else {
+            const clientesSnap = await empresaRef(CAMINHO_CLIENTES).once('value');
+            if (clientesSnap.exists()) {
+                clientesSnap.forEach(c => { listaClientes[c.key] = c.val(); });
+            }
+        }
+    }
+
+    function abrirDropdownCliente() {
+        // Só abre se já tiver texto digitado — evita o flicker ao clicar no campo vazio
+        const val = document.getElementById('clienteSearchInput').value;
+        if (val.trim().length > 0) filtrarClientes(val);
+    }
+
+    function filtrarClientes(termo) {
+        const dropdown = document.getElementById('clienteDropdown');
+        const t = termo.toLowerCase().trim();
+        const ids = Object.keys(listaClientes).filter(id => {
+            const n = (listaClientes[id].nome || '').toLowerCase();
+            return !t || n.includes(t) || id.includes(t);
+        });
+
+        dropdown.innerHTML = '';
+        if (!ids.length) {
+            dropdown.innerHTML = '<div class="dropdown-empty">Nenhum cliente encontrado</div>';
+        } else {
+            ids.slice(0, 30).forEach(id => {
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.innerHTML = `<span>${listaClientes[id].nome}</span>`;
+                item.onclick = (e) => { e.stopPropagation(); selecionarCliente(id); };
+                dropdown.appendChild(item);
+            });
+        }
+        dropdown.classList.add('open');
+        fecharTodosDropdowns(dropdown);
+    }
+
+    function selecionarCliente(id) {
+        const nome = listaClientes[id]?.nome || id;
+        document.getElementById('clienteId').value = id;
+        document.getElementById('clienteSearchInput').value = '';
+        document.getElementById('clienteSearchInput').placeholder = 'Cliente selecionado';
+        document.getElementById('clienteSelecionadoNome').textContent = nome;
+        document.getElementById('clienteSelecionadoTag').style.display = 'block';
+        document.getElementById('clienteClear').classList.add('visible');
+        document.getElementById('clienteDropdown').classList.remove('open');
+    }
+
+    function limparCliente() {
+        document.getElementById('clienteId').value = '';
+        document.getElementById('clienteSearchInput').value = '';
+        document.getElementById('clienteSearchInput').placeholder = 'Digite o nome do cliente...';
+        document.getElementById('clienteSelecionadoTag').style.display = 'none';
+        document.getElementById('clienteClear').classList.remove('visible');
+    }
+
+    // ── Modal Novo Cliente ────────────────────────────────────────────────────────
+    function abrirModalCliente() {
+        document.getElementById('novoClienteNome').value = '';
+        document.getElementById('novoClienteTelefone').value = '';
+        document.getElementById('novoClienteEmail').value = '';
+        document.getElementById('modalFeedback').textContent = '';
+        document.getElementById('modalCliente').classList.add('open');
+        setTimeout(() => document.getElementById('novoClienteNome').focus(), 200);
+    }
+
+    function fecharModalCliente(e) {
+        if (e && e.target !== document.getElementById('modalCliente')) return;
+        document.getElementById('modalCliente').classList.remove('open');
+    }
+
+    async function salvarNovoCliente() {
+        const nome = document.getElementById('novoClienteNome').value.trim();
+        if (!nome) {
+            document.getElementById('modalFeedback').textContent = 'O nome é obrigatório.';
+            return;
+        }
+        // Cria como Pessoa do tipo cliente (mesmo silo do novo modelo)
+        const dados = {
+            nome,
+            telefone:    document.getElementById('novoClienteTelefone').value.trim() || '',
+            email:       document.getElementById('novoClienteEmail').value.trim() || '',
+            documento: '', endereco: '', cep: '', observacoes: '',
+            tipo: 'cliente',
+            tipos: { cliente: true, fornecedor: false },
+            dataCriacao: new Date().toISOString()
         };
-    
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const auth = firebase.auth(); // Variável 'auth' definida aqui!
-        
-        const CAMINHO_ORCAMENTOS = "orcamentos";
-        const CAMINHO_CONTADOR = "contador_orcamentos/proximoId";
-        const CAMINHO_CLIENTES = "clientes";
-        const CAMINHO_PRODUTOS = "produtos";
-        
-        let listaProdutos = {}; // Armazena produtos: {id: {nome, precoVenda}}
-        let idEmEdicao = null; // ID do orçamento se estiver em edição
-        
-        // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
+        try {
+            const result = await empresaRef('contador_pessoas/proximoId').transaction(c => c === null ? 1 : c + 1);
+            const novoId = String(result.snapshot.val());
+            await empresaRef('pessoas/' + novoId).set({ ...dados, idSequencial: parseInt(novoId) });
+            listaClientes[novoId] = dados;
+            selecionarCliente(novoId);
+            document.getElementById('modalCliente').classList.remove('open');
+        } catch (e) {
+            document.getElementById('modalFeedback').textContent = 'Erro ao salvar: ' + e.message;
+        }
+    }
 
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // Se estiver logado, inicia o carregamento sequencial dos dados
-                verificarCarregamentoInicial();
+    // ── Pesquisa de Produto (por linha) ──────────────────────────────────────────
+    function carregarProdutos() {
+        return new Promise((resolve, reject) => {
+            empresaRef(CAMINHO_PRODUTOS).once('value')
+                .then(snap => {
+                    if (!snap.exists()) { resolve(); return; } // sem produtos ainda — não bloqueia
+                    snap.forEach(c => {
+                        const v = c.val() || {};
+                        listaProdutos[c.key] = {
+                            nome:  v.nomePeca,
+                            preco: v.precoVenda,
+                            peso:  v.pesoPeca || 0, // gramas — usado no cálculo de frete
+                        };
+                        // Mapa para usar como subproduto na receita (precisa de custoTotal)
+                        produtosMap[c.key] = { nome: v.nomePeca || ('#' + c.key), custoTotal: Number(v.custoTotal) || 0 };
+                    });
+                    resolve();
+                }).catch(reject);
+        });
+    }
+
+    // Insumos para a receita do produto criado no modal
+    function carregarInsumos() {
+        return empresaRef('insumos').once('value').then(snap => {
+            insumosMap = {};
+            if (snap.exists()) snap.forEach(c => {
+                const d = c.val() || {};
+                insumosMap[c.key] = { nome: d.nome || ('#' + c.key), unidade: d.unidade || 'un', custoUnitario: Number(d.custoUnitario) || 0, precoUnitario: (d.precoUnitario != null) ? Number(d.precoUnitario) : null, tipo: d.tipo || 'material', tipoFilamento: d.tipoFilamento || '' };
+            });
+        }).catch(() => { /* sem insumos — receita fica vazia */ });
+    }
+
+    window.adicionarLinhaProduto = function(produtoIdInicial = null, quantidadeInicial = 1, brindeInicial = false) {
+        const container  = document.getElementById('produtosContainer');
+        const lineId     = 'prod_' + Date.now() + Math.random().toString(36).slice(2, 6);
+        const itemDiv    = document.createElement('div');
+        itemDiv.className = 'product-item';
+        itemDiv.dataset.lineId = lineId;
+
+        // Wrap da pesquisa
+        const wrap = document.createElement('div');
+        wrap.className = 'prod-search-wrap';
+
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'prod-search-input';
+        searchInput.placeholder = 'Buscar produto...';
+        searchInput.autocomplete = 'off';
+
+        const hiddenId = document.createElement('input');
+        hiddenId.type = 'hidden';
+        hiddenId.className = 'produto-id';
+
+        const dd = document.createElement('div');
+        dd.className = 'search-dropdown';
+
+        // Se for edição, preenche o nome imediatamente
+        if (produtoIdInicial && listaProdutos[produtoIdInicial]) {
+            hiddenId.value = produtoIdInicial;
+            searchInput.value = listaProdutos[produtoIdInicial].nome;
+            searchInput.dataset.selected = '1';
+        }
+
+        searchInput.addEventListener('input', () => {
+            searchInput.dataset.selected = '';
+            hiddenId.value = '';
+            filtrarProdutos(searchInput, dd, hiddenId);
+            calcularTotal();
+        });
+        searchInput.addEventListener('focus', () => {
+            // Só abre se já tiver texto — evita flicker ao clicar no campo vazio
+            if (!searchInput.dataset.selected && searchInput.value.trim().length > 0) {
+                filtrarProdutos(searchInput, dd, hiddenId);
             }
         });
-        
-        // Função de inicialização chamada após o login
-        function verificarCarregamentoInicial() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const id = urlParams.get('id');
+        searchInput.addEventListener('keydown', e => navDropdownEl(e, dd));
 
-            // Garante que clientes e produtos sejam carregados antes de qualquer outra coisa
-            Promise.all([carregarClientes(), carregarProdutos()])
-                .then(() => {
-                    if (id) {
-                        // MODO EDIÇÃO
-                        idEmEdicao = id;
-                        carregarOrcamentoParaEdicao(id);
-                    } else {
-                        // MODO NOVO CADASTRO
-                        document.querySelector('h1').textContent = "Novo Orçamento";
-                        document.querySelector('button').textContent = "Salvar Orçamento";
-                        adicionarLinhaProduto(); // Adiciona uma linha inicial vazia
-                    }
-                })
-                .catch(error => {
-                    document.getElementById('feedback').textContent = "Erro fatal ao carregar dados iniciais.";
-                    console.error("Erro no carregamento de dados:", error);
-                });
-        }
-        
-        // --- 3. FUNÇÕES DE UTILIDADE ---
-        function formatarMoeda(valor) {
-            return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
-        }
-    
-        // --- 4. CARREGAMENTO DE DADOS E EDIÇÃO ---
-        
-        function carregarOrcamentoParaEdicao(id) {
-            document.getElementById('feedback').textContent = `Carregando Orçamento #${id}...`;
-            database.ref(CAMINHO_ORCAMENTOS + '/' + id).once('value')
-                .then((snapshot) => {
-                    if (snapshot.exists()) {
-                        preencherFormulario(snapshot.val());
-                    } else {
-                        document.getElementById('feedback').textContent = `Erro: Orçamento #${id} não encontrado.`;
-                    }
-                });
-        }
-    
-        function preencherFormulario(dados) {
-            document.querySelector('h1').textContent = `Editar Orçamento #${idEmEdicao}`;
-            document.querySelector('button').textContent = "Atualizar Orçamento";
-    
-            document.getElementById('cliente').value = dados.clienteId;
-            document.getElementById('nomeOrcamento').value = dados.nomeOrcamento;
-    
-            const container = document.getElementById('produtosContainer');
-            container.innerHTML = ''; // Limpa a linha inicial vazia
-    
-            // Preenche as linhas de produto dinamicamente
-            dados.itens.forEach(item => {
-                adicionarLinhaProduto(item.produtoId, item.quantidade);
-            });
-    
-            document.getElementById('feedback').textContent = `Orçamento #${idEmEdicao} carregado.`;
-        }
-    
-        function carregarClientes() {
-            return new Promise((resolve, reject) => {
-                database.ref(CAMINHO_CLIENTES).once('value')
-                    .then((snapshot) => {
-                        const selectCliente = document.getElementById('cliente');
-                        selectCliente.innerHTML = '<option value="" disabled selected>Selecione um Cliente</option>';
-                        
-                        if (snapshot.exists()) {
-                            snapshot.forEach((childSnapshot) => {
-                                const data = childSnapshot.val();
-                                const option = document.createElement('option');
-                                option.value = childSnapshot.key;
-                                option.textContent = `${childSnapshot.key} - ${data.nome}`;
-                                selectCliente.appendChild(option);
-                            });
-                        }
-                        resolve();
-                    }).catch(reject);
-            });
-        }
-    
-        function carregarProdutos() {
-            return new Promise((resolve, reject) => {
-                database.ref(CAMINHO_PRODUTOS).once('value')
-                    .then((snapshot) => {
-                        if (!snapshot.exists()) {
-                            reject("Nenhum produto cadastrado para orçar.");
-                            return;
-                        }
-                        snapshot.forEach((childSnapshot) => {
-                            const data = childSnapshot.val();
-                            listaProdutos[childSnapshot.key] = {
-                                nome: data.nomePeca,
-                                preco: data.precoVenda 
-                            };
-                        });
-                        resolve();
-                    }).catch(reject);
-            });
-        }
-        
-        function popularSelectProduto(selectElement, valorSelecionado = null) {
-            selectElement.innerHTML = '';
-            
-            const optionDefault = document.createElement('option');
-            optionDefault.value = '';
-            optionDefault.textContent = 'Selecione um Produto';
-            optionDefault.disabled = true;
-            
-            if (!valorSelecionado) {
-                optionDefault.selected = true;
-            }
-            selectElement.appendChild(optionDefault);
-            
-            for (const id in listaProdutos) {
-                const produto = listaProdutos[id];
-                const option = document.createElement('option');
-                option.value = id;
-                option.textContent = `${produto.nome} (${formatarMoeda(produto.preco)})`;
-                if (valorSelecionado === id) {
-                    option.selected = true;
-                }
-                selectElement.appendChild(option);
-            }
-        }
-    
-        // --- 5. MANIPULAÇÃO DA LISTA DE PRODUTOS ---
-    
-        window.adicionarLinhaProduto = function(produtoIdInicial = null, quantidadeInicial = 1) {
-            const container = document.getElementById('produtosContainer');
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'product-item';
-            
-            const selectProduto = document.createElement('select');
-            selectProduto.className = 'select-produto';
-            selectProduto.required = true;
-            
-            popularSelectProduto(selectProduto, produtoIdInicial); 
-    
-            const inputQuantidade = document.createElement('input');
-            inputQuantidade.type = 'number';
-            inputQuantidade.className = 'input-quantidade';
-            inputQuantidade.placeholder = 'Qtd.';
-            inputQuantidade.min = 1;
-            inputQuantidade.value = quantidadeInicial;
-            inputQuantidade.required = true;
-    
-            const deleteBtn = document.createElement('button');
-            deleteBtn.type = 'button';
-            deleteBtn.className = 'delete-btn';
-            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
-            deleteBtn.onclick = function() {
-                itemDiv.remove();
-                calcularTotal();
-            };
-    
-            selectProduto.addEventListener('change', calcularTotal);
-            inputQuantidade.addEventListener('input', calcularTotal);
-    
-            itemDiv.appendChild(selectProduto);
-            itemDiv.appendChild(inputQuantidade);
-            itemDiv.appendChild(deleteBtn);
-            container.appendChild(itemDiv);
-            
+        // Botão "+" Criar Produto — dentro do combobox
+        const btnCriar = document.createElement('button');
+        btnCriar.type = 'button';
+        btnCriar.className = 'btn-create-prod-inline';
+        btnCriar.title = 'Criar Produto';
+        btnCriar.innerHTML = '<i class="fas fa-plus"></i>';
+        btnCriar.onclick = () => abrirModalProduto(itemDiv);
+
+        wrap.appendChild(searchInput);
+        wrap.appendChild(hiddenId);
+        wrap.appendChild(btnCriar);
+        wrap.appendChild(dd);
+
+        // Quantidade
+        const inputQtd = document.createElement('input');
+        inputQtd.type = 'number';
+        inputQtd.className = 'input-quantidade';
+        inputQtd.placeholder = 'Qtd';
+        inputQtd.min = 1;
+        inputQtd.value = quantidadeInicial;
+        inputQtd.addEventListener('input', calcularTotal);
+
+        // Brinde?
+        const brindeLabel = document.createElement('label');
+        brindeLabel.className = 'brinde-check';
+        brindeLabel.title = 'Marcar como brinde (preço zero no total)';
+        const brindeChk = document.createElement('input');
+        brindeChk.type = 'checkbox';
+        brindeChk.checked = !!brindeInicial;
+        brindeChk.addEventListener('change', calcularTotal);
+        brindeLabel.appendChild(brindeChk);
+        brindeLabel.appendChild(document.createTextNode(' Brinde?'));
+
+        // Lixo
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.title = 'Remover produto';
+        deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+        deleteBtn.onclick = () => { itemDiv.remove(); calcularTotal(); };
+
+        itemDiv.appendChild(wrap);
+        itemDiv.appendChild(inputQtd);
+        itemDiv.appendChild(brindeLabel);
+        itemDiv.appendChild(deleteBtn);
+        container.appendChild(itemDiv);
+        calcularTotal();
+        searchInput.focus();
+    };
+
+    // Aplica um produto a uma linha; se já existir em outra linha, soma a quantidade
+    // (agrupamento de duplicados) em vez de criar/duplicar registro.
+    function aplicarProdutoNaLinha(row, produtoId) {
+        produtoId = String(produtoId);
+        const existente = encontrarLinhaComProduto(produtoId, row);
+        if (existente) {
+            const qtdEl = existente.querySelector('.input-quantidade');
+            const addQtd = parseInt(row.querySelector('.input-quantidade').value) || 1;
+            qtdEl.value = (parseInt(qtdEl.value) || 0) + addQtd;
+            row.remove();
             calcularTotal();
+            document.getElementById('feedback').textContent =
+                `"${listaProdutos[produtoId].nome}" já estava na lista — quantidade somada.`;
+            setTimeout(() => { const f = document.getElementById('feedback'); if (f.textContent.includes('quantidade somada')) f.textContent = ''; }, 3000);
+            return existente;
         }
-    
-        window.calcularTotal = function() {
-            const produtosSelecionados = document.querySelectorAll('.product-item');
-            let totalGeral = 0;
-    
-            produtosSelecionados.forEach(itemDiv => {
-                const select = itemDiv.querySelector('.select-produto');
-                const inputQtd = itemDiv.querySelector('.input-quantidade');
-                
-                const produtoId = select.value;
-                const quantidade = parseInt(inputQtd.value) || 0;
-                
-                if (produtoId && listaProdutos[produtoId] && quantidade > 0) {
-                    const precoUnitario = listaProdutos[produtoId].preco;
-                    totalGeral += precoUnitario * quantidade;
-                }
+        row.querySelector('.produto-id').value = produtoId;
+        const inp = row.querySelector('.prod-search-input');
+        inp.value = listaProdutos[produtoId] ? listaProdutos[produtoId].nome : produtoId;
+        inp.dataset.selected = '1';
+        calcularTotal();
+        return row;
+    }
+
+    // Retorna outra linha (.product-item) que já tenha o produto, ou null.
+    function encontrarLinhaComProduto(produtoId, exceto) {
+        let achou = null;
+        document.querySelectorAll('.product-item').forEach(r => {
+            if (r === exceto) return;
+            if (r.querySelector('.produto-id').value === String(produtoId)) achou = r;
+        });
+        return achou;
+    }
+
+    function filtrarProdutos(input, dropdown, hiddenId) {
+        const t = input.value.toLowerCase().trim();
+        const ids = Object.keys(listaProdutos).filter(id =>
+            !t || listaProdutos[id].nome.toLowerCase().includes(t)
+        );
+
+        dropdown.innerHTML = '';
+        if (!ids.length) {
+            dropdown.innerHTML = '<div class="dropdown-empty">Nenhum produto encontrado</div>';
+        } else {
+            ids.slice(0, 30).forEach(id => {
+                const p = listaProdutos[id];
+                const item = document.createElement('div');
+                item.className = 'dropdown-item';
+                item.innerHTML = `<span>${p.nome}</span><span class="item-price">${formatarMoeda(p.preco)}</span>`;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    dropdown.classList.remove('open');
+                    // Agrupa se já existir em outra linha; senão preenche esta
+                    aplicarProdutoNaLinha(input.closest('.product-item'), id);
+                };
+                dropdown.appendChild(item);
             });
-    
-            document.getElementById('totalArea').textContent = `Total: ${formatarMoeda(totalGeral)}`;
         }
-        
-        // --- 6. LÓGICA DE SALVAMENTO/ATUALIZAÇÃO UNIFICADA ---
-    
-        window.iniciarCadastro = function() {
-            const clienteId = document.getElementById('cliente').value;
-            const nomeOrcamento = document.getElementById('nomeOrcamento').value;
-            const produtosSelecionados = document.querySelectorAll('.product-item');
-    
-            if (!clienteId || !nomeOrcamento) {
-                alert("Por favor, preencha as informações gerais (Cliente e Nome do Orçamento).");
-                return;
-            }
-            
-            const itensOrcamento = [];
-            let totalOrcamento = 0;
-            let isValid = true;
-    
-            produtosSelecionados.forEach(itemDiv => {
-                const select = itemDiv.querySelector('.select-produto');
-                const inputQtd = itemDiv.querySelector('.input-quantidade');
-                
-                const produtoId = select.value;
-                const quantidade = parseInt(inputQtd.value) || 0;
-    
-                if (!produtoId || quantidade <= 0) {
-                    isValid = false;
-                }
-    
-                if (produtoId && quantidade > 0 && listaProdutos[produtoId]) {
-                    const produto = listaProdutos[produtoId];
-                    const subtotal = produto.preco * quantidade;
-                    totalOrcamento += subtotal;
-                    
-                    itensOrcamento.push({
-                        produtoId: produtoId,
-                        nomeProduto: produto.nome,
-                        precoUnitario: produto.preco,
-                        quantidade: quantidade,
-                        subtotal: subtotal
-                    });
-                }
-            });
-    
-            if (!isValid) {
-                 alert("Por favor, selecione produtos e defina quantidades válidas (maior que zero).");
-                 return;
-            }
-            if (itensOrcamento.length === 0) {
-                 alert("O orçamento deve ter pelo menos um produto.");
-                 return;
-            }
-    
-            const dadosParaSalvar = {
-                clienteId: clienteId,
-                nomeOrcamento: nomeOrcamento,
-                itens: itensOrcamento,
-                total: totalOrcamento,
-                dataCriacao: new Date().toISOString()
-            };
-            
-            if (idEmEdicao) {
-                salvarOrcamento(idEmEdicao, dadosParaSalvar, 'atualizado');
-            } else {
-                obterProximoId(dadosParaSalvar);
-            }
+        dropdown.classList.add('open');
+        fecharTodosDropdowns(dropdown);
+    }
+
+    // ── Navegação por teclado nos dropdowns ─────────────────────────────────────
+    function navDropdown(event, dropdownId) {
+        navDropdownEl(event, document.getElementById(dropdownId));
+    }
+    function navDropdownEl(event, dd) {
+        const items = dd.querySelectorAll('.dropdown-item');
+        const focused = dd.querySelector('.dropdown-item.focused');
+        let idx = [...items].indexOf(focused);
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            if (idx < items.length - 1) { focused?.classList.remove('focused'); items[idx + 1].classList.add('focused'); items[idx + 1].scrollIntoView({ block: 'nearest' }); }
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            if (idx > 0) { focused?.classList.remove('focused'); items[idx - 1].classList.add('focused'); items[idx - 1].scrollIntoView({ block: 'nearest' }); }
+        } else if (event.key === 'Enter' && focused) {
+            event.preventDefault(); focused.click();
+        } else if (event.key === 'Escape') {
+            dd.classList.remove('open');
         }
-    
-        function obterProximoId(dados) {
-            document.getElementById('feedback').textContent = "Buscando ID sequencial...";
-            database.ref(CAMINHO_CONTADOR).transaction((currentData) => {
-                let proximoId = currentData === null ? 1 : currentData + 1;
-                return proximoId;
-            })
+    }
+
+    // ── Total ───────────────────────────────────────────────────────────────────
+    window.calcularTotal = function() {
+        let total = 0;
+        document.querySelectorAll('.product-item').forEach(row => {
+            const id  = row.querySelector('.produto-id').value;
+            const qtd = parseInt(row.querySelector('.input-quantidade').value) || 0;
+            const bchk = row.querySelector('.brinde-check input');
+            const brinde = bchk && bchk.checked;
+            if (id && listaProdutos[id] && qtd > 0 && !brinde) total += listaProdutos[id].preco * qtd;
+        });
+        const frete = parseFloat(document.getElementById('frete')?.value) || 0;
+        total += frete;
+        document.getElementById('totalArea').textContent = 'Total: ' + formatarMoeda(total);
+    };
+
+    // ── Edição ──────────────────────────────────────────────────────────────────
+    function carregarOrcamentoParaEdicao(id) {
+        document.getElementById('feedback').textContent = `Carregando Orçamento #${id}...`;
+        empresaRef(CAMINHO_ORCAMENTOS + '/' + id).once('value').then(snap => {
+            if (!snap.exists()) { document.getElementById('feedback').textContent = `Orçamento #${id} não encontrado.`; return; }
+            preencherFormulario(snap.val());
+        });
+    }
+
+    function preencherFormulario(dados) {
+        document.getElementById('pageTitulo').textContent = `Editar Orçamento #${idEmEdicao}`;
+        document.getElementById('btnSalvar').innerHTML = '<i class="fas fa-sync-alt"></i> Atualizar Orçamento';
+        document.getElementById('nomeOrcamento').value = dados.nomeOrcamento;
+        document.getElementById('frete').value = dados.frete || 0;
+        if (dados.cepDestino)   document.getElementById('cepDestino').value   = dados.cepDestino;
+        if (dados.prazoEntrega) document.getElementById('prazoEntrega').value = dados.prazoEntrega;
+        if (dados.clienteId) selecionarCliente(dados.clienteId);
+        const container = document.getElementById('produtosContainer');
+        container.innerHTML = '';
+        (dados.itens || []).forEach(item => adicionarLinhaProduto(item.produtoId, item.quantidade, !!item.brinde));
+        document.getElementById('feedback').textContent = `Orçamento #${idEmEdicao} carregado.`;
+    }
+
+    // ── Salvar ──────────────────────────────────────────────────────────────────
+    window.iniciarCadastro = function() {
+        const clienteId     = document.getElementById('clienteId').value;
+        const nomeOrcamento = document.getElementById('nomeOrcamento').value.trim();
+        const frete         = parseFloat(document.getElementById('frete').value) || 0;
+        const prazoEntrega  = document.getElementById('prazoEntrega').value || null;
+        const cepDestino    = document.getElementById('cepDestino').value.replace(/\D/g, '') || null;
+
+        if (!clienteId)      { alert("Selecione um cliente."); return; }
+        if (!nomeOrcamento)  { alert("Informe um nome para o orçamento."); return; }
+
+        const itens = [];
+        let subtotalProdutos = 0, valido = true;
+
+        document.querySelectorAll('.product-item').forEach(row => {
+            const id  = row.querySelector('.produto-id').value;
+            const qtd = parseInt(row.querySelector('.input-quantidade').value) || 0;
+            if (!id || qtd <= 0) { valido = false; return; }
+            const p = listaProdutos[id];
+            const bchk = row.querySelector('.brinde-check input');
+            const brinde = !!(bchk && bchk.checked);
+            const sub = brinde ? 0 : p.preco * qtd;   // brinde não soma ao total
+            subtotalProdutos += sub;
+            itens.push({ produtoId: id, nomeProduto: p.nome, precoUnitario: p.preco, quantidade: qtd, subtotal: sub, brinde });
+        });
+
+        if (!valido)        { alert("Selecione produtos e defina quantidades válidas."); return; }
+        if (!itens.length)  { alert("Adicione ao menos um produto."); return; }
+
+        const total = subtotalProdutos + frete;
+        const dados = { clienteId, nomeOrcamento, itens, subtotalProdutos, frete, total, prazoEntrega, cepDestino, dataCriacao: new Date().toISOString() };
+        if (idEmEdicao) {
+            salvarOrcamento(idEmEdicao, dados, 'atualizado');
+        } else {
+            obterProximoId(dados);
+        }
+    };
+
+    function obterProximoId(dados) {
+        document.getElementById('feedback').textContent = "Salvando...";
+        empresaRef(CAMINHO_CONTADOR).transaction(cur => (cur === null ? 1 : cur + 1))
             .then(result => {
                 if (result.committed) {
-                    const idParaSalvar = result.snapshot.val();
-                    salvarOrcamento(idParaSalvar, { ...dados, idSequencial: idParaSalvar }, 'salvo');
-                } else {
-                    document.getElementById('feedback').textContent = "Falha temporária na transação. Tente novamente.";
+                    const id = result.snapshot.val();
+                    salvarOrcamento(id, { ...dados, idSequencial: id }, 'salvo');
                 }
+            }).catch(e => { document.getElementById('feedback').textContent = "Erro: " + e.message; });
+    }
+
+    function salvarOrcamento(id, dados, acao) {
+        empresaRef(CAMINHO_ORCAMENTOS + '/' + id).set(dados)
+            .then(() => {
+                document.getElementById('feedback').textContent = `Orçamento #${id} ${acao} com sucesso!`;
+                setTimeout(() => window.location.href = 'listagem_orcamentos.html', 1500);
             })
-            .catch(error => {
-                document.getElementById('feedback').textContent = "Erro ao obter ID: " + error.message;
-                console.error("Erro transacional: ", error);
+            .catch(e => { document.getElementById('feedback').textContent = `Erro: ` + e.message; });
+    }
+
+    // ── Cálculo de Frete (Melhor Envio) ──────────────────────────────────────────
+    function formatarCep(input) {
+        let v = input.value.replace(/\D/g, '');
+        if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5, 8);
+        input.value = v;
+    }
+
+    async function calcularFrete() {
+        // Integração desligada: não dispara nenhuma chamada à API de frete.
+        if (!flagAtiva('melhorEnvio')) return;
+
+        const cepRaw = document.getElementById('cepDestino').value.replace(/\D/g, '');
+        if (cepRaw.length !== 8) { alert("Digite um CEP válido (8 dígitos)."); return; }
+
+        // Peso total = soma(pesoPeca_g × qtd) convertido para kg, mínimo 0.1 kg
+        let pesoGramas = 0;
+        let temProduto = false;
+        document.querySelectorAll('.product-item').forEach(row => {
+            const id  = row.querySelector('.produto-id').value;
+            const qtd = parseInt(row.querySelector('.input-quantidade').value) || 0;
+            if (id && listaProdutos[id] && qtd > 0) {
+                temProduto = true;
+                pesoGramas += (listaProdutos[id].peso || 50) * qtd;
+            }
+        });
+        if (!temProduto) { alert("Adicione ao menos um produto para calcular o frete."); return; }
+        const pesoKg = Math.max(0.1, pesoGramas / 1000);
+
+        const btn = document.getElementById('btnCalcFrete');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
+        document.getElementById('freteOpcoes').style.display = 'none';
+
+        try {
+            const resp = await fetch('/api/frete/calcular', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cepDestino: cepRaw, pesoKg }),
             });
+            const json = await resp.json();
+            if (!json.success) throw new Error(json.error);
+            renderizarOpcoesEnvio(json.data.opcoes);
+        } catch (e) {
+            const box = document.getElementById('freteOpcoes');
+            box.innerHTML = `<p style="color:#dc3545;font-size:0.85em;margin:0;">
+                <i class="fas fa-exclamation-triangle"></i> ${e.message}</p>`;
+            box.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-truck"></i> Calcular Frete';
         }
-    
-        function salvarOrcamento(id, dados, acao) {
-            database.ref(CAMINHO_ORCAMENTOS + '/' + id).set(dados)
-                .then(() => {
-                    document.getElementById('feedback').textContent = `Orçamento #${id} ${acao} com sucesso!`;
-                    
-                    if (acao === 'salvo') {
-                        document.getElementById('orcamentoForm').reset();
-                    }
-    
-                    setTimeout(() => {
-                        window.location.href = 'listagem_orcamentos.html';
-                    }, 1500);
-                })
-                .catch((error) => {
-                    document.getElementById('feedback').textContent = `Erro ao ${acao}r: ` + error.message;
-                    console.error(`Erro ao ${acao}r documento: `, error);
-                });
+    }
+
+    function renderizarOpcoesEnvio(opcoes) {
+        const box = document.getElementById('freteOpcoes');
+        if (!opcoes || !opcoes.length) {
+            box.innerHTML = '<p style="color:#888;font-size:0.85em;margin:0;">Nenhuma opção de frete disponível para este CEP.</p>';
+            box.style.display = 'block';
+            return;
         }
-    </script>
+        box.innerHTML = `
+            <div style="font-size:0.8em;color:#666;margin-bottom:8px;font-weight:600;">
+                <i class="fas fa-truck" style="color:#4A93B0;"></i>
+                Opções de envio — clique para selecionar:
+            </div>
+            ${opcoes.map(o => `
+                <div class="frete-opcao" data-preco="${o.preco}" data-prazo="${o.prazo_dias || 0}"
+                     data-desc="${o.empresa} ${o.nome}"
+                     onclick="selecionarFrete(this)">
+                    <div>
+                        <span class="frete-empresa">${o.empresa}</span>
+                        <span class="frete-nome">${o.nome}</span>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="frete-preco">R$ ${o.preco.toFixed(2).replace('.',',')}</div>
+                        ${o.prazo_dias
+                            ? `<div class="frete-prazo">${o.prazo_dias} dia${o.prazo_dias > 1 ? 's' : ''} úteis</div>`
+                            : ''}
+                    </div>
+                </div>
+            `).join('')}
+        `;
+        box.style.display = 'block';
+    }
+
+    function selecionarFrete(el) {
+        // Highlight visual
+        document.querySelectorAll('.frete-opcao').forEach(o => o.classList.remove('selected'));
+        el.classList.add('selected');
+
+        // Preenche o campo de frete
+        const preco = parseFloat(el.dataset.preco);
+        document.getElementById('frete').value = preco.toFixed(2);
+        calcularTotal();
+
+        // Sugere prazo contando dias úteis
+        const prazoDias = parseInt(el.dataset.prazo) || 0;
+        if (prazoDias > 0) {
+            const data = new Date();
+            let contados = 0;
+            while (contados < prazoDias) {
+                data.setDate(data.getDate() + 1);
+                const dia = data.getDay();
+                if (dia !== 0 && dia !== 6) contados++;
+            }
+            document.getElementById('prazoEntrega').value = data.toISOString().split('T')[0];
+        }
+
+        document.getElementById('feedback').textContent =
+            `Frete selecionado: ${el.dataset.desc} — R$ ${preco.toFixed(2).replace('.',',')}`;
+        setTimeout(() => { if (document.getElementById('feedback').textContent.startsWith('Frete'))
+            document.getElementById('feedback').textContent = ''; }, 4000);
+    }
+
+    // ── Máscara de telefone (XX) XXXXX-XXXX ───────────────────────────────────────
+    function formatarTelefone(input) {
+        const d = input.value.replace(/\D/g, '').slice(0, 11);
+        let v = '';
+        if (d.length > 7)      v = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+        else if (d.length > 2) v = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+        else if (d.length > 0) v = `(${d}`;
+        input.value = v;
+    }
+
+    // ── Modal Novo Produto (completo) ─────────────────────────────────────────────
+    function npNum(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+    function popularTipoFilamentoModal() {
+        const sel = document.getElementById('np_tipoFilamento');
+        const tipos = (window.Estoque && Estoque.TIPOS_FILAMENTO) || ['PLA', 'PLA Silk', 'PETG', 'ABS', 'ASA'];
+        sel.innerHTML = '<option value="">— selecione —</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+    }
+
+    function abrirModalProduto(row) {
+        linhaAtivaModal = row || null;
+        npPrecoManual = false;
+        ['novoProdutoNome', 'novoProdutoResumido', 'novoProdutoCodigo', 'novoProdutoPreco'].forEach(k => document.getElementById(k).value = '');
+        document.getElementById('np_precoRolo').value = '100';
+        document.getElementById('np_peso').value      = '50';
+        document.getElementById('np_kwh').value       = '1';
+        document.getElementById('np_consumo').value   = '320';
+        document.getElementById('np_tempo').value     = '3.5';
+        document.getElementById('np_margem').value    = '100';
+        popularTipoFilamentoModal();
+        document.getElementById('np_tipoFilamento').value = '';
+        document.getElementById('np_insumos').innerHTML = '';
+        document.getElementById('np_subprodutos').innerHTML = '';
+        document.getElementById('modalProdutoFeedback').textContent = '';
+        recalcularNovoProduto();
+        document.getElementById('modalProduto').classList.add('open');
+        document.querySelector('#modalProduto .modal-scroll').scrollTop = 0;
+        setTimeout(() => document.getElementById('novoProdutoNome').focus(), 200);
+    }
+
+    function fecharModalProduto(e) {
+        if (e && e.target !== document.getElementById('modalProduto')) return;
+        document.getElementById('modalProduto').classList.remove('open');
+    }
+
+    // Opções dos selects de receita
+    function opcoesInsumoModal(sel) {
+        let h = '<option value="">— insumo —</option>';
+        Object.keys(insumosMap).forEach(id => {
+            const i = insumosMap[id];
+            h += `<option value="${id}" ${id === String(sel) ? 'selected' : ''}>${i.nome} (${i.unidade}) — ${formatarMoeda(i.custoUnitario)}</option>`;
+        });
+        return h;
+    }
+    function opcoesSubprodutoModal(sel) {
+        let h = '<option value="">— subproduto —</option>';
+        Object.keys(produtosMap).forEach(id => {
+            const p = produtosMap[id];
+            h += `<option value="${id}" ${id === String(sel) ? 'selected' : ''}>${p.nome} — ${formatarMoeda(p.custoTotal)}</option>`;
+        });
+        return h;
+    }
+
+    function addInsumoModal(insumoId = '', quantidade = 1) {
+        const div = document.createElement('div'); div.className = 'np-rec-linha';
+        div.innerHTML = `<select onchange="recalcularNovoProduto()">${opcoesInsumoModal(insumoId)}</select>
+            <input type="number" min="0" step="0.01" value="${quantidade}" oninput="recalcularNovoProduto()" title="Quantidade">
+            <span class="np-rec-sub">R$ 0,00</span>
+            <button type="button" class="np-rec-x" onclick="this.closest('.np-rec-linha').remove(); recalcularNovoProduto();">&times;</button>`;
+        document.getElementById('np_insumos').appendChild(div); recalcularNovoProduto();
+    }
+    function addSubprodutoModal(produtoId = '', quantidade = 1) {
+        const div = document.createElement('div'); div.className = 'np-rec-linha';
+        div.innerHTML = `<select onchange="recalcularNovoProduto()">${opcoesSubprodutoModal(produtoId)}</select>
+            <input type="number" min="0" step="0.01" value="${quantidade}" oninput="recalcularNovoProduto()" title="Quantidade">
+            <span class="np-rec-sub">R$ 0,00</span>
+            <button type="button" class="np-rec-x" onclick="this.closest('.np-rec-linha').remove(); recalcularNovoProduto();">&times;</button>`;
+        document.getElementById('np_subprodutos').appendChild(div); recalcularNovoProduto();
+    }
+
+    function coletarReceitaModal() {
+        const r = [];
+        document.querySelectorAll('#np_insumos .np-rec-linha').forEach(l => {
+            const insumoId = l.querySelector('select').value;
+            const quantidade = parseFloat(l.querySelector('input').value) || 0;
+            if (insumoId && quantidade > 0) r.push({ insumoId, quantidade });
+        });
+        return r;
+    }
+    function coletarSubprodutosModal() {
+        const s = [];
+        document.querySelectorAll('#np_subprodutos .np-rec-linha').forEach(l => {
+            const produtoId = l.querySelector('select').value;
+            const quantidade = parseFloat(l.querySelector('input').value) || 0;
+            if (produtoId && quantidade > 0) s.push({ produtoId, quantidade });
+        });
+        return s;
+    }
+
+    // Mesma regra de precificação de cadastro_produtos.html
+    function recalcularNovoProduto() {
+        // precoRolo derivado da média dos filamentos (Insumos); sem filamento → manual (fallback)
+        const campoRolo = document.getElementById('np_precoRolo'), hintRolo = document.getElementById('np_precoRoloHint');
+        const tipoFil = document.getElementById('np_tipoFilamento').value;
+        const mediaRolo = (typeof Estoque !== 'undefined') ? Estoque.precoRoloMedio(insumosMap, tipoFil) : null;
+        if (mediaRolo != null) {
+            const t = mediaRolo.toFixed(2);
+            if (campoRolo.value !== t) campoRolo.value = t;
+            campoRolo.readOnly = true; campoRolo.style.background = '#eef2f5';
+            if (hintRolo) hintRolo.innerHTML = `<i class="fas fa-bolt"></i> Automático: média dos filamentos${tipoFil ? ' ' + tipoFil : ''}.`;
+        } else {
+            campoRolo.readOnly = false; campoRolo.style.background = '';
+            if (hintRolo) hintRolo.textContent = tipoFil ? `Sem filamento ${tipoFil} cadastrado — informe manualmente.` : 'Selecione o tipo de filamento (ou informe manualmente).';
+        }
+        const precoRolo = npNum('np_precoRolo'), peso = npNum('np_peso'), kwh = npNum('np_kwh');
+        const consumo = npNum('np_consumo'), tempo = npNum('np_tempo'), margem = npNum('np_margem');
+        const custoFilamento = (precoRolo / 1000) * peso;
+
+        let custoInsumos = 0;
+        document.querySelectorAll('#np_insumos .np-rec-linha').forEach(l => {
+            const id = l.querySelector('select').value;
+            const q = parseFloat(l.querySelector('input').value) || 0;
+            const sub = (id && insumosMap[id]) ? insumosMap[id].custoUnitario * q : 0;
+            l.querySelector('.np-rec-sub').textContent = formatarMoeda(sub); custoInsumos += sub;
+        });
+        let custoSubprodutos = 0;
+        document.querySelectorAll('#np_subprodutos .np-rec-linha').forEach(l => {
+            const id = l.querySelector('select').value;
+            const q = parseFloat(l.querySelector('input').value) || 0;
+            const sub = (id && produtosMap[id]) ? produtosMap[id].custoTotal * q : 0;
+            l.querySelector('.np-rec-sub').textContent = formatarMoeda(sub); custoSubprodutos += sub;
+        });
+
+        const custoReceita  = custoInsumos + custoSubprodutos;
+        const custoMaterial = custoFilamento + custoReceita;
+        const custoEnergia  = (consumo / 1000) * tempo * kwh;
+        const custoTotal    = custoMaterial + custoEnergia;
+        const sugerido      = custoTotal * (1 + margem / 100);
+
+        document.getElementById('npCustoMaterial').textContent = formatarMoeda(custoMaterial);
+        document.getElementById('npCustoEnergia').textContent  = formatarMoeda(custoEnergia);
+        document.getElementById('npCustoTotal').textContent    = formatarMoeda(custoTotal);
+        document.getElementById('npSugerido').textContent      = formatarMoeda(sugerido);
+        if (!npPrecoManual) document.getElementById('novoProdutoPreco').value = sugerido.toFixed(2);
+
+        return { custoMaterial, custoEnergia, custoTotal, sugerido };
+    }
+    function usarSugeridoModal() { npPrecoManual = false; recalcularNovoProduto(); }
+
+    // Código de barras único por empresa (só checa se preenchido)
+    async function verificarCodigoDuplicadoOrc(codigo) {
+        const snap = await empresaRef('produtos').orderByChild('codigoBarras').equalTo(codigo).once('value');
+        let conflito = null;
+        snap.forEach(c => { conflito = c.key; });
+        return conflito;
+    }
+
+    // Gera um EAN-13 de uso interno (prefixo "2"), único por empresa.
+    function ean13CheckDigit(d12) { let s = 0; for (let i = 0; i < 12; i++) { const n = +d12[i]; s += (i % 2 === 0) ? n : n * 3; } return String((10 - (s % 10)) % 10); }
+    function novoEAN13() { let b = '2'; for (let i = 0; i < 11; i++) b += Math.floor(Math.random() * 10); return b + ean13CheckDigit(b); }
+    async function gerarCodigoNovoProduto() {
+        const fb = document.getElementById('modalProdutoFeedback');
+        let codigo, conflito, tentativas = 0;
+        fb.style.color = '#666'; fb.textContent = 'Gerando código...';
+        do {
+            codigo = novoEAN13(); tentativas++;
+            try { conflito = await verificarCodigoDuplicadoOrc(codigo); }
+            catch (e) { conflito = null; }
+        } while (conflito && tentativas < 6);
+        document.getElementById('novoProdutoCodigo').value = codigo;
+        fb.style.color = '#28a745'; fb.textContent = 'Código gerado: ' + codigo;
+    }
+
+    async function salvarNovoProduto() {
+        const fb = document.getElementById('modalProdutoFeedback');
+        const nome = document.getElementById('novoProdutoNome').value.trim();
+        if (!nome) { fb.style.color = '#dc3545'; fb.textContent = 'O nome é obrigatório.'; return; }
+
+        const codigo = document.getElementById('novoProdutoCodigo').value.trim();
+        if (codigo) {
+            fb.style.color = '#666'; fb.textContent = 'Verificando código de barras...';
+            try {
+                const conf = await verificarCodigoDuplicadoOrc(codigo);
+                if (conf) { fb.style.color = '#dc3545'; fb.textContent = `Código já usado no produto #${conf}.`; return; }
+            } catch (e) { /* falha de rede na checagem não bloqueia */ }
+        }
+
+        const r = recalcularNovoProduto();
+        const precoDig = parseFloat(document.getElementById('novoProdutoPreco').value);
+        const precoVenda = isNaN(precoDig) ? r.sugerido : precoDig;
+
+        try {
+            const resultado = await empresaRef('contador_produtos/proximoId').transaction(cur => (cur === null ? 1 : cur + 1));
+            const id = resultado.snapshot.val();
+            const dados = {
+                idSequencial:      id,
+                nomePeca:          nome,
+                nomeResumido:      document.getElementById('novoProdutoResumido').value.trim() || nome.substring(0, 30),
+                codigoBarras:      codigo,
+                tags:              [],
+                tipoFilamento:     document.getElementById('np_tipoFilamento').value,
+                receita:           coletarReceitaModal(),
+                subprodutos:       coletarSubprodutosModal(),
+                custoMaterial:     r.custoMaterial,
+                custoEnergia:      r.custoEnergia,
+                custoTotal:        r.custoTotal,
+                precoVendaSugerido: r.sugerido,
+                precoVenda:        precoVenda,
+                precoRolo:         npNum('np_precoRolo'),
+                pesoPeca:          npNum('np_peso'),
+                taxaKWh:           npNum('np_kwh'),
+                consumoImpressora: npNum('np_consumo'),
+                tempoImpressao:    npNum('np_tempo'),
+                margemLucro:       npNum('np_margem'),
+                dataCriacao:       new Date().toISOString(),
+            };
+            await empresaRef('produtos/' + id).set(dados);
+            // Disponibiliza imediatamente (busca + uso como subproduto futuro)
+            listaProdutos[String(id)] = { nome, preco: precoVenda, peso: dados.pesoPeca };
+            produtosMap[String(id)]   = { nome, custoTotal: r.custoTotal };
+            document.getElementById('modalProduto').classList.remove('open');
+            // Coloca na linha que abriu o modal (ou cria uma nova)
+            if (linhaAtivaModal && document.body.contains(linhaAtivaModal)) {
+                aplicarProdutoNaLinha(linhaAtivaModal, String(id));
+            } else {
+                adicionarLinhaProduto(String(id), 1);
+            }
+            linhaAtivaModal = null;
+        } catch (e) {
+            fb.style.color = '#dc3545'; fb.textContent = 'Erro ao salvar: ' + e.message;
+        }
+    }
+</script>
 </body>
 </html>

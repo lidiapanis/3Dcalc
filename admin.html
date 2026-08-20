@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin — KOMBINEI</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f4f7f6; padding: 24px; min-height: 100vh; margin: 0; }
+        .container { background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 960px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 4px; }
+        h1 span { color: #4A93B0; }
+        .subtitle { color: #888; font-size: 0.9em; margin-bottom: 28px; }
+
+        .section { margin-bottom: 36px; }
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }
+        .section-header h2 { font-size: 1.05em; color: #444; margin: 0; }
+
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 0.88em; font-weight: 600; transition: background 0.2s; }
+        .btn-primary   { background: #4A93B0; color: #fff; }
+        .btn-primary:hover { background: #3A7A96; }
+        .btn-danger    { background: #e05252; color: #fff; }
+        .btn-danger:hover  { background: #c44; }
+        .btn-success   { background: #4CAF50; color: #fff; }
+        .btn-success:hover { background: #388E3C; }
+        .btn-warning   { background: #f59e0b; color: #fff; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8em; }
+        .btn-cancel { background: #eee; color: #555; }
+        .btn-cancel:hover { background: #ddd; }
+        .btn-migrate { background: #f0a500; color: #fff; }
+        .btn-migrate:hover { background: #c87f00; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #eee; text-align: left; vertical-align: middle; }
+        th { background: #f8f9fa; color: #555; font-weight: 600; }
+        tr:last-child td { border-bottom: none; }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78em; font-weight: 700; }
+        .badge-active   { background: #e6f7e6; color: #2e7d32; }
+        .badge-inactive { background: #fdecea; color: #c62828; }
+        .badge-trial    { background: #fff8e1; color: #856404; }
+        .badge-basico   { background: #e3f2fd; color: #1565c0; }
+        .badge-pro      { background: #f3e5f5; color: #6a1b9a; }
+
+        .expira-ok      { color: #2e7d32; font-size: 0.82em; }
+        .expira-warn    { color: #856404; font-weight: 600; font-size: 0.82em; }
+        .expira-expired { color: #c62828; font-weight: 700; font-size: 0.82em; }
+        .expira-forever { color: #aaa; font-size: 0.82em; }
+
+        /* ── Permissões grid ── */
+        .perms-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .perm-item { display: flex; align-items: center; gap: 8px; }
+        .perm-item label { font-size: 0.88em; color: #555; cursor: pointer; margin: 0; }
+        .perm-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #4A93B0; }
+
+        /* ── Modais ── */
+        .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-backdrop.open { display: flex; }
+        .modal { background: #fff; padding: 28px; border-radius: 10px; width: 420px; max-width: 95vw; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+        .modal.modal-wide { width: 500px; }
+        .modal h3 { margin: 0 0 18px; color: #333; font-size: 1.05em; }
+        .modal label { display: block; margin-top: 12px; font-weight: 600; color: #555; font-size: 0.88em; }
+        .modal input, .modal select { width: 100%; padding: 9px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9em; margin-top: 4px; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+        .modal-subtitle { color: #777; font-size: 0.82em; margin-top: -10px; margin-bottom: 4px; }
+
+        .migrate-box { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 16px 20px; font-size: 0.88em; color: #555; margin-bottom: 28px; }
+        .migrate-box strong { color: #c87f00; }
+        .migrate-log { margin-top: 10px; background: #f4f4f4; border-radius: 6px; padding: 10px 14px; font-family: monospace; font-size: 0.82em; white-space: pre-wrap; display: none; }
+
+        #feedback { color: #4A93B0; font-size: 0.9em; margin-bottom: 14px; min-height: 20px; }
+        .error-msg { color: #c62828 !important; }
+
+        .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1><i class="fas fa-shield-alt" style="color:#4A93B0;margin-right:8px;"></i>Painel <span>Admin</span></h1>
+    <p class="subtitle">Gerencie empresas, licenças e usuários da plataforma KOMBINEI.</p>
+    <div id="feedback"></div>
+
+    <!-- ── Migração ── -->
+    <div class="migrate-box" id="migrateBox">
+        <strong><i class="fas fa-database"></i> Migração de dados</strong><br>
+        Use este botão para mover os dados existentes para o silo da Empresa 1. Seguro executar múltiplas vezes.
+        <div style="margin-top:10px;">
+            <button class="btn btn-migrate btn-sm" onclick="executarMigracao()">
+                <i class="fas fa-play"></i> Executar Migração
+            </button>
+        </div>
+        <div class="migrate-log" id="migrateLog"></div>
+    </div>
+
+    <!-- ── Empresas ── -->
+    <div class="section">
+        <div class="section-header">
+            <h2><i class="fas fa-building" style="color:#4A93B0;margin-right:6px;"></i> Empresas</h2>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalEmpresa()">
+                <i class="fas fa-plus"></i> Nova Empresa
+            </button>
+        </div>
+        <table>
+            <thead>
+                <tr><th>#</th><th>Nome</th><th>Plano</th><th>Expira em</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="tbodyEmpresas">
+                <tr><td colspan="6" style="text-align:center;color:#aaa;">Carregando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ── Usuários ── -->
+    <div class="section">
+        <div class="section-header">
+            <h2><i class="fas fa-users" style="color:#4A93B0;margin-right:6px;"></i> Usuários</h2>
+            <button class="btn btn-primary btn-sm" onclick="abrirModalUsuario()">
+                <i class="fas fa-user-plus"></i> Novo Usuário
+            </button>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:0.88em;font-weight:600;color:#555;">Empresa:</label>
+            <select id="filtroEmpresa" onchange="carregarUsuarios()"
+                    style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:0.88em;margin-left:8px;">
+                <option value="">Selecione...</option>
+            </select>
+        </div>
+        <table>
+            <thead>
+                <tr><th>E-mail</th><th>Perfil</th><th>Módulos</th><th>Status</th><th>Ações</th></tr>
+            </thead>
+            <tbody id="tbodyUsuarios">
+                <tr><td colspan="5" style="text-align:center;color:#aaa;">Selecione uma empresa.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── Modal Nova Empresa ── -->
+<div class="modal-backdrop" id="modalEmpresa">
+    <div class="modal">
+        <h3><i class="fas fa-building" style="color:#4A93B0;margin-right:6px;"></i> Nova Empresa</h3>
+        <label>Nome</label>
+        <input type="text" id="nomeEmpresa" placeholder="Ex.: Impressão 3D SP">
+        <label>Plano</label>
+        <select id="planoEmpresa">
+            <option value="trial">Trial (30 dias)</option>
+            <option value="basico">Básico</option>
+            <option value="pro">Pro</option>
+        </select>
+        <label>Data de expiração <span style="color:#aaa;font-weight:400;">(deixe em branco = sem prazo)</span></label>
+        <input type="date" id="expiraEmpresa">
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="fecharModal('modalEmpresa')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarEmpresa()">Criar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal Editar Licença ── -->
+<div class="modal-backdrop" id="modalLicenca">
+    <div class="modal">
+        <h3><i class="fas fa-id-card" style="color:#4A93B0;margin-right:6px;"></i> Editar Licença</h3>
+        <p class="modal-subtitle" id="modalLicencaNome"></p>
+        <input type="hidden" id="licencaEmpresaId">
+        <label>Plano</label>
+        <select id="licencaPlano">
+            <option value="trial">Trial</option>
+            <option value="basico">Básico</option>
+            <option value="pro">Pro</option>
+        </select>
+        <label>Data de expiração <span style="color:#aaa;font-weight:400;">(deixe em branco = sem prazo)</span></label>
+        <input type="date" id="licencaExpira">
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="fecharModal('modalLicenca')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarLicenca()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal Novo Usuário ── -->
+<div class="modal-backdrop" id="modalUsuario">
+    <div class="modal">
+        <h3><i class="fas fa-user-plus" style="color:#4A93B0;margin-right:6px;"></i> Novo Usuário</h3>
+        <label>E-mail</label>
+        <input type="email" id="novoEmail" placeholder="usuario@empresa.com">
+        <label>Senha temporária</label>
+        <input type="password" id="novaSenha" placeholder="Mínimo 6 caracteres">
+        <label>Empresa</label>
+        <select id="novaEmpresaId"></select>
+        <label>Perfil</label>
+        <select id="novoRole">
+            <option value="user">Usuário</option>
+            <option value="admin">Admin (todos os módulos)</option>
+        </select>
+        <label style="margin-top:16px;">Módulos (para perfil Usuário)</label>
+        <div class="perms-grid" id="permsNovoUsuario"></div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="fecharModal('modalUsuario')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarUsuario()">Criar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal Permissões do Usuário ── -->
+<div class="modal-backdrop" id="modalPermissoes">
+    <div class="modal modal-wide">
+        <h3><i class="fas fa-lock-open" style="color:#4A93B0;margin-right:6px;"></i> Permissões por Módulo</h3>
+        <p class="modal-subtitle" id="modalPermsEmail"></p>
+        <input type="hidden" id="permsUid">
+        <div class="perms-grid" id="permsGrid"></div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="fecharModal('modalPermissoes')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarPermissoes()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+        authDomain: "calculo3d.firebaseapp.com",
+        databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+        projectId: "calculo3d",
+        storageBucket: "calculo3d.firebasestorage.app",
+        messagingSenderId: "372705279593",
+        appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    const MODULOS = [
+        { key: 'dashboard',    label: '📊 Dashboard' },
+        { key: 'orcamentos',   label: '📄 Orçamentos' },
+        { key: 'clientes',     label: '👤 Clientes' },
+        { key: 'produtos',     label: '📦 Produtos' },
+        { key: 'ml',           label: '🛒 Mercado Livre' },
+        { key: 'configuracoes',label: '⚙️ Configurações' },
+    ];
+
+    let _token = null;
+    let _empresasCache = [];
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+
+    (async function init() {
+        const user = await new Promise(r => {
+            const u = auth.onAuthStateChanged(u2 => { u(); r(u2); });
+        });
+        if (!user) { try { window.top.location.href = 'login.html'; } catch { window.location.href = 'login.html'; } return; }
+
+        const result = await user.getIdTokenResult(true);
+        if (result.claims.role !== 'superadmin') {
+            setFeedback('Acesso negado. Esta página é exclusiva para superadmin.', true);
+            return;
+        }
+        _token = result.token;
+        buildPermsGrid('permsNovoUsuario', {});
+        await carregarEmpresas();
+    })();
+
+    // ── API ───────────────────────────────────────────────────────────────────
+
+    async function apiAdmin(method, path, body) {
+        let resp = await fetch('/api/admin' + path, {
+            method,
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        if (resp.status === 401) {
+            _token = await auth.currentUser.getIdToken(true);
+            resp = await fetch('/api/admin' + path, {
+                method,
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _token },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+        }
+        return resp.json();
+    }
+
+    // ── Feedback ──────────────────────────────────────────────────────────────
+
+    function setFeedback(msg, isError = false) {
+        const el = document.getElementById('feedback');
+        el.textContent = msg;
+        el.className = isError ? 'error-msg' : '';
+    }
+
+    // ── Empresas ──────────────────────────────────────────────────────────────
+
+    async function carregarEmpresas() {
+        const data = await apiAdmin('GET', '/empresas');
+        if (data.error) { setFeedback(data.error, true); return; }
+        _empresasCache = data.empresas || [];
+
+        const tbody = document.getElementById('tbodyEmpresas');
+        tbody.innerHTML = '';
+
+        _empresasCache.forEach(e => {
+            const { cls, txt } = _expiraInfo(e.licencaExpira);
+            const planoCls = { trial: 'badge-trial', basico: 'badge-basico', pro: 'badge-pro' }[e.plano] || 'badge-trial';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${e.id}</td>
+                <td><strong>${e.nome}</strong></td>
+                <td><span class="badge ${planoCls}">${(e.plano || 'trial').charAt(0).toUpperCase() + (e.plano || 'trial').slice(1)}</span></td>
+                <td class="${cls}">${txt}</td>
+                <td><span class="badge ${e.ativo ? 'badge-active' : 'badge-inactive'}">${e.ativo ? 'Ativa' : 'Inativa'}</span></td>
+                <td>
+                    <div class="btn-group">
+                        <button class="btn btn-warning btn-sm" onclick="abrirModalLicenca('${e.id}','${e.nome}','${e.plano || 'trial'}','${e.licencaExpira || ''}')">
+                            <i class="fas fa-id-card"></i> Licença
+                        </button>
+                        ${e.id !== '1' ? `
+                        <button class="btn btn-sm ${e.ativo ? 'btn-danger' : 'btn-success'}"
+                            onclick="toggleEmpresa('${e.id}',${!e.ativo})">
+                            ${e.ativo ? '<i class="fas fa-ban"></i> Desativar' : '<i class="fas fa-check"></i> Ativar'}
+                        </button>` : '<span style="color:#aaa;font-size:0.78em;">Principal</span>'}
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+
+        // Popula selects
+        const filtro = document.getElementById('filtroEmpresa');
+        const novaEmp = document.getElementById('novaEmpresaId');
+        filtro.innerHTML = '<option value="">Selecione...</option>';
+        novaEmp.innerHTML = '';
+        _empresasCache.forEach(e => {
+            filtro.innerHTML += `<option value="${e.id}">${e.id} — ${e.nome}</option>`;
+            novaEmp.innerHTML += `<option value="${e.id}">${e.id} — ${e.nome}</option>`;
+        });
+    }
+
+    function _expiraInfo(iso) {
+        if (!iso) return { cls: 'expira-forever', txt: 'Sem prazo' };
+        const dias = Math.ceil((new Date(iso) - Date.now()) / 86400000);
+        if (dias <= 0)  return { cls: 'expira-expired', txt: `Expirada (${Math.abs(dias)}d atrás)` };
+        if (dias <= 7)  return { cls: 'expira-warn',    txt: `${dias}d restante(s) ⚠️` };
+        const d = new Date(iso);
+        return { cls: 'expira-ok', txt: d.toLocaleDateString('pt-BR') };
+    }
+
+    async function toggleEmpresa(id, ativo) {
+        setFeedback('Atualizando...');
+        const data = await apiAdmin('PATCH', `/empresas/${id}`, { ativo });
+        if (data.error) { setFeedback(data.error, true); return; }
+        setFeedback('');
+        await carregarEmpresas();
+    }
+
+    // ── Licença ───────────────────────────────────────────────────────────────
+
+    function abrirModalLicenca(id, nome, plano, expiraIso) {
+        document.getElementById('licencaEmpresaId').value = id;
+        document.getElementById('modalLicencaNome').textContent = nome;
+        document.getElementById('licencaPlano').value = plano || 'trial';
+        document.getElementById('licencaExpira').value = expiraIso
+            ? expiraIso.substring(0, 10) : '';
+        document.getElementById('modalLicenca').classList.add('open');
+    }
+
+    async function salvarLicenca() {
+        const id           = document.getElementById('licencaEmpresaId').value;
+        const plano        = document.getElementById('licencaPlano').value;
+        const licencaExpira = document.getElementById('licencaExpira').value || null;
+        setFeedback('Salvando licença...');
+        const data = await apiAdmin('PUT', `/empresas/${id}/licenca`, { plano, licencaExpira });
+        if (data.error) { setFeedback(data.error, true); return; }
+        fecharModal('modalLicenca');
+        setFeedback('Licença atualizada.');
+        await carregarEmpresas();
+    }
+
+    // ── Usuários ──────────────────────────────────────────────────────────────
+
+    async function carregarUsuarios() {
+        const empresaId = document.getElementById('filtroEmpresa').value;
+        const tbody = document.getElementById('tbodyUsuarios');
+        if (!empresaId) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;">Selecione uma empresa.</td></tr>';
+            return;
+        }
+        const data = await apiAdmin('GET', `/usuarios?empresaId=${empresaId}`);
+        if (data.error) { setFeedback(data.error, true); return; }
+
+        tbody.innerHTML = '';
+        const usuarios = data.usuarios || [];
+        if (!usuarios.length) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa;">Nenhum usuário encontrado.</td></tr>';
+            return;
+        }
+
+        const empresa = _empresasCache.find(e => e.id === empresaId);
+        usuarios.forEach(u => {
+            const perms = u.permissoes || {};
+            const modulosAtivos = MODULOS.filter(m => perms[m.key] !== false).map(m => m.label.split(' ')[1] || m.label);
+            const isSA = u.role === 'superadmin';
+            const isAdmin = u.role === 'admin';
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${u.email}</td>
+                <td>${isSA ? '<span style="color:#c87f00;font-weight:700;">⭐ Superadmin</span>' : isAdmin ? '🔑 Admin' : '👤 Usuário'}</td>
+                <td style="font-size:0.8em;color:#555;">${isSA || isAdmin ? 'Todos' : modulosAtivos.join(', ') || '—'}</td>
+                <td><span class="badge ${u.ativo ? 'badge-active' : 'badge-inactive'}">${u.ativo ? 'Ativo' : 'Inativo'}</span></td>
+                <td>
+                    <div class="btn-group">
+                        ${!isSA ? `
+                        <button class="btn btn-warning btn-sm"
+                            onclick="abrirModalPermissoes('${u.uid}','${u.email}',${JSON.stringify(perms).replace(/"/g,"'")})">
+                            <i class="fas fa-lock-open"></i>
+                        </button>
+                        <button class="btn btn-sm ${u.ativo ? 'btn-danger' : 'btn-success'}"
+                            onclick="toggleUsuario('${u.uid}',${!u.ativo})">
+                            ${u.ativo ? '<i class="fas fa-ban"></i>' : '<i class="fas fa-check"></i>'}
+                        </button>` : '<span style="color:#aaa;font-size:0.78em;">—</span>'}
+                    </div>
+                </td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function toggleUsuario(uid, ativo) {
+        setFeedback('Atualizando...');
+        const data = await apiAdmin('PATCH', `/usuarios/${uid}/ativo`, { ativo });
+        if (data.error) { setFeedback(data.error, true); return; }
+        setFeedback('');
+        await carregarUsuarios();
+    }
+
+    // ── Permissões ────────────────────────────────────────────────────────────
+
+    function buildPermsGrid(containerId, permsAtivas) {
+        const grid = document.getElementById(containerId);
+        grid.innerHTML = '';
+        MODULOS.forEach(m => {
+            const checked = permsAtivas[m.key] !== false;
+            grid.innerHTML += `
+                <div class="perm-item">
+                    <input type="checkbox" id="${containerId}_${m.key}" ${checked ? 'checked' : ''}>
+                    <label for="${containerId}_${m.key}">${m.label}</label>
+                </div>`;
+        });
+    }
+
+    function lerPermsGrid(containerId) {
+        const perms = {};
+        MODULOS.forEach(m => {
+            perms[m.key] = document.getElementById(`${containerId}_${m.key}`)?.checked !== false;
+        });
+        return perms;
+    }
+
+    function abrirModalPermissoes(uid, email, permsStr) {
+        document.getElementById('permsUid').value = uid;
+        document.getElementById('modalPermsEmail').textContent = email;
+        const perms = typeof permsStr === 'string' ? JSON.parse(permsStr.replace(/'/g, '"')) : permsStr;
+        buildPermsGrid('permsGrid', perms);
+        document.getElementById('modalPermissoes').classList.add('open');
+    }
+
+    async function salvarPermissoes() {
+        const uid       = document.getElementById('permsUid').value;
+        const permissoes = lerPermsGrid('permsGrid');
+        setFeedback('Salvando permissões...');
+        const data = await apiAdmin('PUT', `/usuarios/${uid}/permissoes`, { permissoes });
+        if (data.error) { setFeedback(data.error, true); return; }
+        fecharModal('modalPermissoes');
+        setFeedback('Permissões atualizadas. O usuário precisa fazer logout/login para aplicar.');
+        await carregarUsuarios();
+    }
+
+    // ── Criar Empresa ─────────────────────────────────────────────────────────
+
+    function abrirModalEmpresa() { document.getElementById('modalEmpresa').classList.add('open'); }
+
+    async function salvarEmpresa() {
+        const nome         = document.getElementById('nomeEmpresa').value.trim();
+        const plano        = document.getElementById('planoEmpresa').value;
+        const licencaExpira = document.getElementById('expiraEmpresa').value || null;
+        if (!nome) { alert('Informe o nome da empresa.'); return; }
+        setFeedback('Criando empresa...');
+        const data = await apiAdmin('POST', '/empresas', { nome, plano, licencaExpira });
+        if (data.error) { setFeedback(data.error, true); return; }
+        fecharModal('modalEmpresa');
+        document.getElementById('nomeEmpresa').value = '';
+        document.getElementById('expiraEmpresa').value = '';
+        setFeedback('Empresa criada.');
+        await carregarEmpresas();
+    }
+
+    // ── Criar Usuário ─────────────────────────────────────────────────────────
+
+    function abrirModalUsuario() { document.getElementById('modalUsuario').classList.add('open'); }
+
+    async function salvarUsuario() {
+        const email      = document.getElementById('novoEmail').value.trim();
+        const password   = document.getElementById('novaSenha').value;
+        const empresaId  = document.getElementById('novaEmpresaId').value;
+        const role       = document.getElementById('novoRole').value;
+        const permissoes = lerPermsGrid('permsNovoUsuario');
+        if (!email || !password || !empresaId) { alert('Preencha todos os campos obrigatórios.'); return; }
+        setFeedback('Criando usuário...');
+        const data = await apiAdmin('POST', '/usuarios', { email, password, empresaId, role, permissoes });
+        if (data.error) { setFeedback(data.error, true); return; }
+        fecharModal('modalUsuario');
+        document.getElementById('novoEmail').value = '';
+        document.getElementById('novaSenha').value = '';
+        setFeedback('Usuário criado.');
+        await carregarUsuarios();
+    }
+
+    // ── Migração ──────────────────────────────────────────────────────────────
+
+    async function executarMigracao() {
+        if (!confirm('Executar migração?\nOs dados originais serão preservados.')) return;
+        setFeedback('Migrando...');
+        const data = await apiAdmin('POST', '/migrar');
+        const logEl = document.getElementById('migrateLog');
+        if (data.error) { setFeedback(data.error, true); return; }
+        logEl.textContent = (data.log || []).join('\n');
+        logEl.style.display = 'block';
+        document.getElementById('migrateBox').style.borderColor = '#4CAF50';
+        setFeedback('Migração concluída.');
+    }
+
+    // ── Modais ────────────────────────────────────────────────────────────────
+
+    function fecharModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    document.querySelectorAll('.modal-backdrop').forEach(bd => {
+        bd.addEventListener('click', e => { if (e.target === bd) fecharModal(bd.id); });
+    });
+
+    // Oculta grid de perms quando role é admin
+    document.getElementById('novoRole').addEventListener('change', function() {
+        document.getElementById('permsNovoUsuario').style.opacity = this.value === 'admin' ? '0.3' : '1';
+    });
+</script>
+</body>
+</html>

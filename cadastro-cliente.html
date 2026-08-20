@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Cadastre-se</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root {
+            /* Paleta KOMBINEI padrão (fallback). O branding da empresa sobrescreve via JS. */
+            --primary: #1B4C65;
+            --secondary: #26617E;
+            --accent: #4A93B0;
+            --bg: #f4f7f6;
+            --txt: #2b2b2b;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--txt);
+            min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+        .conteudo { flex: 1; width: 100%; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+
+        /* Flyer do evento — split 30/70. Só ativa quando o evento tem imagem cadastrada (body.split). */
+        .flyer-side { display: none; }
+        body.split .flyer-side { display: block; }
+        body.split .flyer-side img { display: block; width: 100%; height: auto; max-height: 38vh; object-fit: cover; }
+        @media (min-width: 820px) {
+            body.split { flex-direction: row; align-items: stretch; }
+            body.split .flyer-side { flex: 0 0 30%; max-width: 30%; min-height: 100vh; min-height: 100dvh; }
+            body.split .flyer-side img { height: 100%; max-height: none; }
+        }
+        .topo { width: 100%; background: var(--primary); color: #fff; padding: 26px 18px;
+            padding-top: calc(26px + env(safe-area-inset-top)); text-align: center; }
+        .topo img { height: 64px; max-width: 220px; object-fit: contain; margin-bottom: 12px; }
+        .topo h1 { margin: 0; font-size: 1.25em; font-weight: 800; line-height: 1.25; }
+        .topo .sub { margin: 6px 0 0; opacity: .85; font-size: .9em; }
+
+        .wrap { width: 100%; max-width: 440px; padding: 20px 18px 40px; flex: 1; }
+        .card { background: #fff; border-radius: 14px; box-shadow: 0 4px 18px rgba(0,0,0,.08); padding: 22px; }
+        label { display: block; font-weight: 600; color: #444; margin: 14px 0 6px; font-size: .95em; }
+        label .req { color: #d33; }
+        input { width: 100%; padding: 14px; font-size: 1em; border: 1px solid #ddd; border-radius: 9px; min-height: 52px; }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(74,147,176,.15); }
+        .erro-campo { color: #d33; font-size: .82em; margin-top: 5px; min-height: 1em; display: none; }
+        .erro-campo.show { display: block; }
+        .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+        .btn { width: 100%; margin-top: 22px; padding: 16px; font-size: 1.08em; font-weight: 700; color: #fff;
+            background: var(--accent); border: none; border-radius: 10px; cursor: pointer; min-height: 56px; }
+        .btn:active { filter: brightness(.93); }
+        .btn:disabled { background: #9bb0b9; cursor: default; }
+        .btn-sec { background: var(--primary); }
+
+        .estado { display: none; }
+        .estado.active { display: block; }
+        .center { text-align: center; padding: 30px 10px; }
+        .center .ic { font-size: 3.4em; margin-bottom: 14px; }
+        .ic-ok { color: #28a745; }
+        .ic-err { color: #d33; }
+        .center h2 { margin: 0 0 8px; color: var(--primary); }
+        .center p { color: #666; margin: 0 0 18px; }
+        .msg-feedback { text-align: center; margin-top: 14px; font-weight: 600; min-height: 1.2em; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 1s linear infinite; margin: 30px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .rodape { text-align: center; font-size: .78em; color: #aaa; padding: 16px; }
+    </style>
+</head>
+<body>
+    <aside class="flyer-side" id="flyerSide"><img id="flyerImg" alt="Flyer do evento"></aside>
+    <div class="conteudo">
+    <div class="topo">
+        <img id="logo" src="kombinei-logo.svg" alt="Logo" onerror="this.style.display='none'">
+        <h1 id="tituloEvento">Cadastre-se</h1>
+        <p class="sub" id="subTopo">Preencha seus dados</p>
+    </div>
+
+    <div class="wrap">
+        <!-- Carregando -->
+        <div class="estado active" id="estLoading">
+            <div class="spinner"></div>
+            <p class="center" style="color:#888;">Carregando...</p>
+        </div>
+
+        <!-- Link inválido / erro -->
+        <div class="estado" id="estErro">
+            <div class="card center">
+                <div class="ic ic-err"><i class="fas fa-triangle-exclamation"></i></div>
+                <h2>Link indisponível</h2>
+                <p id="erroMsg">Este link de cadastro não é válido.</p>
+            </div>
+        </div>
+
+        <!-- Formulário -->
+        <div class="estado" id="estForm">
+            <div class="card">
+                <form id="form" onsubmit="return false;" autocomplete="on">
+                    <label for="nome">Nome <span class="req">*</span></label>
+                    <input type="text" id="nome" placeholder="Seu nome completo" maxlength="120" required>
+                    <div class="erro-campo" id="errNome">Informe seu nome.</div>
+
+                    <label for="telefone">Telefone / WhatsApp <span class="req">*</span></label>
+                    <input type="tel" id="telefone" placeholder="(00) 00000-0000" maxlength="15" inputmode="numeric" oninput="mascararTelefone(this)" required>
+                    <div class="erro-campo" id="errTel">Informe um telefone válido com DDD.</div>
+
+                    <label for="email">E-mail <small style="font-weight:normal;color:#999;">(opcional)</small></label>
+                    <input type="email" id="email" placeholder="voce@exemplo.com" maxlength="160">
+                    <div class="erro-campo" id="errEmail">E-mail inválido.</div>
+
+                    <!-- Honeypot anti-spam (não preencher) -->
+                    <div class="hp" aria-hidden="true">
+                        <label>Não preencha este campo</label>
+                        <input type="text" id="website" tabindex="-1" autocomplete="off">
+                    </div>
+
+                    <button type="submit" class="btn" id="btnEnviar" onclick="enviar()">Quero me cadastrar</button>
+                    <p class="msg-feedback" id="formMsg" style="color:#d33;"></p>
+                </form>
+            </div>
+        </div>
+
+        <!-- Sucesso -->
+        <div class="estado" id="estOk">
+            <div class="card center">
+                <div class="ic ic-ok"><i class="fas fa-circle-check"></i></div>
+                <h2>Obrigado!</h2>
+                <p id="okMsg">Seu cadastro foi realizado com sucesso.</p>
+                <button class="btn btn-sec" onclick="novoCadastro()">Novo cadastro</button>
+            </div>
+        </div>
+    </div>
+
+    <p class="rodape">Powered by KOMBINEI</p>
+    </div><!-- /conteudo -->
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const E  = (params.get('e') || '').trim();
+        const EV = (params.get('ev') || '').trim();
+        // Mesmo domínio (Hosting reescreve /api/** → Cloud Function). Caminho relativo evita CORS.
+        const API = '/api';
+
+        function mostrar(id) {
+            document.querySelectorAll('.estado').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+        function mostrarErro(msg) {
+            document.getElementById('erroMsg').textContent = msg || 'Este link de cadastro não é válido.';
+            mostrar('estErro');
+        }
+
+        // ── Máscara e validação de telefone BR ──
+        function mascararTelefone(input) {
+            const d = input.value.replace(/\D/g, '').slice(0, 11);
+            let v = '';
+            if (d.length > 7)      v = `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+            else if (d.length > 2) v = `(${d.slice(0,2)}) ${d.slice(2)}`;
+            else if (d.length > 0) v = `(${d}`;
+            input.value = v;
+        }
+        const soDigitos = s => (s || '').replace(/\D/g, '');
+        const emailValido = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+
+        // ── Branding ──
+        function aplicarBranding(b) {
+            const root = document.documentElement.style;
+            if (b) {
+                if (b.corPrimaria)   root.setProperty('--primary', b.corPrimaria);
+                if (b.corSecundaria) root.setProperty('--secondary', b.corSecundaria);
+                if (b.corDestaque)   root.setProperty('--accent', b.corDestaque);
+            }
+            const logo = document.getElementById('logo');
+            if (b && b.logoUrl) { logo.src = b.logoUrl; logo.style.display = ''; }
+            else { logo.src = 'kombinei-logo.svg'; }
+        }
+
+        // ── Flyer do evento (layout 30/70 quando há imagem) ──
+        function aplicarFlyer(url) {
+            if (!url) return;                 // sem imagem → mantém o layout padrão
+            const img = document.getElementById('flyerImg');
+            img.onerror = () => document.body.classList.remove('split');
+            img.src = url;
+            document.body.classList.add('split');
+        }
+
+        // ── Carregamento inicial ──
+        (async function init() {
+            if (!E || !EV) { mostrarErro('Link incompleto. Use o QR Code do estande.'); return; }
+            try {
+                const resp = await fetch(`${API}/landing-info?e=${encodeURIComponent(E)}&ev=${encodeURIComponent(EV)}`);
+                const json = await resp.json();
+                if (!resp.ok || !json.success) { mostrarErro(json.error || 'Evento não encontrado.'); return; }
+                const data = json.data;
+                aplicarBranding(data.branding);
+                aplicarFlyer(data.flyerUrl);
+                document.getElementById('tituloEvento').textContent = 'Cadastre-se — ' + (data.eventoNome || 'Evento');
+                document.title = 'Cadastre-se — ' + (data.eventoNome || 'Evento');
+                mostrar('estForm');
+                document.getElementById('nome').focus();
+            } catch (e) {
+                mostrarErro('Não foi possível carregar o evento. Verifique a conexão e tente de novo.');
+            }
+        })();
+
+        function limparErros() {
+            ['errNome','errTel','errEmail'].forEach(id => document.getElementById(id).classList.remove('show'));
+            document.getElementById('formMsg').textContent = '';
+        }
+
+        async function enviar() {
+            limparErros();
+            const nome = document.getElementById('nome').value.trim();
+            const telRaw = document.getElementById('telefone').value.trim();
+            const tel = soDigitos(telRaw);
+            const email = document.getElementById('email').value.trim();
+            const website = document.getElementById('website').value;   // honeypot
+
+            let ok = true;
+            if (!nome) { document.getElementById('errNome').classList.add('show'); ok = false; }
+            if (tel.length < 10 || tel.length > 11) { document.getElementById('errTel').classList.add('show'); ok = false; }
+            if (email && !emailValido(email)) { document.getElementById('errEmail').classList.add('show'); ok = false; }
+            if (!ok) return;
+
+            const btn = document.getElementById('btnEnviar');
+            btn.disabled = true; btn.textContent = 'Enviando...';
+            try {
+                const resp = await fetch(`${API}/cadastro-publico`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ e: E, ev: EV, nome, telefone: telRaw, email, website })
+                });
+                const json = await resp.json();
+                if (!resp.ok || !json.success) {
+                    document.getElementById('formMsg').textContent = json.error || 'Não foi possível enviar. Tente de novo.';
+                    return;
+                }
+                document.getElementById('okMsg').textContent = json.data && json.data.message ? json.data.message : 'Seu cadastro foi realizado com sucesso.';
+                mostrar('estOk');
+            } catch (e) {
+                document.getElementById('formMsg').textContent = 'Falha de conexão. Tente novamente.';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Quero me cadastrar';
+            }
+        }
+
+        function novoCadastro() {
+            document.getElementById('form').reset();
+            limparErros();
+            mostrar('estForm');
+            document.getElementById('nome').focus();
+        }
+    </script>
+</body>
+</html>

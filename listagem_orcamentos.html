@@ -8,6 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
     <style>
         /* CSS adaptado da listagem de clientes/produtos */
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
@@ -15,8 +16,9 @@
         h1 { color: #333; text-align: center; margin-bottom: 25px; }
         .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 15px; flex-wrap: wrap; }
         #searchBar { padding: 10px; border: 1px solid #ccc; border-radius: 5px; flex-grow: 1; min-width: 200px; }
-        .sort-buttons button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
-        .sort-buttons button:hover { background-color: #0056b3; }
+        /* Ordenar/filtrar = ação neutra (cinza) */
+        .sort-buttons button { background-color: #6c757d; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px; transition: background-color 0.3s; }
+        .sort-buttons button:hover { background-color: #5a6268; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         th { background-color: #f2f2f2; color: #333; }
@@ -24,8 +26,8 @@
         .edit-btn { background-color: #ffc107; color: #333; }
         .delete-btn { background-color: #dc3545; color: white; }
         #feedback { text-align: center; margin-top: 20px; color: #e66a2e; font-weight: bold; }
-        .home-btn { position: absolute; top: 20px; left: 20px; color: #007bff; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
-        .home-btn:hover { color: #0056b3; }
+        .home-btn { position: absolute; top: 20px; left: 20px; color: #4A93B0; font-size: 1.8em; text-decoration: none; transition: color 0.3s; }
+        .home-btn:hover { color: #3A7A96; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
@@ -51,6 +53,8 @@
                     <th>Orçamento</th>
                     <th>Cliente</th>
                     <th>Total</th>
+                    <th>Frete</th>
+                    <th>Prazo de Entrega</th>
                     <th>Data</th>
                     <th>Ações</th>
                 </tr>
@@ -86,20 +90,29 @@
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
 
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // Se estiver logado, inicia o carregamento sequencial dos dados
-                carregarClientes()
-                    .then(carregarOrcamentos)
-                    .catch(error => {
-                        document.getElementById('feedback').textContent = "Erro fatal ao carregar dados. Verifique o console.";
-                        console.error("Erro no carregamento inicial:", error);
-                    });
-            }
-        });
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            iniciar();
+        })();
+
+        function mostrarEstado(html) {
+            const tbody = document.getElementById('orcamentosTable').querySelector('tbody');
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:36px;color:#888;">${html}</td></tr>`;
+        }
+
+        window.iniciar = function () {
+            document.getElementById('feedback').textContent = "";
+            mostrarEstado('<i class="fas fa-spinner fa-spin"></i> Carregando orçamentos...');
+            clientesMap = {};
+            carregarClientes()
+                .then(carregarOrcamentos)
+                .catch(error => {
+                    console.error("Erro no carregamento inicial:", error);
+                    mostrarEstado('<i class="fas fa-triangle-exclamation" style="color:#dc3545;"></i> Erro ao carregar os dados.<br><button onclick="iniciar()" style="margin-top:12px;background:#4A93B0;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;">Tentar novamente</button>');
+                });
+        };
     
         // --- 3. FUNÇÕES DE UTILIDADE ---
         function formatarMoeda(valor) {
@@ -113,24 +126,26 @@
     
         // --- 4. CARREGAMENTO DE DADOS (SEQUENCIAL) ---
     
+        // Clientes vêm de /pessoas (tipo cliente/ambos). Fallback p/ /clientes (dados antigos).
         function carregarClientes() {
-            document.getElementById('feedback').textContent = "Carregando clientes...";
-            return new Promise((resolve, reject) => {
-                database.ref("clientes").once('value')
-                    .then((snapshot) => {
-                        snapshot.forEach((childSnapshot) => {
-                            const data = childSnapshot.val();
-                            clientesMap[childSnapshot.key] = data.nome;
-                        });
-                        resolve();
-                    })
-                    .catch(reject);
+            return empresaRef("pessoas").once('value').then(snap => {
+                if (snap.exists()) {
+                    snap.forEach(c => {
+                        const d = c.val() || {};
+                        const ehCliente = (d.tipo === 'cliente' || d.tipo === 'ambos') || (d.tipos && d.tipos.cliente);
+                        if (ehCliente) clientesMap[c.key] = d.nome;
+                    });
+                    return;
+                }
+                return empresaRef("clientes").once('value').then(s2 => {
+                    s2.forEach(c => { clientesMap[c.key] = (c.val() || {}).nome; });
+                });
             });
         }
     
         function carregarOrcamentos() {
             document.getElementById('feedback').textContent = "Carregando orçamentos...";
-            database.ref(CAMINHO_RTDB).once('value', (snapshot) => {
+            empresaRef(CAMINHO_RTDB).once('value', (snapshot) => {
                 orcamentosData = [];
                 snapshot.forEach((childSnapshot) => {
                     const data = childSnapshot.val();
@@ -139,6 +154,8 @@
                         nomeOrcamento: data.nomeOrcamento,
                         clienteId: data.clienteId,
                         total: data.total,
+                        frete: data.frete || 0,
+                        prazoEntrega: data.prazoEntrega || null,
                         dataCriacao: data.dataCriacao
                     });
                 });
@@ -153,7 +170,7 @@
     
         window.deletarOrcamento = function(id) {
             if (confirm(`Tem certeza que deseja deletar o Orçamento # ${id}?`)) {
-                database.ref(CAMINHO_RTDB + '/' + id).remove()
+                empresaRef(CAMINHO_RTDB + '/' + id).remove()
                     .then(() => {
                         alert(`Orçamento # ${id} deletado com sucesso!`);
                         carregarOrcamentos();
@@ -194,18 +211,28 @@
             tbody.innerHTML = '';
     
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhum orçamento encontrado.</td></tr>';
+                const semBusca = !document.getElementById('searchBar').value;
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:36px;color:#888;">
+                    ${semBusca
+                        ? 'Nenhum orçamento ainda.<br><a href="cadastro_orcamentos.html" style="display:inline-block;margin-top:12px;background:#28a745;color:#fff;text-decoration:none;padding:8px 16px;border-radius:5px;">+ Criar primeiro orçamento</a>'
+                        : 'Nenhum orçamento encontrado para a busca.'}
+                </td></tr>`;
                 return;
             }
-    
+
             data.forEach(item => {
                 const nomeCliente = clientesMap[item.clienteId] || `ID ${item.clienteId} (Não Encontrado)`;
-                
+
                 const row = tbody.insertRow();
                 row.insertCell().textContent = item.id;
                 row.insertCell().textContent = item.nomeOrcamento;
                 row.insertCell().textContent = nomeCliente;
                 row.insertCell().textContent = formatarMoeda(item.total);
+                row.insertCell().textContent = item.frete > 0 ? formatarMoeda(item.frete) : '—';
+                const prazoCell = row.insertCell();
+                prazoCell.textContent = item.prazoEntrega
+                    ? new Date(item.prazoEntrega + 'T00:00:00').toLocaleDateString('pt-BR')
+                    : '—';
                 row.insertCell().textContent = formatarData(item.dataCriacao);
                 
                 const actionsCell = row.insertCell();
@@ -220,8 +247,9 @@
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'delete-btn';
                 deleteBtn.textContent = 'Deletar';
-                deleteBtn.onclick = () => deletarOrcamento(item.id); 
+                deleteBtn.onclick = () => deletarOrcamento(item.id);
                 actionsCell.appendChild(deleteBtn);
+                ['ID', 'Orçamento', 'Cliente', 'Total', 'Frete', 'Prazo de Entrega', 'Data'].forEach((lab, i) => { if (row.cells[i]) row.cells[i].setAttribute('data-label', lab); });
             });
         }
     </script>

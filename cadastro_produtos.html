@@ -9,6 +9,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
     <script src="tags.js"></script>
+    <script src="cores.js"></script>
+    <script src="empresa.js"></script>
+    <script src="estoque.js"></script>
+    <script src="barcode.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="etiqueta.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         /* Estilos CSS (inalterados) */
@@ -46,7 +52,7 @@
 
         legend {
             font-weight: bold;
-            color: #007bff;
+            color: #4A93B0;
             padding: 0 10px;
         }
 
@@ -57,7 +63,7 @@
             color: #555;
         }
 
-        input[type="text"], input[type="number"] {
+        input[type="text"], input[type="number"], select#tipoFilamento, select#modoCusto {
             width: 100%;
             padding: 10px;
             margin-top: 5px;
@@ -65,6 +71,7 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             box-sizing: border-box;
+            background: #fff;
         }
 
         button {
@@ -97,11 +104,16 @@
         .resultados p {
             margin: 8px 0;
             font-size: 1.1em;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
         }
 
         .resultados span {
             font-weight: bold;
-            float: right;
+            text-align: right;
+            white-space: nowrap;
         }
 
         .total-custo {
@@ -122,7 +134,7 @@
             text-align: center;
             margin-top: 15px;
             font-weight: bold;
-            color: #007bff;
+            color: #4A93B0;
         }
         input[type="file"] {
             width: 100%;
@@ -189,6 +201,19 @@
             opacity: 0.6;
         }
         .tag-x:hover { opacity: 1; }
+        /* Chip de "ver mais / ver menos" quando há muitas tags */
+        .tag-toggle {
+            cursor: pointer;
+            background: #eef1f5;
+            color: #555;
+            border: 1px solid #d0d5dd;
+            user-select: none;
+        }
+        html[data-theme="dark"] .tag-toggle {
+            background: #33384a !important;
+            color: #cfd8dc !important;
+            border-color: #4a5060 !important;
+        }
         .tag-sugestoes {
             position: absolute;
             top: 100%;
@@ -233,20 +258,128 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            color: #007bff;
+            color: #4A93B0;
             font-size: 1.8em;
             text-decoration: none;
             transition: color 0.3s;
         }
-        .home-btn:hover { color: #0056b3; }
+        .home-btn:hover { color: #3A7A96; }
+
+        /* ── Receita (insumos / subprodutos) ── */
+        .receita-linha { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+        .receita-linha select { flex:2; min-width:150px; margin:0; padding:9px; border:1px solid #ddd; border-radius:4px; box-sizing:border-box; background:#fff; }
+        .receita-linha .qtd { flex:0 0 80px; width:80px; margin:0 !important; padding:9px; }
+        .receita-linha .linha-sub { flex:0 0 90px; text-align:right; font-weight:700; color:#28a745; font-size:0.9em; }
+        .btn-add-linha { width:auto; background:#4A93B0; color:#fff; padding:8px 14px; font-size:0.9em; border:none; border-radius:5px; cursor:pointer; margin-top:4px; }
+        .btn-add-linha:hover { background:#3A7A96; }
+        .btn-remove-linha { width:auto !important; background:#dc3545; color:#fff; border:none; border-radius:4px; padding:7px 11px; cursor:pointer; font-size:0.9em; flex:0 0 auto; }
+        .btn-remove-linha:hover { background:#c82333; }
+        .receita-vazio { color:#999; font-size:0.85em; margin:4px 0; }
+        /* ── Área de estoque (produção) ── */
+        #estoqueFieldset legend { cursor:pointer; user-select:none; }
+        .prev-linha { display:flex; justify-content:space-between; gap:10px; font-size:0.85em; padding:3px 0; border-bottom:1px dashed #eee; }
+        .prev-linha.falta { color:#dc3545; }
+        .prev-linha .pl-disp { color:#6a7c93; white-space:nowrap; }
+        html[data-theme="dark"] .prev-linha { border-color:#3a3a4a; }
+        html[data-theme="dark"] .prev-linha .pl-disp { color:#9fb3c8; }
+        .venda-block { margin-top:15px; padding:14px; background:#f0f7fb; border:1px solid #d6e9f3; border-radius:6px; }
+        .venda-block p { margin:6px 0; font-size:1.05em; }
+        .venda-block input { width:100%; font-size:1.1em; font-weight:600; }
+        html[data-theme="dark"] .venda-block { background:#0d2137 !important; border-color:#1e4d7a !important; }
+        html[data-theme="dark"] .receita-linha select,
+        html[data-theme="dark"] .receita-linha .qtd { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+
+        /* ── Botão "Buscar Insumo" (substitui o dropdown) ── */
+        .btn-buscar-insumo { flex:2; min-width:150px; width:auto; background:#fff; color:#333; border:1px solid #ddd;
+            border-radius:4px; padding:9px; text-align:left; font-size:0.9em; margin:0; }
+        .btn-buscar-insumo:hover { background:#f0f7fb; border-color:#4A93B0; }
+        html[data-theme="dark"] .btn-buscar-insumo { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+
+        /* ── Modal de busca de insumo ── */
+        .modal-insumo-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none;
+            align-items:center; justify-content:center; z-index:600; padding:16px; }
+        .modal-insumo-backdrop.open { display:flex; }
+        .modal-insumo { background:#fff; border-radius:10px; width:100%; max-width:560px; max-height:85vh;
+            display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.25); overflow:hidden; }
+        .mi-head { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid #eee; }
+        .mi-head h3 { margin:0; font-size:1.05em; color:#333; }
+        .mi-close { width:auto; background:none; color:#888; font-size:1.4em; line-height:1; padding:0 6px; }
+        .mi-close:hover { background:none; color:#333; }
+        .mi-body { padding:14px 18px; overflow-y:auto; }
+        #buscaInsumoInput { width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; margin:0 0 12px; box-sizing:border-box; }
+        .mi-table { width:100%; border-collapse:collapse; }
+        .mi-table th, .mi-table td { border:1px solid #eee; padding:9px 10px; text-align:left; font-size:0.9em; }
+        .mi-table th { background:#f2f2f2; position:sticky; top:0; }
+        .mi-table td.custo { text-align:right; color:#28a745; font-weight:600; white-space:nowrap; }
+        .mi-row { cursor:pointer; }
+        .mi-row:hover { background:#e8f0fe; }
+        html[data-theme="dark"] .modal-insumo { background:#1f2230 !important; color:#e0e0e0; }
+        html[data-theme="dark"] .mi-head { border-color:#444 !important; }
+        html[data-theme="dark"] .mi-head h3 { color:#e0e0e0; }
+        html[data-theme="dark"] .mi-table th { background:#2a2a3e !important; }
+        html[data-theme="dark"] .mi-table th, html[data-theme="dark"] .mi-table td { border-color:#444 !important; }
+        html[data-theme="dark"] .mi-row:hover { background:#33384d !important; }
+        html[data-theme="dark"] #buscaInsumoInput { background:#2a2a3e !important; color:#e0e0e0 !important; border-color:#555 !important; }
+
+        /* ── Inputs numéricos sem setas (spinners) ── */
+        .no-spinner { -moz-appearance:textfield; appearance:textfield; }
+        .no-spinner::-webkit-outer-spin-button,
+        .no-spinner::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+
+        /* ── Modal de etiqueta ── */
+        .etiq-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:none; align-items:center; justify-content:center; z-index:650; padding:16px; }
+        .etiq-backdrop.open { display:flex; }
+        .etiq-modal { background:#fff; border-radius:10px; max-width:420px; width:100%; padding:22px; box-shadow:0 8px 30px rgba(0,0,0,0.25); text-align:center; }
+        .etiq-modal h3 { margin:0 0 14px; color:#333; font-size:1.1em; }
+        .etiq-preview { display:flex; justify-content:center; align-items:center; min-height:120px; background:#fff; border:1px solid #eee; border-radius:8px; padding:10px; overflow:auto; }
+        .etiq-preview canvas { max-width:100%; }
+        .etiq-foot { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
+        .etiq-btn { background:#4A93B0; color:#fff; border:none; border-radius:6px; padding:10px 14px; cursor:pointer; font-weight:600; width:auto; }
+        .etiq-btn:hover { filter:brightness(0.95); }
+        .etiq-btn-sec { background:#eee; color:#555; border:none; border-radius:6px; padding:10px 14px; cursor:pointer; width:auto; }
+        html[data-theme="dark"] .etiq-modal { background:#1f2230; }
+        html[data-theme="dark"] .etiq-modal h3 { color:#e0e0e0; }
+        /* Preview sempre em fundo branco para o código permanecer legível/escaneável */
+        html[data-theme="dark"] .etiq-preview { background:#fff; border-color:#444; }
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
 </head>
 <body>
+    <!-- Modal: Buscar Insumo -->
+    <div class="modal-insumo-backdrop" id="modalInsumo" onclick="fecharModalInsumo(event)">
+        <div class="modal-insumo" onclick="event.stopPropagation()">
+            <div class="mi-head">
+                <h3><i class="fas fa-search" style="color:#4A93B0;margin-right:8px;"></i>Buscar Insumo</h3>
+                <button type="button" class="mi-close" onclick="fecharModalInsumo()">&times;</button>
+            </div>
+            <div class="mi-body">
+                <input type="text" id="buscaInsumoInput" placeholder="Buscar por nome ou fornecedor..."
+                       autocomplete="off" oninput="renderTabelaInsumos(this.value)">
+                <table class="mi-table">
+                    <thead>
+                        <tr><th>Nome</th><th>Fornecedor</th><th>Unidade</th><th>Custo Unitário</th></tr>
+                    </thead>
+                    <tbody id="modalInsumoTbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h1>Cadastro de Produto 3D</h1>
         <form id="calculatorForm">
+            <fieldset id="modoCustoFieldset">
+                <legend>Como calcular o custo?</legend>
+                <label for="modoCusto" style="margin-top:0;">Modo de custo:</label>
+                <select id="modoCusto" onchange="onModoCustoChange()">
+                    <option value="receita">Receita completa (insumos)</option>
+                    <option value="simples" selected>Custo simplificado (R$/kg + peso)</option>
+                    <option value="sem">Sem custo</option>
+                </select>
+                <small style="color:#999;">Dá pra trocar de modo antes de salvar. "Sem custo" salva o produto sem nenhum valor de custo.</small>
+            </fieldset>
+
             <fieldset>
                 <legend>Material (Filamento)</legend>
                 <label for="nomePeca">Nome do Produto:</label>
@@ -260,50 +393,107 @@
                 </div>
                 <small style="color:#999;">Pressione Enter ou vírgula para adicionar. Clique em uma sugestão para reusar.</small>
 
+                <label>Cores (opcional):</label>
+                <div id="corSeletor"></div>
+
                 <label for="nomeResumido">Nome Resumido: <small style="color:#999;font-weight:normal;">(usado no gráfico, máx. 30 chars)</small></label>
                 <input type="text" id="nomeResumido" maxlength="30" placeholder="Ex: Chaveiro Dragão">
+
+                <label for="codigoBarras">Código de Barras:</label>
+                <div style="display:flex; gap:8px; align-items:stretch;">
+                    <input type="text" id="codigoBarras" inputmode="numeric" placeholder="Digite, leia ou gere" style="flex:1; margin-bottom:0;">
+                    <button type="button" onclick="lerCodigoBarras()" title="Ler com a câmera" style="width:auto; background:#4A93B0; padding:0 14px; white-space:nowrap; margin:0;"><i class="fas fa-camera"></i></button>
+                    <button type="button" onclick="gerarCodigoBarras()" title="Gerar código aleatório" style="width:auto; background:#6741D9; padding:0 14px; white-space:nowrap; margin:0;"><i class="fas fa-shuffle"></i></button>
+                </div>
+                <small style="color:#999;">Único por empresa. Para produtos artesanais, gere um código (<i class="fas fa-shuffle"></i>) e imprima a etiqueta.</small>
+                <button type="button" onclick="abrirEtiqueta()" style="width:auto; background:#4A93B0; padding:8px 14px; font-size:0.9em; margin-top:8px;"><i class="fas fa-tag"></i> Gerar etiqueta para impressão</button>
 
                 <label for="imagemProduto">Imagem do Produto:</label>
                 <img id="previewImagem" alt="Preview da imagem">
                 <input type="file" id="imagemProduto" accept="image/*" onchange="previewar(this)">
 
-                <label for="precoRolo">Preço Médio do Rolo (1kg) - R$:</label>
-                <input type="number" id="precoRolo" min="0" step="0.01" value="100.00" required>
+                <div id="materialCustoBox">
+                    <label for="tipoFilamento">Tipo de filamento:</label>
+                    <select id="tipoFilamento">
+                        <option value="">— selecione —</option>
+                    </select>
+                    <small style="display:block; color:#888; font-size:.82em; margin:-6px 0 8px;">O preço do rolo vem da média dos filamentos desse tipo cadastrados em Insumos.</small>
 
-                <label for="pesoPeca">Peso da Peça (gramas):</label>
-                <input type="number" id="pesoPeca" min="0" step="0.1" value="50" required>
+                    <label for="precoRolo">Valor do KG do Filamento - R$:</label>
+                    <input type="number" id="precoRolo" min="0" step="0.01" value="100.00">
+                    <small id="precoRoloHint" style="display:block; color:#888; font-size:.82em; margin:-6px 0 4px;"></small>
+
+                    <label for="pesoPeca">Peso da Peça (gramas):</label>
+                    <input type="number" id="pesoPeca" min="0" step="0.1" value="50">
+                </div>
             </fieldset>
 
-            <fieldset>
-                <legend>Energia Elétrica</legend>
+            <fieldset id="energiaFieldset">
+                <legend>Energia Elétrica <small style="font-weight:normal;color:#999;">opcional</small></legend>
                 <label for="taxaKWh">Valor do kWh na sua conta (R$):</label>
-                <input type="number" id="taxaKWh" min="0" step="0.0001" value="1" required>
+                <input type="number" id="taxaKWh" min="0" step="0.0001" value="1">
 
                 <label for="consumoImpressora">Consumo da Impressora (Watts):</label>
-                <input type="number" id="consumoImpressora" min="0" step="1" value="150" required>
+                <input type="number" id="consumoImpressora" min="0" step="1" value="320">
 
                 <label for="tempoImpressao">Tempo de Impressão (Horas):</label>
-                <input type="number" id="tempoImpressao" min="0" step="0.01" value="3.5" required>
+                <input type="number" id="tempoImpressao" min="0" step="0.01" value="3.5">
             </fieldset>
 
-            <fieldset>
+            <fieldset id="margemFieldset">
                 <legend>Margem e Venda</legend>
                 <label for="margemLucro">Margem de Lucro (%):</label>
-                <input type="number" id="margemLucro" min="0" step="1" value="100" required>
+                <input type="number" id="margemLucro" class="no-spinner" min="0" step="any" value="100">
             </fieldset>
 
-            <button type="button" onclick="iniciarCalculoESalvamento()">Calcular e Salvar</button>
+            <fieldset id="receitaFieldset">
+                <legend>Receita (opcional)</legend>
+                <label style="margin-top:0;">Insumos:</label>
+                <div id="receitaInsumos"></div>
+                <button type="button" class="btn-add-linha" onclick="adicionarLinhaInsumo()"><i class="fas fa-plus"></i> Adicionar insumo</button>
+
+                <label>Subprodutos:</label>
+                <div id="receitaSubprodutos"></div>
+                <button type="button" class="btn-add-linha" onclick="adicionarLinhaSubproduto()"><i class="fas fa-plus"></i> Adicionar subproduto</button>
+            </fieldset>
+
+            <fieldset id="estoqueFieldset">
+                <legend onclick="toggleEstoqueArea()"><i class="fas fa-chevron-right" id="estoqueChevron"></i> Adicionar estoque (produção) <small style="font-weight:normal;color:#999;">opcional</small></legend>
+                <div id="estoqueAreaBody" style="display:none;">
+                    <p style="color:#6a7c93;font-size:.9em;margin:0 0 10px;">Ao salvar, soma a quantidade ao estoque deste produto e baixa os insumos/filamento da receita (igual ao botão "Estoque" da listagem).</p>
+                    <label for="estoqueQtd">Quantidade a produzir:</label>
+                    <input type="number" id="estoqueQtd" min="0" step="1" value="0" oninput="renderGradeEstoque()">
+                    <div id="estoqueFilBox" style="display:none;">
+                        <label for="estoqueFilamento">Filamento / cor:</label>
+                        <select id="estoqueFilamento" onchange="renderGradeEstoque()"></select>
+                    </div>
+                    <div id="estoquePreview" style="margin-top:10px;"></div>
+                    <div id="estoqueAviso" style="display:none;background:#fff3cd;border:1px solid #ffe69c;border-radius:6px;padding:8px 10px;font-size:.86em;color:#856404;margin-top:8px;"></div>
+                    <p id="estoqueCusto" style="margin:8px 0 0;font-weight:600;color:#e66a2e;"></p>
+                </div>
+            </fieldset>
         </form>
 
         <div id="resultados" class="resultados">
             <h2>Resultados:</h2>
-            <p>Custo por Grama: <span id="custoGrama">R$ 0.00</span></p>
-            <p>Custo do Material: <span id="custoMaterial">R$ 0.00</span></p>
-            <p>Custo da Energia: <span id="custoEnergia">R$ 0.00</span></p>
-            <p class="total-custo">Custo Total de Produção: <span id="custoTotal">R$ 0.00</span></p>
-            <p class="total-venda">Preço de Venda Sugerido: <span id="precoVenda">R$ 0.00</span></p>
+            <p>Custo por Grama: <span id="custoGrama">R$ 0,00</span></p>
+            <p>Custo do Material (filamento): <span id="custoMaterialView">R$ 0,00</span></p>
+            <p>Custo da Receita (insumos/subprodutos): <span id="custoReceitaView">R$ 0,00</span></p>
+            <p>Custo da Energia: <span id="custoEnergia">R$ 0,00</span></p>
+            <p class="total-custo">Custo Total de Produção: <span id="custoTotal">R$ 0,00</span></p>
+
+            <div class="venda-block">
+                <p>Margem de Lucro: <span id="margemView" style="float:right;font-weight:bold;">0%</span></p>
+                <p>Preço Sugerido: <span id="precoSugerido" style="float:right;font-weight:bold;color:#28a745;">R$ 0,00</span></p>
+                <label for="precoVendaFinal" style="margin-top:8px;">Preço de Venda Final (R$): <small style="color:#999;font-weight:normal;">editável — sobrescreve o sugerido</small></label>
+                <input type="number" id="precoVendaFinal" class="no-spinner" min="0" step="any" oninput="onPrecoVendaInput()">
+                <small><a href="#" id="linkSugerido" onclick="usarSugerido(); return false;">↺ usar preço sugerido</a></small>
+            </div>
             <p id="feedback" class="feedback"></p>
         </div>
+
+        <!-- Botão de salvar no rodapé -->
+        <button type="button" id="btnSubmit" onclick="iniciarCalculoESalvamento()" style="margin-top:10px;">Salvar Cadastro</button>
     </div>
 
     <script>
@@ -327,34 +517,78 @@
         const CAMINHO_CONTADOR = "contador_produtos/proximoId"; 
     
         let idEmEdicao = null;
+        let coresSelecionadas = []; // [{corId,nome,hex}] do produto atual
+        let corSeletorHandle = null;
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
-        
-        auth.onAuthStateChanged(user => {
-            if (!user) {
-                // Redireciona se não estiver logado
-                window.location.href = 'login.html';
-            } else {
-                // Se estiver logado, inicializa a página
-                verificarModoEdicao(); 
+
+        // Multi-tenant: aguarda auth + custom claims
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('produtos')) return;
+            popularTipoFilamento();
+            montarSeletorCores();
+            await carregarReceitaRefs();
+            // Recálculo ao vivo nas entradas de custo
+            ['precoRolo','pesoPeca','taxaKWh','consumoImpressora','tempoImpressao'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', recalcularCustos);
+            });
+            // Trocar o tipo de filamento recalcula o preço do rolo (média do tipo) e a grade de estoque
+            document.getElementById('tipoFilamento').addEventListener('change', () => { recalcularCustos(); renderGradeEstoque(); });
+            // Margem segue o fluxo direto (recalcula e atualiza o preço sugerido)
+            document.getElementById('margemLucro').addEventListener('input', onMargemInput);
+            aplicarVisibilidadeModoCusto();
+            recalcularCustos();   // aplica o precoRolo médio (filamentos) já no produto novo
+            verificarModoEdicao();
+        })();
+
+        // ── Modo de custo: receita completa | simplificado (R$/kg + peso) | sem custo ──
+        function aplicarVisibilidadeModoCusto() {
+            const modo = document.getElementById('modoCusto').value;
+            document.getElementById('materialCustoBox').style.display = (modo === 'sem') ? 'none' : '';
+            document.getElementById('energiaFieldset').style.display  = (modo === 'sem') ? 'none' : '';
+            document.getElementById('margemFieldset').style.display   = (modo === 'sem') ? 'none' : '';
+            document.getElementById('receitaFieldset').style.display  = (modo === 'receita') ? '' : 'none';
+        }
+        function onModoCustoChange() {
+            const modo = document.getElementById('modoCusto').value;
+            if (modo !== 'receita') {
+                // Sai do modo "receita completa": limpa insumos/subprodutos p/ não sobrar custo escondido
+                document.getElementById('receitaInsumos').innerHTML = '';
+                document.getElementById('receitaSubprodutos').innerHTML = '';
             }
-        });
-    
+            aplicarVisibilidadeModoCusto();
+            recalcularCustos();
+            renderGradeEstoque();
+        }
+
+        // Seletor de cor do produto — mesmo componente (cores.js) usado no PDV
+        function montarSeletorCores() {
+            corSeletorHandle = Cores.montarSeletor({
+                container: document.getElementById('corSeletor'),
+                empresaRef: empresaRef,
+                selecionadas: coresSelecionadas,
+                onChange: (lista) => { coresSelecionadas = lista; }
+            });
+        }
+
+        // Popula o dropdown de tipo de filamento a partir da fonte única (estoque.js)
+        function popularTipoFilamento() {
+            const sel = document.getElementById('tipoFilamento');
+            const tipos = (window.Estoque && Estoque.TIPOS_FILAMENTO) || ['PLA', 'PLA Silk', 'PETG', 'ABS', 'ASA'];
+            sel.innerHTML = '<option value="">— selecione —</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+        }
+
         // --- 3. FUNÇÕES DE UTILIDADE ---
     
         function formatarMoeda(valor) {
             return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
         }
     
+        // Custo é sempre opcional (qualquer modo) — só o nome do produto é obrigatório.
         function validarCampos() {
-            const nomePeca = document.getElementById('nomePeca').value;
-            const campos = ['precoRolo', 'pesoPeca', 'taxaKWh', 'consumoImpressora', 'tempoImpressao', 'margemLucro'];
-    
-            if (!nomePeca) return false;
-            for (const id of campos) {
-                if (isNaN(parseFloat(document.getElementById(id).value))) return false;
-            }
-            return true;
+            return !!document.getElementById('nomePeca').value.trim();
         }
     
         // Função que preenche o formulário com os dados carregados do Firebase
@@ -394,6 +628,8 @@
         function preencherFormulario(dados) {
             document.getElementById('nomePeca').value = dados.nomePeca || '';
             document.getElementById('nomeResumido').value = dados.nomeResumido || '';
+            document.getElementById('codigoBarras').value = dados.codigoBarras
+                || (Array.isArray(dados.codigosBarras) && dados.codigosBarras[0]) || '';
             tagsSelecionadas = Array.isArray(dados.tags) ? dados.tags : (dados.tags ? Object.values(dados.tags) : []);
             // Aguarda tagsGlobais carregar antes de renderizar
             const tentarRender = () => {
@@ -401,12 +637,15 @@
                 else setTimeout(tentarRender, 150);
             };
             tentarRender();
+            coresSelecionadas = Array.isArray(dados.cores) ? dados.cores : (dados.cores ? Object.values(dados.cores) : []);
+            montarSeletorCores(); // remonta o seletor já com as cores do produto
             document.getElementById('precoRolo').value = dados.precoRolo || 0;
             document.getElementById('pesoPeca').value = dados.pesoPeca || 0;
             document.getElementById('taxaKWh').value = dados.taxaKWh || 0;
             document.getElementById('consumoImpressora').value = dados.consumoImpressora || 0;
             document.getElementById('tempoImpressao').value = dados.tempoImpressao || 0;
             document.getElementById('margemLucro').value = dados.margemLucro || 0;
+            document.getElementById('tipoFilamento').value = dados.tipoFilamento || '';
 
             if (dados.imagemUrl) {
                 const preview = document.getElementById('previewImagem');
@@ -415,9 +654,28 @@
             }
     
             document.querySelector('h1').textContent = `Editar Produto #${idEmEdicao}`;
-            document.querySelector('button').textContent = "Atualizar Produto";
-    
-            processarCalculo(null);
+            document.getElementById('btnSubmit').textContent = "Atualizar Cadastro";
+
+            // Carrega linhas da receita (retrocompatível: pode não existir)
+            const receita = Array.isArray(dados.receita) ? dados.receita : (dados.receita ? Object.values(dados.receita) : []);
+            receita.forEach(r => { if (r && r.insumoId) adicionarLinhaInsumo(r.insumoId, r.quantidade != null ? r.quantidade : 1); });
+            const subprodutos = Array.isArray(dados.subprodutos) ? dados.subprodutos : (dados.subprodutos ? Object.values(dados.subprodutos) : []);
+            subprodutos.forEach(s => { if (s && s.produtoId) adicionarLinhaSubproduto(s.produtoId, s.quantidade != null ? s.quantidade : 1); });
+
+            // Modo de custo: usa o salvo; produtos antigos (sem o campo) inferem pela receita/custo.
+            const modoInferido = dados.modoCusto || (
+                (receita.length || subprodutos.length) ? 'receita'
+                    : ((dados.precoRolo || dados.pesoPeca) ? 'simples' : 'sem')
+            );
+            document.getElementById('modoCusto').value = modoInferido;
+            aplicarVisibilidadeModoCusto();
+
+            const r = recalcularCustos();
+            // Preço de venda: detecta se foi sobrescrito manualmente (difere do sugerido)
+            if (dados.precoVenda != null) {
+                document.getElementById('precoVendaFinal').value = Number(dados.precoVenda).toFixed(2);
+                precoVendaManual = Math.abs(Number(dados.precoVenda) - r.sugerido) > 0.005;
+            }
             document.getElementById('feedback').textContent = `Dados do Produto #${idEmEdicao} carregados.`;
         }
     
@@ -432,7 +690,7 @@
                 idEmEdicao = id;
                 document.getElementById('feedback').textContent = `Carregando Produto #${id}...`;
     
-                database.ref(CAMINHO_RTDB + '/' + id).once('value')
+                empresaRef(CAMINHO_RTDB + '/' + id).once('value')
                     .then((snapshot) => {
                         if (snapshot.exists()) {
                             preencherFormulario(snapshot.val());
@@ -447,7 +705,7 @@
                 
             } else {
                 document.querySelector('h1').textContent = "Cadastro de Produto 3D";
-                document.querySelector('button').textContent = "Calcular e Salvar";
+                document.getElementById('btnSubmit').textContent = "Salvar Cadastro";
                 document.getElementById('feedback').textContent = "Modo: Novo Cadastro.";
                 iniciarCalculoESalvamento(false); 
             }
@@ -456,7 +714,7 @@
     
         // --- 5. CÁLCULO E SALVAMENTO/ATUALIZAÇÃO (Fluxo unificado) ---
     
-        function iniciarCalculoESalvamento(salvar = true) {
+        async function iniciarCalculoESalvamento(salvar = true) {
             if (!validarCampos()) {
                 if (salvar) alert("Por favor, preencha todos os campos com valores válidos.");
                 document.getElementById('feedback').textContent = salvar ? "Preencha todos os campos." : "";
@@ -467,7 +725,23 @@
                 alert("A imagem ainda está sendo processada ou é inválida. Escolha uma imagem de até 200x200px.");
                 return;
             }
-    
+
+            // Código de barras: único por empresa
+            if (salvar) {
+                const codigo = document.getElementById('codigoBarras').value.trim();
+                if (codigo) {
+                    document.getElementById('feedback').textContent = "Verificando código de barras...";
+                    try {
+                        const conflito = await verificarCodigoDuplicado(codigo, idEmEdicao);
+                        if (conflito) {
+                            document.getElementById('feedback').textContent = `Código de barras já usado no Produto #${conflito}.`;
+                            alert(`Esse código de barras já está cadastrado no Produto #${conflito}. Use outro código.`);
+                            return;
+                        }
+                    } catch (e) { /* falha na checagem (rede) não bloqueia o salvamento */ }
+                }
+            }
+
             if (idEmEdicao !== null) {
                 document.getElementById('feedback').textContent = "Atualizando produto...";
                 processarCalculo(idEmEdicao);
@@ -481,7 +755,7 @@
         function obterProximoId() {
             document.getElementById('feedback').textContent = "Calculando e buscando novo ID sequencial...";
             
-            database.ref(CAMINHO_CONTADOR).transaction((currentData) => {
+            empresaRef(CAMINHO_CONTADOR).transaction((currentData) => {
                 let proximoId = currentData === null ? 1 : currentData + 1;
                 return proximoId;
             })
@@ -500,50 +774,48 @@
         }
     
         function processarCalculo(idParaSalvar) {
-            // Obter Inputs
             const nomePeca = document.getElementById('nomePeca').value;
             const nomeResumido = document.getElementById('nomeResumido').value.trim();
-            const precoRolo = parseFloat(document.getElementById('precoRolo').value);
-            const pesoPeca = parseFloat(document.getElementById('pesoPeca').value);
-            const taxaKWh = parseFloat(document.getElementById('taxaKWh').value);
-            const consumoImpressora = parseFloat(document.getElementById('consumoImpressora').value);
-            const tempoImpressao = parseFloat(document.getElementById('tempoImpressao').value);
-            const margemLucro = parseFloat(document.getElementById('margemLucro').value);
-    
-            // CÁLCULOS
-            const custoPorGrama = precoRolo / 1000;
-            const custoMaterial = custoPorGrama * pesoPeca;
-            const energiaGastaKWh = (consumoImpressora / 1000) * tempoImpressao;
-            const custoEnergia = energiaGastaKWh * taxaKWh;
-            const custoTotal = custoMaterial + custoEnergia;
-            const precoVenda = custoTotal * (1 + (margemLucro / 100));
-    
-            // EXIBIR RESULTADOS
-            document.getElementById('custoGrama').textContent = formatarMoeda(custoPorGrama);
-            document.getElementById('custoMaterial').textContent = formatarMoeda(custoMaterial);
-            document.getElementById('custoEnergia').textContent = formatarMoeda(custoEnergia);
-            document.getElementById('custoTotal').textContent = formatarMoeda(custoTotal);
-            document.getElementById('precoVenda').textContent = formatarMoeda(precoVenda);
-    
-            // Se houver um ID, salva/atualiza
-            if (idParaSalvar !== null) {
+
+            // Recalcula e exibe todos os custos (filamento + receita + energia)
+            const r = recalcularCustos();
+
+            if (idParaSalvar === null) {
+                document.getElementById('feedback').textContent = idEmEdicao ? `Pronto para atualizar Produto #${idEmEdicao}.` : "Modo: Novo Cadastro.";
+                return;
+            }
+
+            // Preço final: valor digitado (manual) prevalece; senão usa o sugerido
+            const precoDigitado = parseFloat(document.getElementById('precoVendaFinal').value);
+            const precoVenda = isNaN(precoDigitado) ? r.sugerido : precoDigitado;
+
+            {
                 const dadosParaSalvar = {
                     idSequencial: idParaSalvar,
                     nomePeca: nomePeca,
                     nomeResumido: nomeResumido || nomePeca.split(' - ')[0].substring(0, 30),
+                    codigoBarras: document.getElementById('codigoBarras').value.trim(),
                     tags: tagsSelecionadas,
-                    custoMaterial: custoMaterial,
-                    custoEnergia: custoEnergia,
-                    custoTotal: custoTotal,
+                    cores: coresSelecionadas,
+                    tipoFilamento: document.getElementById('tipoFilamento').value,
+                    modoCusto: document.getElementById('modoCusto').value,
+                    // Receita
+                    receita: coletarReceita(),
+                    subprodutos: coletarSubprodutos(),
+                    // Custos recalculados
+                    custoMaterial: r.custoMaterial,
+                    custoEnergia: r.custoEnergia,
+                    custoTotal: r.custoTotal,
+                    precoVendaSugerido: r.sugerido,
                     precoVenda: precoVenda,
                     dataCriacao: new Date().toISOString(),
                     // Campos de entrada para rastreamento
-                    precoRolo: precoRolo,
-                    pesoPeca: pesoPeca,
-                    taxaKWh: taxaKWh,
-                    consumoImpressora: consumoImpressora,
-                    tempoImpressao: tempoImpressao,
-                    margemLucro: margemLucro,
+                    precoRolo: parseFloat(document.getElementById('precoRolo').value),
+                    pesoPeca: parseFloat(document.getElementById('pesoPeca').value),
+                    taxaKWh: parseFloat(document.getElementById('taxaKWh').value),
+                    consumoImpressora: parseFloat(document.getElementById('consumoImpressora').value),
+                    tempoImpressao: parseFloat(document.getElementById('tempoImpressao').value),
+                    margemLucro: parseFloat(document.getElementById('margemLucro').value),
                 };
                 const arquivoImagem = document.getElementById('imagemProduto').files[0];
                 if (arquivoImagem) {
@@ -563,18 +835,432 @@
                     if (previewSrc && previewSrc.startsWith('http')) dadosParaSalvar.imagemUrl = previewSrc;
                     salvarNoFirebase(idParaSalvar, dadosParaSalvar);
                 }
-            } else {
-                document.getElementById('feedback').textContent = idEmEdicao ? `Pronto para atualizar Produto #${idEmEdicao}.` : "Modo: Novo Cadastro.";
             }
         }
     
+        // ── RECEITA (insumos / subprodutos) ──
+        // var (não let) para ficarem acessíveis em window (usado pelos testes de readiness)
+        var insumosMap = {};       // { id: { nome, unidade, custoUnitario } }
+        var produtosMap = {};      // { id: { nome, custoTotal } }  (para subprodutos)
+        let precoVendaManual = false;
+
+        async function carregarReceitaRefs() {
+            const [insSnap, prodSnap, pesSnap] = await Promise.all([
+                empresaRef('insumos').once('value'),
+                empresaRef('produtos').once('value'),
+                empresaRef('pessoas').once('value')
+            ]);
+            // Mapa de fornecedores (Pessoas) para exibir o nome atual na tabela do modal
+            const pessoasMap = {};
+            if (pesSnap.exists()) pesSnap.forEach(p => { pessoasMap[p.key] = (p.val() || {}).nome || ('#' + p.key); });
+            insumosMap = {};
+            if (insSnap.exists()) insSnap.forEach(c => {
+                const d = c.val() || {};
+                const fornecedor = pessoasMap[d.fornecedorId] || d.fornecedorNome || '';
+                insumosMap[c.key] = {
+                    nome: d.nome || ('#' + c.key), unidade: d.unidade || 'un',
+                    custoUnitario: Number(d.custoUnitario) || 0,
+                    precoUnitario: (d.precoUnitario != null) ? Number(d.precoUnitario) : null,
+                    tipo: d.tipo || 'material', tipoFilamento: d.tipoFilamento || '',
+                    estoqueAtual: Number(d.estoqueAtual) || 0, cor: d.cor || null, fornecedor
+                };
+            });
+            produtosMap = {};
+            if (prodSnap.exists()) prodSnap.forEach(c => {
+                const d = c.val() || {};
+                produtosMap[c.key] = { nome: d.nomePeca || ('#' + c.key), custoTotal: Number(d.custoTotal) || 0, estoque: Number(d.estoque) || 0, estoquePorFilamento: d.estoquePorFilamento || {} };
+            });
+        }
+
+        function opcoesInsumo(selectedId) {
+            let html = '<option value="">— selecione o insumo —</option>';
+            Object.keys(insumosMap).forEach(id => {
+                const i = insumosMap[id];
+                const sel = (id === String(selectedId)) ? 'selected' : '';
+                html += `<option value="${id}" ${sel}>${i.nome} (${i.unidade}) — ${formatarMoeda(i.custoUnitario)}</option>`;
+            });
+            return html;
+        }
+
+        function opcoesSubproduto(selectedId) {
+            let html = '<option value="">— selecione o subproduto —</option>';
+            Object.keys(produtosMap).forEach(id => {
+                if (idEmEdicao && id === String(idEmEdicao)) return; // um produto não pode conter a si mesmo
+                const p = produtosMap[id];
+                const sel = (id === String(selectedId)) ? 'selected' : '';
+                html += `<option value="${id}" ${sel}>${p.nome} — ${formatarMoeda(p.custoTotal)}</option>`;
+            });
+            return html;
+        }
+
+        function adicionarLinhaInsumo(insumoId = '', quantidade = 1) {
+            const cont = document.getElementById('receitaInsumos');
+            const div = document.createElement('div');
+            div.className = 'receita-linha';
+            div.innerHTML = `
+                <button type="button" class="btn-buscar-insumo insumo-display" onclick="abrirModalInsumo(this)"><i class="fas fa-search"></i> Buscar Insumo</button>
+                <input type="hidden" class="insumo-select">
+                <input type="number" class="qtd insumo-qtd" min="0" step="0.01" value="${quantidade}" oninput="recalcularCustos()" title="Quantidade">
+                <span class="linha-sub">R$ 0,00</span>
+                <button type="button" class="btn-remove-linha" onclick="this.closest('.receita-linha').remove(); recalcularCustos();" title="Remover">×</button>`;
+            cont.appendChild(div);
+            // Pré-seleciona o insumo (modo edição)
+            if (insumoId && insumosMap[insumoId]) {
+                div.querySelector('.insumo-select').value = insumoId;
+                const btn = div.querySelector('.insumo-display');
+                btn.innerHTML = `<i class="fas fa-cube"></i> ${insumosMap[insumoId].nome}`;
+            }
+            recalcularCustos();
+        }
+
+        function adicionarLinhaSubproduto(produtoId = '', quantidade = 1) {
+            const cont = document.getElementById('receitaSubprodutos');
+            const div = document.createElement('div');
+            div.className = 'receita-linha';
+            div.innerHTML = `
+                <select class="subproduto-select" onchange="recalcularCustos()">${opcoesSubproduto(produtoId)}</select>
+                <input type="number" class="qtd subproduto-qtd" min="0" step="0.01" value="${quantidade}" oninput="recalcularCustos()" title="Quantidade">
+                <span class="linha-sub">R$ 0,00</span>
+                <button type="button" class="btn-remove-linha" onclick="this.closest('.receita-linha').remove(); recalcularCustos();" title="Remover">×</button>`;
+            cont.appendChild(div);
+            recalcularCustos();
+        }
+
+        function coletarReceita() {
+            const receita = [];
+            document.querySelectorAll('#receitaInsumos .receita-linha').forEach(l => {
+                const insumoId = l.querySelector('.insumo-select').value;
+                const quantidade = parseFloat(l.querySelector('.insumo-qtd').value) || 0;
+                if (insumoId && quantidade > 0) receita.push({ insumoId, quantidade });
+            });
+            return receita;
+        }
+
+        function coletarSubprodutos() {
+            const subs = [];
+            document.querySelectorAll('#receitaSubprodutos .receita-linha').forEach(l => {
+                const produtoId = l.querySelector('.subproduto-select').value;
+                const quantidade = parseFloat(l.querySelector('.subproduto-qtd').value) || 0;
+                if (produtoId && quantidade > 0) subs.push({ produtoId, quantidade });
+            });
+            return subs;
+        }
+
+        // Recalcula e exibe todos os custos ao vivo. Retorna os números calculados.
+        function recalcularCustos() {
+            // precoRolo derivado: média dos filamentos (R$/g × 1000). Sem filamento → campo manual (fallback).
+            const campoRolo = document.getElementById('precoRolo');
+            const hintRolo = document.getElementById('precoRoloHint');
+            const tipoFil = document.getElementById('tipoFilamento').value;
+            const mediaRolo = (typeof Estoque !== 'undefined') ? Estoque.precoRoloMedio(insumosMap, tipoFil) : null;
+            if (mediaRolo != null) {
+                const nFil = Estoque.filamentos(insumosMap)
+                    .filter(i => (!tipoFil || (i.tipoFilamento || '') === tipoFil) && Estoque.precoDoFilamento(i) > 0).length;
+                const txt = mediaRolo.toFixed(2);
+                if (campoRolo.value !== txt) campoRolo.value = txt;
+                campoRolo.readOnly = true; campoRolo.style.background = '#eef2f5';
+                if (hintRolo) hintRolo.innerHTML = `<i class="fas fa-bolt"></i> Automático: média de ${nFil} filamento(s) ${tipoFil ? tipoFil + ' ' : ''}cadastrado(s) em Insumos.`;
+            } else {
+                campoRolo.readOnly = false; campoRolo.style.background = '';
+                if (hintRolo) hintRolo.textContent = tipoFil
+                    ? `Sem filamento ${tipoFil} cadastrado — informe o preço manualmente ou cadastre em Insumos.`
+                    : 'Selecione o tipo de filamento (ou informe o preço manualmente).';
+            }
+            const precoRolo = parseFloat(campoRolo.value) || 0;
+            const pesoPeca  = parseFloat(document.getElementById('pesoPeca').value) || 0;
+            const taxaKWh   = parseFloat(document.getElementById('taxaKWh').value) || 0;
+            const consumo   = parseFloat(document.getElementById('consumoImpressora').value) || 0;
+            const tempo     = parseFloat(document.getElementById('tempoImpressao').value) || 0;
+            const margem    = parseFloat(document.getElementById('margemLucro').value) || 0;
+
+            const custoPorGrama  = precoRolo / 1000;
+            const custoFilamento = custoPorGrama * pesoPeca;
+
+            let custoInsumos = 0;
+            document.querySelectorAll('#receitaInsumos .receita-linha').forEach(l => {
+                const id = l.querySelector('.insumo-select').value;
+                const qtd = parseFloat(l.querySelector('.insumo-qtd').value) || 0;
+                const sub = (id && insumosMap[id]) ? insumosMap[id].custoUnitario * qtd : 0;
+                l.querySelector('.linha-sub').textContent = formatarMoeda(sub);
+                custoInsumos += sub;
+            });
+
+            let custoSubprodutos = 0;
+            document.querySelectorAll('#receitaSubprodutos .receita-linha').forEach(l => {
+                const id = l.querySelector('.subproduto-select').value;
+                const qtd = parseFloat(l.querySelector('.subproduto-qtd').value) || 0;
+                const sub = (id && produtosMap[id]) ? produtosMap[id].custoTotal * qtd : 0;
+                l.querySelector('.linha-sub').textContent = formatarMoeda(sub);
+                custoSubprodutos += sub;
+            });
+
+            const custoReceita = custoInsumos + custoSubprodutos;
+
+            // O total depende do modo escolhido: "sem" zera tudo; "simples" ignora a receita
+            // (insumos/subprodutos); "receita" soma filamento + receita, como já era antes.
+            const modo = document.getElementById('modoCusto').value;
+            let custoMaterial, custoEnergia, custoTotal;
+            if (modo === 'sem') {
+                custoMaterial = 0; custoEnergia = 0; custoTotal = 0;
+            } else if (modo === 'simples') {
+                custoMaterial = custoFilamento;
+                custoEnergia  = (consumo / 1000) * tempo * taxaKWh;
+                custoTotal    = custoMaterial + custoEnergia;
+            } else {
+                custoMaterial = custoFilamento + custoReceita;
+                custoEnergia  = (consumo / 1000) * tempo * taxaKWh;
+                custoTotal    = custoMaterial + custoEnergia;
+            }
+            const sugerido = custoTotal * (1 + (margem / 100));
+
+            document.getElementById('custoGrama').textContent        = formatarMoeda(custoPorGrama);
+            document.getElementById('custoMaterialView').textContent = formatarMoeda(custoFilamento);
+            document.getElementById('custoReceitaView').textContent  = formatarMoeda(custoReceita);
+            document.getElementById('custoEnergia').textContent      = formatarMoeda(custoEnergia);
+            document.getElementById('custoTotal').textContent        = formatarMoeda(custoTotal);
+            document.getElementById('margemView').textContent        = margem + '%';
+            document.getElementById('precoSugerido').textContent     = formatarMoeda(sugerido);
+            if (!precoVendaManual) {
+                document.getElementById('precoVendaFinal').value = sugerido.toFixed(2);
+            }
+
+            return { custoFilamento, custoReceita, custoMaterial, custoEnergia, custoTotal, sugerido, margem };
+        }
+
+        function usarSugerido() { precoVendaManual = false; recalcularCustos(); }
+
+        // ── ÁREA DE ESTOQUE (PRODUÇÃO) — mesma lógica do botão "Estoque" da listagem ──
+        // Filamentos disponíveis p/ produção (filtra pelo tipo do produto, se escolhido).
+        function filamentosEstoque() {
+            const tipoFil = document.getElementById('tipoFilamento').value;
+            return Object.keys(insumosMap)
+                .filter(id => insumosMap[id].tipo === 'filamento' && (!tipoFil || (insumosMap[id].tipoFilamento || '') === tipoFil))
+                .map(id => ({ id, ...insumosMap[id] }));
+        }
+        // Monta o "produto" para o planejador a partir do formulário atual (reflete edições ao vivo).
+        function produtoFormParaPlano() {
+            return {
+                pesoPeca: parseFloat(document.getElementById('pesoPeca').value) || 0,
+                receita: coletarReceita(),
+                subprodutos: coletarSubprodutos()
+            };
+        }
+
+        window.toggleEstoqueArea = function () {
+            const body = document.getElementById('estoqueAreaBody');
+            const chev = document.getElementById('estoqueChevron');
+            const abrir = body.style.display === 'none';
+            body.style.display = abrir ? 'block' : 'none';
+            chev.className = abrir ? 'fas fa-chevron-down' : 'fas fa-chevron-right';
+            if (abrir) renderGradeEstoque();
+        };
+
+        function renderGradeEstoque() {
+            const body = document.getElementById('estoqueAreaBody');
+            if (!body || body.style.display === 'none') return;   // só processa quando expandida
+            const qtd = parseInt(document.getElementById('estoqueQtd').value) || 0;
+            const usaFil = (parseFloat(document.getElementById('pesoPeca').value) || 0) > 0;
+            const filBox = document.getElementById('estoqueFilBox');
+            const selFil = document.getElementById('estoqueFilamento');
+            filBox.style.display = usaFil ? 'block' : 'none';
+            if (usaFil) {
+                const fils = filamentosEstoque();
+                const atual = selFil.value;
+                selFil.innerHTML = fils.length
+                    ? fils.map(f => `<option value="${f.id}">${f.nome}${f.cor && f.cor.nome ? ' · ' + f.cor.nome : ''} (estoque ${f.estoqueAtual}g)</option>`).join('')
+                    : '<option value="">— nenhum filamento — cadastre em Insumos —</option>';
+                if (atual && fils.some(f => f.id === atual)) selFil.value = atual;
+            }
+            const filamentoId = usaFil ? selFil.value : '';
+            const plano = Estoque.planejarProducao({ produto: produtoFormParaPlano(), qtd, filamentoId, produtosMap, insumosMap });
+            const prev = document.getElementById('estoquePreview');
+            prev.innerHTML = (qtd > 0 && plano.itens.length)
+                ? plano.itens.map(i => `<div class="prev-linha ${i.falta > 0 ? 'falta' : ''}"><span>${i.nome}</span><span class="pl-disp">${i.necessario}${i.unidade} • disp. ${i.disponivel}${i.unidade}${i.falta > 0 ? ' • falta ' + i.falta + i.unidade : ''}</span></div>`).join('')
+                : (qtd > 0 ? '<p style="color:#6a7c93;font-size:.9em;margin:0;">Sem receita — apenas soma ao estoque.</p>' : '');
+            document.getElementById('estoqueCusto').textContent = qtd > 0 ? 'Custo estimado: ' + formatarMoeda(plano.custoEstimado) : '';
+            const aviso = document.getElementById('estoqueAviso');
+            let bloqueio = '';
+            if (qtd > 0) {
+                if (usaFil && !filamentoId) bloqueio = 'Selecione o filamento/cor (cadastre um em Insumos se não houver).';
+                else if (!plano.ok) bloqueio = 'Estoque insuficiente: ' + plano.faltantes.map(f => `${f.nome} (falta ${f.falta}${f.unidade})`).join(', ') + '. O produto será salvo, mas a produção não será aplicada.';
+            }
+            if (bloqueio) { aviso.style.display = 'block'; aviso.textContent = bloqueio; } else { aviso.style.display = 'none'; }
+        }
+
+        // Aplica a produção (após o produto já ter id salvo). Silenciosa se a área estiver
+        // recolhida, qtd≤0, faltar filamento ou faltar estoque — nesses casos o produto fica salvo sem produção.
+        async function aplicarProducaoEstoque(prodId) {
+            const body = document.getElementById('estoqueAreaBody');
+            if (!body || body.style.display === 'none') return;
+            const X = parseInt(document.getElementById('estoqueQtd').value) || 0;
+            if (X <= 0) return;
+            const usaFil = (parseFloat(document.getElementById('pesoPeca').value) || 0) > 0;
+            const filamentoId = usaFil ? document.getElementById('estoqueFilamento').value : '';
+            if (usaFil && !filamentoId) return;
+            const plano = Estoque.planejarProducao({ produto: produtoFormParaPlano(), qtd: X, filamentoId, produtosMap, insumosMap });
+            if (!plano.ok) return;
+
+            const baseSnap = await empresaRef('produtos/' + prodId).once('value');
+            const base = baseSnap.val() || {};
+            const dataHora = new Date().toISOString();
+            const updates = {};
+            updates['produtos/' + prodId + '/estoque'] = (Number(base.estoque) || 0) + X;
+            if (usaFil && filamentoId) {
+                const epf = (base.estoquePorFilamento && Number(base.estoquePorFilamento[filamentoId])) || 0;
+                updates['produtos/' + prodId + '/estoquePorFilamento/' + filamentoId] = epf + X;
+            }
+            plano.itens.forEach(i => {
+                const novo = i.disponivel - i.necessario;
+                if (i.kind === 'subproduto') updates['produtos/' + i.id + '/estoque'] = novo;
+                else updates['insumos/' + i.id + '/estoqueAtual'] = novo;
+            });
+            const movKey = empresaRef('movimentacoes_estoque').push().key;
+            updates['movimentacoes_estoque/' + movKey] = {
+                tipo: 'producao', produtoId: String(prodId), filamentoId: filamentoId || null,
+                qtd: X, custoUnit: X ? plano.custoEstimado / X : 0, dataHora, ref: 'cadastro_produto'
+            };
+            await empresaRef('').update(updates);
+        }
+
+        // Cálculo reverso: digitar o Preço de Venda recalcula a Margem (%) ao vivo.
+        function onPrecoVendaInput() {
+            precoVendaManual = true;
+            const r = recalcularCustos();   // pega o custoTotal atual (não sobrescreve o preço pois é manual)
+            const preco = parseFloat(document.getElementById('precoVendaFinal').value);
+            if (!isNaN(preco) && r.custoTotal > 0) {
+                const novaMargem = (preco / r.custoTotal - 1) * 100;
+                document.getElementById('margemLucro').value = novaMargem.toFixed(2);
+                document.getElementById('margemView').textContent = novaMargem.toFixed(2) + '%';
+                document.getElementById('precoSugerido').textContent = formatarMoeda(preco);
+            }
+        }
+
+        // Editar a Margem volta ao fluxo direto: preço passa a seguir o sugerido.
+        function onMargemInput() {
+            precoVendaManual = false;
+            recalcularCustos();
+        }
+
+        // ── MODAL DE BUSCA DE INSUMO ──
+        let linhaInsumoAtiva = null;
+
+        function abrirModalInsumo(btn) {
+            linhaInsumoAtiva = btn.closest('.receita-linha');
+            document.getElementById('buscaInsumoInput').value = '';
+            renderTabelaInsumos('');
+            document.getElementById('modalInsumo').classList.add('open');
+            setTimeout(() => document.getElementById('buscaInsumoInput').focus(), 150);
+        }
+
+        function fecharModalInsumo(e) {
+            if (e && e.target !== document.getElementById('modalInsumo')) return;
+            document.getElementById('modalInsumo').classList.remove('open');
+        }
+
+        function renderTabelaInsumos(filtro) {
+            const tb = document.getElementById('modalInsumoTbody');
+            const f = (filtro || '').toLowerCase().trim();
+            const ids = Object.keys(insumosMap).filter(id => {
+                const i = insumosMap[id];
+                return !f || (i.nome || '').toLowerCase().includes(f) || (i.fornecedor || '').toLowerCase().includes(f);
+            });
+            if (!ids.length) {
+                tb.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;">' +
+                    (Object.keys(insumosMap).length ? 'Nenhum insumo encontrado.' : 'Nenhum insumo cadastrado.') + '</td></tr>';
+                return;
+            }
+            tb.innerHTML = '';
+            ids.forEach(id => {
+                const i = insumosMap[id];
+                const tr = document.createElement('tr');
+                tr.className = 'mi-row';
+                const tdNome = document.createElement('td'); tdNome.textContent = i.nome;
+                const tdForn = document.createElement('td'); tdForn.textContent = i.fornecedor || '—';
+                const tdUni  = document.createElement('td'); tdUni.textContent = i.unidade || '';
+                const tdCusto = document.createElement('td'); tdCusto.className = 'custo'; tdCusto.textContent = formatarMoeda(i.custoUnitario);
+                tr.appendChild(tdNome); tr.appendChild(tdForn); tr.appendChild(tdUni); tr.appendChild(tdCusto);
+                tr.onclick = () => selecionarInsumoModal(id);
+                tb.appendChild(tr);
+            });
+        }
+
+        function selecionarInsumoModal(id) {
+            if (linhaInsumoAtiva) {
+                linhaInsumoAtiva.querySelector('.insumo-select').value = id;
+                const btn = linhaInsumoAtiva.querySelector('.insumo-display');
+                const i = insumosMap[id];
+                btn.innerHTML = `<i class="fas fa-cube"></i> ${i ? i.nome : id}`;
+            }
+            fecharModalInsumo();
+            recalcularCustos();
+        }
+
+        // ── CÓDIGO DE BARRAS ──
+        // Retorna o id de outro produto da empresa com o mesmo código, ou null.
+        async function verificarCodigoDuplicado(codigo, idAtual) {
+            const snap = await empresaRef(CAMINHO_RTDB).orderByChild('codigoBarras').equalTo(codigo).once('value');
+            let conflito = null;
+            snap.forEach(c => { if (String(c.key) !== String(idAtual)) conflito = c.key; });
+            return conflito;
+        }
+
+        function lerCodigoBarras() {
+            if (!window.Barcode || !Barcode.isSupported()) {
+                alert('Câmera não disponível neste dispositivo/navegador. Digite o código manualmente.');
+                return;
+            }
+            Barcode.open({
+                title: 'Código do produto',
+                continuous: false,
+                onCode: (code) => {
+                    document.getElementById('codigoBarras').value = code;
+                    document.getElementById('feedback').textContent = 'Código lido: ' + code;
+                }
+            });
+        }
+
+        // ── Gerar código aleatório (EAN-13 de uso interno, prefixo "2") ──
+        function ean13CheckDigit(d12) {
+            let s = 0;
+            for (let i = 0; i < 12; i++) { const n = +d12[i]; s += (i % 2 === 0) ? n : n * 3; }
+            return String((10 - (s % 10)) % 10);
+        }
+        function ean13Valido(code) {
+            return /^\d{13}$/.test(code) && ean13CheckDigit(code.slice(0, 12)) === code[12];
+        }
+        function novoEAN13() {
+            let base = '2'; // faixa de uso interno (não conflita com EANs comerciais)
+            for (let i = 0; i < 11; i++) base += Math.floor(Math.random() * 10);
+            return base + ean13CheckDigit(base);
+        }
+        async function gerarCodigoBarras() {
+            let codigo, conflito, tentativas = 0;
+            document.getElementById('feedback').textContent = 'Gerando código...';
+            do {
+                codigo = novoEAN13(); tentativas++;
+                try { conflito = await verificarCodigoDuplicado(codigo, idEmEdicao); }
+                catch (e) { conflito = null; }   // sem rede para checar → usa assim mesmo
+            } while (conflito && tentativas < 6);
+            document.getElementById('codigoBarras').value = codigo;
+            document.getElementById('feedback').textContent = 'Código gerado: ' + codigo;
+        }
+
+        // ── Etiqueta para impressão (módulo compartilhado etiqueta.js) ──
+        function abrirEtiqueta() {
+            Etiqueta.abrir({
+                code: document.getElementById('codigoBarras').value.trim(),
+                nome: document.getElementById('nomeResumido').value.trim() || document.getElementById('nomePeca').value.trim(),
+                preco: document.getElementById('precoVendaFinal').value
+            });
+        }
+
         // ── SISTEMA DE TAGS ──
 
         let tagsSelecionadas = []; // slugs das tags do produto atual
         let tagsGlobais = {};      // { slug: { nome, slug } }
 
         function carregarTagsGlobais() {
-            database.ref('tags').once('value').then(snap => {
+            empresaRef('tags').once('value').then(snap => {
                 tagsGlobais = {};
                 snap.forEach(child => { tagsGlobais[child.key] = child.val(); });
             });
@@ -583,7 +1269,7 @@
         function salvarTagGlobal(slug, nome) {
             if (!tagsGlobais[slug]) {
                 tagsGlobais[slug] = { slug, nome };
-                database.ref('tags/' + slug).set({ slug, nome });
+                empresaRef('tags/' + slug).set({ slug, nome });
             }
         }
 
@@ -604,14 +1290,31 @@
             renderizarTagsSelecionadas();
         }
 
+        const TAGS_LIMITE = 6;   // acima disso, agrupa com "+N"
+        let tagsExpandido = false;
         function renderizarTagsSelecionadas() {
             const container = document.getElementById('tagsSelecionadas');
             container.innerHTML = '';
-            tagsSelecionadas.forEach(slug => {
+            const total = tagsSelecionadas.length;
+            const mostrarTodas = tagsExpandido || total <= TAGS_LIMITE;
+            const visiveis = mostrarTodas ? tagsSelecionadas : tagsSelecionadas.slice(0, TAGS_LIMITE);
+            visiveis.forEach(slug => {
                 const nome = tagsGlobais[slug]?.nome || slug;
                 const chip = renderChip(nome, slug, true, removerTag);
                 container.appendChild(chip);
             });
+            if (total > TAGS_LIMITE) {
+                const toggle = document.createElement('span');
+                toggle.className = 'tag-chip tag-toggle';
+                toggle.textContent = tagsExpandido ? '− ver menos' : `+${total - TAGS_LIMITE}`;
+                toggle.title = tagsExpandido ? 'Mostrar menos' : 'Mostrar todas as tags';
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();   // não focar o input ao alternar
+                    tagsExpandido = !tagsExpandido;
+                    renderizarTagsSelecionadas();
+                });
+                container.appendChild(toggle);
+            }
         }
 
         function mostrarSugestoes(texto) {
@@ -670,27 +1373,28 @@
         // Sobrescreve preencherFormulario para carregar tags ao editar
         const _preencherOriginal = preencherFormulario;
 
-        function salvarNoFirebase(id, dados) {
+        async function salvarNoFirebase(id, dados) {
             const acao = idEmEdicao !== null ? 'atualizado' : 'salvo';
+            try {
+                await empresaRef(CAMINHO_RTDB + '/' + id).set(dados);
+                // Aplica a produção da área de estoque (se preenchida). Não bloqueia o salvamento.
+                try { await aplicarProducaoEstoque(id); }
+                catch (e) { console.warn('Falha ao aplicar produção de estoque:', e.message); }
 
-            database.ref(CAMINHO_RTDB + '/' + id).set(dados)
-                .then(() => {
-                    document.getElementById('feedback').textContent = `Produto #${id} ${acao} com sucesso!`;
-                    console.log(`Documento ${acao} com ID sequencial: ${id}`);
-                    
-                    if (idEmEdicao === null) {
-                        document.getElementById('calculatorForm').reset();
-                    }
+                document.getElementById('feedback').textContent = `Produto #${id} ${acao} com sucesso!`;
+                console.log(`Documento ${acao} com ID sequencial: ${id}`);
 
-                    setTimeout(() => {
-                        window.location.href = 'listagem_produtos.html';
-                    }, 1500);
-                    
-                })
-                .catch((error) => {
-                    document.getElementById('feedback').textContent = `Erro ao ${acao}r: ` + error.message;
-                    console.error(`Erro ao ${acao}r documento: `, error);
-                });
+                if (idEmEdicao === null) {
+                    document.getElementById('calculatorForm').reset();
+                }
+
+                setTimeout(() => {
+                    window.location.href = 'listagem_produtos.html';
+                }, 1500);
+            } catch (error) {
+                document.getElementById('feedback').textContent = `Erro ao ${acao}r: ` + error.message;
+                console.error(`Erro ao ${acao}r documento: `, error);
+            }
         }
     </script>
 </body>
