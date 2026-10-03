@@ -1,6 +1,8 @@
 # KOMBINEI — Estado do Projeto
-> Última atualização: 2026-08-02 (catálogo de HueForges + correlação de cores)
+> Última atualização: 2026-10-03 (tela Início + Cálculo Rápido + ícones do menu + sync do deploy de 2026-08-29)
 > Usar este arquivo para iniciar nova sessão de desenvolvimento.
+> ⚠️ Sempre que este projeto for alterado (código, infra, deploy), atualizar este arquivo no mesmo
+> momento — ver nota no fim da seção 2 e da seção 9.
 
 ---
 
@@ -16,10 +18,12 @@ Sistema SaaS multi-tenant de gestão para empresas de impressão 3D. Funcionalid
 - Dashboard de análise
 - **Catálogo de HueForges** — correlação de cores: descobre quais artes (até 4 cores) são imprimíveis com a carga atual da impressora, sem trocar bobina
 - **Importação de vendas da Shopee** (planilha `.xlsx/.csv`)
+- **Tela Início** (`inicio.html`) — saudação "Bom dia/Boa tarde/Boa noite, <nome>" + atalhos rápidos; é a página padrão ao abrir o sistema
+- **Cálculo Rápido de impressão** (`calculo_rapido.html`, menu Ferramentas) — custo de uma peça a partir de tempo + peso (filamento, energia, bico, desgaste)
 - Branding por empresa (logo + cores)
 - Monitoramento de preços no Mercado Livre / frete Melhor Envio *(desligados por flag — ver §6)*
 
-**Stack:** Firebase Hosting + Realtime Database + Auth + **Storage** + Cloud Functions Gen2 (Node.js 20 / Express) + Firestore. Front-end em HTML/JS puro (Firebase Web SDK v8, scripts globais).
+**Stack:** Firebase Hosting + Realtime Database + Auth + **Storage** + Cloud Functions Gen2 (Node.js 22 / Express) + Firestore. Front-end em HTML/JS puro (Firebase Web SDK v8, scripts globais).
 
 ---
 
@@ -48,7 +52,11 @@ const firebaseConfig = {
 };
 ```
 
-**Caminho do projeto local:** `C:\Users\Leonardo\3DCalc\3Dcalc`
+**Caminhos do projeto local (2 computadores):**
+- Computador do Leonardo: `C:\Users\Leonardo\3DCalc\3Dcalc`
+- Segundo computador (2026-08-19): `C:\Kombinei` — clonado de `git@github.com:lidiapanis/3Dcalc.git`
+  (mesmo remoto), Firebase CLI logado como `leonardomonizbarros@gmail.com`, `functions/` com
+  `npm install` já feito.
 
 **Deploy:**
 ```powershell
@@ -56,7 +64,43 @@ firebase deploy --only hosting        # só front-end
 firebase deploy --only functions      # só functions
 firebase deploy --only hosting,functions,firestore:rules,database
 ```
-Logado como `leonardomonizbarros@gmail.com`. Último deploy (hosting + functions): 2026-08-02 —
+Logado como `leonardomonizbarros@gmail.com`.
+
+**2026-10-03 — Cálculo Rápido + sync do deploy de 2026-08-29:**
+- Descoberto que houve um deploy de hosting em **2026-08-29** que nunca foi commitado (de novo).
+  Trazia: `evento_estoque_csv.html` (novo — gera CSV do estoque de um evento), botão "Gerar CSV
+  p/ novo evento" em `listagem_eventos.html`, modal "Importar CSV (evento anterior)" em
+  `cadastro_eventos.html`, e tabela "Vendas por feira / evento" + dropdown com todos os eventos em
+  `dashboard.html`. Os 4 arquivos foram baixados do site ao vivo para o repositório.
+- Novo: `calculo_rapido.html` — custo de impressão (mesma fórmula do skill `custo-impressao-3d`:
+  filamento R$120/kg, energia R$1,10/kWh, A1 mini 0,080 kW / A1 0,095 kW, +20% para
+  PETG/ABS/ASA, bico R$1,00, desgaste R$3.600/5.000 h). Tempo por duração ou início–fim.
+  Parâmetros editáveis, salvos no `localStorage` do navegador. Item **Ferramentas → Cálculo
+  Rápido** no menu (`home.html`, `data-modulo="produtos"`). SW: cache `kombinei-app-v12`.
+- Novo: **tela Início** (`inicio.html`), agora a página padrão do `home.html` (item "Início" no
+  topo do menu). Saudação por horário (5–12h Bom dia, 12–18h Boa tarde, senão Boa noite) + nome.
+  O nome vem do `displayName` do **Firebase Auth** (não havia nome de usuário salvo em lugar
+  nenhum); se vazio, a tela oferece "Como você quer ser chamado?" e grava via
+  `user.updateProfile()`. O topo direito do `home.html` passou a mostrar o nome (ou o e-mail).
+  Atalhos: Cálculo Rápido, Novo Orçamento, Vender em Evento, Dashboard + Orçamentos, Eventos,
+  Histórico, Produtos, Novo Produto, Insumos, HueForges, Clientes, Configurações — cada um
+  escondido se o usuário não tiver o módulo (`temPermissao`). Os atalhos chamam
+  `parent.abrirPagina(pagina, titulo, menuPagina)` do `home.html`, que marca o item certo no menu.
+- **Ícones do menu revisados:** Início `fa-house`, Orçamentos `fa-file-invoice-dollar`, Importar
+  Shopee `fa-bag-shopping`, Histórico `fa-receipt`, Clientes `fa-user-group`, Produtos `fa-cube`,
+  Insumos `fa-boxes-stacked`, HueForges `fa-palette`, Monitoramento `fa-chart-line`,
+  Configurações `fa-gear`, Admin `fa-shield-halved`, Sair `fa-right-from-bracket`.
+- Cloud Functions já rodam em **nodejs22** (confirmado via `firebase functions:list`).
+
+**2026-08-19 (sync de repositório, sem novo deploy):**
+o site já estava rodando todas as features abaixo havia semanas (deploys feitos direto via
+`firebase deploy`, sem passar por commit), mas o Git nunca tinha sido atualizado. Setup de um
+segundo computador (`C:\Kombinei`) expôs isso: `.git` recuperado do GitHub, working tree
+comparado ao vivo com `calculo3d.web.app` (confirmado igual) e tudo consolidado no commit
+`9e8101e` ("sync: reconciliar repositório com o estado já publicado em produção"), enviado ao
+`origin/main`. **Regra daqui pra frente: atualizar este `.md` (e idealmente commitar) junto com
+qualquer alteração no sistema Kombinei — código, infra ou deploy — não deixar o Git ficar atrasado
+de novo.** Último deploy (hosting + functions) antes disso: 2026-08-02 —
 catálogo de HueForges (correlação de cores: quais artes são imprimíveis com a carga atual de 4
 cores), Cloud Function nova `/api/hueforge/scrape` (detecta cores a partir de um link colado).
 Deploy anterior, 2026-07-06: modo de custo no
@@ -121,7 +165,10 @@ Cores — registro por empresa + seletor reutilizável, produto.cores, PDV "Adic
 │
 │  # Eventos / Feiras
 ├── cadastro_eventos.html      # dados, estoque designado, flyer/imagem do evento
-├── listagem_eventos.html      # listagem + botão de QR/link da landing
+├── listagem_eventos.html      # listagem + botão de QR/link da landing + "Gerar CSV p/ novo evento"
+├── evento_estoque_csv.html    # gera CSV (produtoId;produtoNome;corId;corNome;quantidade;valor) do estoque de um evento
+├── inicio.html                # tela inicial (saudação + atalhos; respeita permissões; nome = displayName do Firebase Auth)
+├── calculo_rapido.html        # Cálculo Rápido de custo de impressão (sem banco; parâmetros em localStorage)
 ├── evento_venda.html          # PDV de balcão (web)
 ├── evento_relatorio.html      # relatório de vendas do evento
 ├── evento_transferir.html     # transferir produtos/estoque de um evento p/ outro (checklist)
@@ -367,7 +414,7 @@ Tudo isolado sob `/empresas/{id}/`:
 
 ### Baixa prioridade / Futuro
 6. Reativar integrações (ML/ME/Shopee) quando resolvidas — hoje desligadas via `config.js`.
-7. Node.js 20 → 22 nas Functions (deprecação Node 20 em 2026-10-30).
+7. ~~Node.js 20 → 22 nas Functions~~ — **feito** (functions em `nodejs22`, confirmado 2026-10-03).
 8. ML: sair de "inativo"/70% no portal. ME: resolver `invalid_client`. Shopee: API direta (Partner ID/Key/Shop ID).
 
 ---

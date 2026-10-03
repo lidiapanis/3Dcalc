@@ -24,6 +24,7 @@
         .btn-vender { background-color: #28a745; }
         .btn-rel    { background-color: #4A93B0; }
         .btn-transfer { background-color: #fd7e14; }
+        .btn-csv    { background-color: #2f9e44; }
         .btn-del    { background-color: #dc3545; margin-left: 10px; }
         .actions .btn-del { border-left: none; }
         .actions { white-space: nowrap; }
@@ -157,6 +158,7 @@
                 ac.appendChild(botao('btn-vender', '<i class="fas fa-cash-register"></i>', 'Vender', () => location.href = `evento_venda.html?id=${ev.id}`));
                 ac.appendChild(botao('btn-rel', '<i class="fas fa-chart-bar"></i>', 'Relatório', () => location.href = `evento_relatorio.html?id=${ev.id}`));
                 ac.appendChild(botao('btn-transfer', '<i class="fas fa-right-left"></i>', 'Transferir produtos', () => location.href = `evento_transferir.html?id=${ev.id}`));
+                ac.appendChild(botao('btn-csv', '<i class="fas fa-file-csv"></i>', 'Gerar CSV p/ novo evento', () => location.href = `evento_estoque_csv.html?id=${ev.id}`));
                 ac.appendChild(botao('btn-link', '<i class="fas fa-qrcode"></i>', 'Gerar link de cadastro', () => gerarLink(ev)));
                 ac.appendChild(botao('btn-edit', '<i class="fas fa-edit"></i>', 'Editar', () => location.href = `cadastro_eventos.html?id=${ev.id}`));
                 ac.appendChild(botao('btn-del', '<i class="fas fa-trash"></i>', 'Deletar', () => deletarEvento(ev.id)));

@@ -294,8 +294,13 @@
         </div>
 
         <nav class="sidebar-nav">
+            <button class="nav-item active"
+                    onclick="navegar('inicio.html', this, 'Início')">
+                <i class="fas fa-house"></i> Início
+            </button>
+
             <div class="nav-section-title" data-modulo="dashboard">Visão Geral</div>
-            <button class="nav-item active" data-modulo="dashboard"
+            <button class="nav-item" data-modulo="dashboard"
                     onclick="navegar('dashboard.html', this, 'Dashboard')">
                 <i class="fas fa-chart-pie"></i> Dashboard
             </button>
@@ -303,7 +308,7 @@
             <div class="nav-section-title" data-modulo="orcamentos">Orçamentos</div>
             <button class="nav-item" data-modulo="orcamentos"
                     onclick="navegar('listagem_orcamentos.html', this, 'Orçamentos')">
-                <i class="fas fa-file-invoice"></i> Orçamentos
+                <i class="fas fa-file-invoice-dollar"></i> Orçamentos
             </button>
 
             <div class="nav-section-title" data-modulo="orcamentos">Eventos</div>
@@ -313,17 +318,17 @@
             </button>
             <button class="nav-item" id="navImportarShopee" data-modulo="orcamentos"
                     onclick="navegar('importar_shopee.html', this, 'Importar Shopee')">
-                <i class="fas fa-file-import"></i> Importar Shopee
+                <i class="fas fa-bag-shopping"></i> Importar Shopee
             </button>
             <button class="nav-item" data-modulo="orcamentos"
                     onclick="navegar('historico_vendas.html', this, 'Histórico de Vendas')">
-                <i class="fas fa-clock-rotate-left"></i> Histórico de Vendas
+                <i class="fas fa-receipt"></i> Histórico de Vendas
             </button>
 
             <div class="nav-section-title">Cadastros</div>
             <button class="nav-item" data-modulo="clientes"
                     onclick="navegar('listagem_pessoas.html?tipo=cliente', this, 'Clientes')">
-                <i class="fas fa-users"></i> Clientes
+                <i class="fas fa-user-group"></i> Clientes
             </button>
             <button class="nav-item" data-modulo="clientes"
                     onclick="navegar('listagem_pessoas.html?tipo=fornecedor', this, 'Fornecedores')">
@@ -331,15 +336,21 @@
             </button>
             <button class="nav-item" data-modulo="produtos"
                     onclick="navegar('listagem_produtos.html', this, 'Produtos')">
-                <i class="fas fa-boxes"></i> Produtos
+                <i class="fas fa-cube"></i> Produtos
             </button>
             <button class="nav-item" data-modulo="produtos"
                     onclick="navegar('listagem_insumos.html', this, 'Insumos')">
-                <i class="fas fa-vials"></i> Insumos
+                <i class="fas fa-boxes-stacked"></i> Insumos
             </button>
             <button class="nav-item" data-modulo="produtos"
                     onclick="navegar('listagem_hueforges.html', this, 'HueForges')">
-                <i class="fas fa-layer-group"></i> HueForges
+                <i class="fas fa-palette"></i> HueForges
+            </button>
+
+            <div class="nav-section-title" data-modulo="produtos">Ferramentas</div>
+            <button class="nav-item" data-modulo="produtos"
+                    onclick="navegar('calculo_rapido.html', this, 'Cálculo Rápido')">
+                <i class="fas fa-calculator"></i> Cálculo Rápido
             </button>
 
             <div class="nav-section-title" data-modulo="ml">Mercado Livre</div>
@@ -349,17 +360,17 @@
             </button>
             <button class="nav-item" data-modulo="ml"
                     onclick="navegar('monitoramento.html', this, 'Monitoramento de Preços')">
-                <i class="fas fa-tags"></i> Monitoramento de Preços
+                <i class="fas fa-chart-line"></i> Monitoramento de Preços
             </button>
 
             <div class="nav-section-title">Sistema</div>
             <button class="nav-item" data-modulo="configuracoes"
                     onclick="navegar('configuracoes.html', this, 'Configurações')">
-                <i class="fas fa-cog"></i> Configurações
+                <i class="fas fa-gear"></i> Configurações
             </button>
             <button class="nav-item" id="adminMenuItem" style="display:none;"
                     onclick="navegar('admin.html', this, 'Painel Admin')">
-                <i class="fas fa-shield-alt"></i> Painel Admin
+                <i class="fas fa-shield-halved"></i> Painel Admin
             </button>
         </nav>
 
@@ -372,7 +383,7 @@
                 </label>
             </div>
             <button class="nav-item" onclick="handleLogout()" style="color:rgba(255,120,120,0.9);">
-                <i class="fas fa-sign-out-alt"></i> Sair do Sistema
+                <i class="fas fa-right-from-bracket"></i> Sair do Sistema
             </button>
         </div>
     </aside>
@@ -382,18 +393,18 @@
         <div class="topbar">
             <div style="display:flex; align-items:center; min-width:0;">
                 <button class="hamburger" id="hamburger" onclick="toggleDrawer()" aria-label="Abrir menu"><i class="fas fa-bars"></i></button>
-                <span class="topbar-title" id="topbarTitle">Dashboard</span>
+                <span class="topbar-title" id="topbarTitle">Início</span>
             </div>
             <div class="user-wrap">
                 <button class="topbar-user" id="topbarUser" onclick="toggleUserMenu(event)" aria-haspopup="true" aria-expanded="false"></button>
                 <div class="user-menu" id="userMenu">
-                    <button onclick="irConfiguracoes()"><i class="fas fa-cog"></i> Configurações</button>
-                    <button class="danger" onclick="handleLogout()"><i class="fas fa-sign-out-alt"></i> Sair do sistema</button>
+                    <button onclick="irConfiguracoes()"><i class="fas fa-gear"></i> Configurações</button>
+                    <button class="danger" onclick="handleLogout()"><i class="fas fa-right-from-bracket"></i> Sair do sistema</button>
                 </div>
             </div>
         </div>
         <div id="licenseBanner"></div>
-        <iframe class="content-frame" id="contentFrame" src="dashboard.html"></iframe>
+        <iframe class="content-frame" id="contentFrame" src="inicio.html"></iframe>
     </div>
 
     <script>
@@ -415,7 +426,7 @@
         auth.onAuthStateChanged(async user => {
             if (!user) { window.location.href = 'login.html'; return; }
 
-            document.getElementById('topbarUser').textContent = user.email;
+            atualizarUsuarioTopo();
 
             try {
                 const result = await user.getIdTokenResult(true);
@@ -498,6 +509,28 @@
             closeDrawer();   // fecha o menu no mobile após navegar
         }
 
+        // Usado pelos atalhos da tela inicial: abre `pagina` e marca no menu o item de `menuPagina`
+        window.abrirPagina = function (pagina, titulo, menuPagina) {
+            const alvo = "'" + (menuPagina || pagina) + "'";
+            const btn = Array.from(document.querySelectorAll('.sidebar-nav .nav-item'))
+                .find(b => (b.getAttribute('onclick') || '').includes(alvo));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            document.getElementById('contentFrame').src = urlComTema(pagina);
+            document.getElementById('topbarTitle').textContent = titulo;
+            closeDrawer();
+        };
+
+        // Topo direito: nome de exibição (perfil do Auth) ou e-mail
+        // (reload: o nome pode ter sido alterado pela tela inicial, que roda em outra instância do SDK)
+        window.atualizarUsuarioTopo = async function () {
+            const u = auth.currentUser;
+            if (!u) return;
+            document.getElementById('topbarUser').textContent = u.displayName || u.email;
+            try { await u.reload(); } catch (e) { return; }
+            document.getElementById('topbarUser').textContent = auth.currentUser.displayName || auth.currentUser.email;
+        };
+
         // ── Drawer (menu lateral no mobile) ──
         window.toggleDrawer = function () {
             document.getElementById('sidebar').classList.toggle('open');
@@ -518,11 +551,11 @@
             frame.contentWindow.postMessage({ type: 'SET_THEME', theme }, '*');
         }
 
-        // Carrega o dashboard inicial já com o tema correto
+        // Carrega a tela inicial já com o tema correto
         (function() {
             const frame = document.getElementById('contentFrame');
             const tema = localStorage.getItem('theme') || 'light';
-            frame.src = 'dashboard.html?theme=' + tema;
+            frame.src = 'inicio.html?theme=' + tema;
         })();
 
         // Restaurar tema salvo

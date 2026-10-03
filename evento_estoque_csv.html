@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerar CSV de estoque para novo evento</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 24px 12px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 820px; width: 100%; margin: 0 auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 6px; }
+        .sub { text-align: center; color: #666; margin: 0 0 20px; font-size: .92em; }
+
+        fieldset { border: 1px solid #ccc; border-radius: 5px; padding: 15px; margin-bottom: 18px; }
+        legend { font-weight: bold; color: #4A93B0; padding: 0 10px; }
+        label { display: block; margin-top: 10px; font-weight: 500; color: #555; }
+        select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; background: #fff; }
+
+        .checklist-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+        .checklist-head label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 600; color: #333; cursor: pointer; }
+        .checklist-head input[type=checkbox] { width: 17px; height: 17px; cursor: pointer; }
+        .contador { font-size: .85em; color: #666; font-weight: 600; }
+
+        .item-linha { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+        .item-linha.excluido { opacity: .55; }
+        .item-linha .item-check input { width: 18px; height: 18px; cursor: pointer; }
+        .item-linha .item-info { flex: 1; min-width: 160px; }
+        .item-linha .item-nome { font-weight: 600; color: #333; }
+        .item-linha .item-meta { font-size: 0.78em; color: #888; margin-top: 2px; }
+        .item-linha .tag-excluido { color: #dc3545; font-weight: 600; }
+        .item-linha .campo { flex: 0 0 auto; }
+        .item-linha .campo label { margin: 0 0 2px; font-size: .72em; color: #999; }
+        .item-linha .item-qtd { width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; }
+        .item-linha .item-valor { width: 110px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: right; }
+        .item-linha .item-qtd:disabled, .item-linha .item-valor:disabled { background: #f0f0f0; color: #aaa; }
+        .vazio { color: #999; font-size: 0.9em; text-align: center; padding: 16px 0; }
+
+        .regra { background:#f0f7fb; border:1px solid #d6e9f3; border-radius:6px; padding:10px 12px; margin:12px 0 4px; font-size:.82em; color:#33627a; }
+        html[data-theme="dark"] .regra { background:#1b2b33 !important; border-color:#2b4a58 !important; color:#a9d6e6 !important; }
+
+        button.gerar { background-color: #28a745; color: #fff; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; margin-top: 10px; }
+        button.gerar:hover:not(:disabled) { background-color: #218838; }
+        button.gerar:disabled { background: #aaa; cursor: not-allowed; }
+        .feedback { text-align: center; margin-top: 14px; font-weight: bold; color: #dc3545; min-height: 1.2em; }
+        .feedback.ok { color: #218838; }
+        .btn-voltar { display:inline-block; margin-top:14px; background:#4A93B0; color:#fff; text-decoration:none; padding:9px 16px; border-radius:5px; font-weight:600; }
+        .btn-voltar:hover { background:#3A7A96; }
+
+        html[data-theme="dark"] .item-linha { border-bottom-color: #333 !important; }
+        html[data-theme="dark"] .item-linha .item-nome { color: #e0e0e0 !important; }
+        html[data-theme="dark"] .checklist-head label { color: #e0e0e0 !important; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Estoque para o novo evento</h1>
+        <p class="sub">Pega os produtos do último evento e gera um <b>CSV</b> para importar no cadastro do novo evento.</p>
+
+        <fieldset>
+            <legend>Evento de origem</legend>
+            <label for="eventoSelect">De qual evento copiar os produtos?</label>
+            <select id="eventoSelect" onchange="onEventoChange()">
+                <option value="">Carregando eventos...</option>
+            </select>
+        </fieldset>
+
+        <fieldset id="listaFieldset" style="display:none;">
+            <legend>Produtos do evento</legend>
+            <div class="checklist-head">
+                <label><input type="checkbox" id="selAllChk" onchange="toggleSelAll(this.checked)"> Marcar todos</label>
+                <span class="contador" id="contador">0 marcados</span>
+            </div>
+            <div id="itensLista"></div>
+            <p class="vazio" id="itensVazio" style="display:none;">Este evento não tem estoque designado.</p>
+            <div class="regra">
+                <b>Marcação "ainda existe":</b> desmarque o que não vai levar de novo. Só as linhas marcadas entram no CSV.<br>
+                <b>Quantidade:</b> vem preenchida com o que foi levado da última vez — se você marcar a linha e deixar a quantidade em <b>0</b>, o CSV sai com <b>1</b>.<br>
+                <b>Valor:</b> vem com o preço praticado no evento anterior; ajuste só se precisar.
+            </div>
+        </fieldset>
+
+        <button type="button" class="gerar" id="btnGerar" onclick="gerarCsv()" disabled>
+            <i class="fas fa-file-csv"></i> Baixar CSV
+        </button>
+        <p id="feedback" class="feedback"></p>
+        <div style="text-align:center;">
+            <a href="listagem_eventos.html" class="btn-voltar">Voltar para Eventos</a>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+            authDomain: "calculo3d.firebaseapp.com",
+            databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+            projectId: "calculo3d",
+            storageBucket: "calculo3d.firebasestorage.app",
+            messagingSenderId: "372705279593",
+            appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+            measurementId: "G-V2QT1GVLS0"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+
+        const paramId = new URLSearchParams(window.location.search).get('id');
+        let produtosMap = {};      // { produtoId: { nome, precoVenda } }
+        let eventoSelecionado = null;   // { id, nome }
+        let linhas = [];           // agregado por produto+cor: [{ produtoId, corId, corNome, qtdLevada, vendido, preco, existe }]
+
+        function chaveEstoque(produtoId, corId) { return String(produtoId) + '|' + (corId || ''); }
+        function formatarMoeda(v) {
+            const n = parseFloat(v);
+            if (isNaN(n)) return 'R$ 0,00';
+            return `R$ ${n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
+        }
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        function slug(s) { return (s || 'evento').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'evento'; }
+        function nomeBase(produtoId) { return (produtosMap[produtoId] && produtosMap[produtoId].nome) || ('#' + produtoId); }
+
+        (async function () {
+            if (!(await initEmpresa())) return;
+            if (negarAcesso('orcamentos')) return;
+            await carregarEventos();
+        })();
+
+        async function carregarEventos() {
+            const [eventosSnap, prodSnap] = await Promise.all([
+                empresaRef('eventos').once('value'),
+                empresaRef('produtos').once('value')
+            ]);
+            produtosMap = {};
+            if (prodSnap.exists()) prodSnap.forEach(c => {
+                const d = c.val() || {};
+                produtosMap[c.key] = { nome: d.nomePeca || ('#' + c.key), precoVenda: Number(d.precoVenda) || 0 };
+            });
+
+            const lista = [];
+            eventosSnap.forEach(c => {
+                const d = c.val() || {};
+                lista.push({ id: c.key, nome: d.nome || ('Evento #' + c.key), status: d.status || 'planejado' });
+            });
+            lista.sort((a, b) => Number(b.id) - Number(a.id));
+
+            const sel = document.getElementById('eventoSelect');
+            if (!lista.length) {
+                sel.innerHTML = '<option value="">Nenhum evento cadastrado</option>';
+                sel.disabled = true;
+                document.getElementById('feedback').textContent = 'Cadastre um evento primeiro.';
+                return;
+            }
+            sel.innerHTML = lista.map(ev => `<option value="${ev.id}">#${ev.id} — ${esc(ev.nome)} (${ev.status})</option>`).join('');
+            // Pré-seleciona o do parâmetro ou o mais recente
+            const alvo = (paramId && lista.some(e => String(e.id) === String(paramId))) ? String(paramId) : lista[0].id;
+            sel.value = alvo;
+            await carregarEvento(alvo);
+        }
+
+        window.onEventoChange = function () {
+            const id = document.getElementById('eventoSelect').value;
+            if (id) carregarEvento(id);
+        };
+
+        async function carregarEvento(id) {
+            const fb = document.getElementById('feedback');
+            fb.className = 'feedback'; fb.textContent = 'Carregando produtos...';
+            document.getElementById('btnGerar').disabled = true;
+
+            const evSnap = await empresaRef('eventos/' + id).once('value');
+            if (!evSnap.exists()) { fb.textContent = 'Evento não encontrado.'; return; }
+            const ev = evSnap.val() || {};
+            eventoSelecionado = { id, nome: ev.nome || ('Evento #' + id) };
+
+            // vendido por produto+cor (ignora canceladas) — só informativo
+            const vendidoMap = {};
+            Object.keys(ev.vendas || {}).forEach(k => {
+                const v = ev.vendas[k] || {};
+                if (v.status === 'cancelada') return;
+                const ch = chaveEstoque(v.produtoId, v.corId);
+                vendidoMap[ch] = (vendidoMap[ch] || 0) + (Number(v.qtd) || 0);
+            });
+
+            // Agrega o estoque designado por produto+cor (retrocompat: linha antiga sem corId)
+            const agg = {};
+            const estoque = ev.estoque || {};
+            Object.keys(estoque).forEach(estoqueId => {
+                const e = estoque[estoqueId] || {};
+                const produtoId = e.produtoId != null ? e.produtoId : estoqueId;
+                const corId = e.corId || null;
+                const ch = chaveEstoque(produtoId, corId);
+                if (!agg[ch]) agg[ch] = { produtoId: String(produtoId), corId, corNome: e.corNome || null, qtdLevada: 0, preco: 0 };
+                agg[ch].qtdLevada += Number(e.qtdLevada) || 0;
+                if (!agg[ch].preco && Number(e.precoEvento) > 0) agg[ch].preco = Number(e.precoEvento);
+                if (!agg[ch].corNome && e.corNome) agg[ch].corNome = e.corNome;
+            });
+
+            linhas = Object.keys(agg).map(ch => {
+                const a = agg[ch];
+                const existe = !!produtosMap[a.produtoId];
+                const precoBase = a.preco || (existe ? produtosMap[a.produtoId].precoVenda : 0);
+                return {
+                    produtoId: a.produtoId, corId: a.corId, corNome: a.corNome,
+                    qtdLevada: a.qtdLevada, vendido: Number(vendidoMap[ch]) || 0,
+                    preco: precoBase, existe
+                };
+            });
+            linhas.sort((x, y) => nomeProduto(x).localeCompare(nomeProduto(y)));
+
+            renderLista();
+            fb.textContent = '';
+        }
+
+        function nomeProduto(l) {
+            const base = (produtosMap[l.produtoId] && produtosMap[l.produtoId].nome) || ('#' + l.produtoId);
+            return l.corNome ? `${base} — ${l.corNome}` : base;
+        }
+
+        function renderLista() {
+            const cont = document.getElementById('itensLista');
+            document.getElementById('listaFieldset').style.display = '';
+            cont.innerHTML = '';
+            document.getElementById('itensVazio').style.display = linhas.length ? 'none' : 'block';
+
+            linhas.forEach((l, i) => {
+                const sobra = l.qtdLevada - l.vendido;
+                const div = document.createElement('div');
+                div.className = 'item-linha' + (l.existe ? '' : ' excluido');
+                div.dataset.i = i;
+                div.innerHTML = `
+                    <label class="item-check"><input type="checkbox" class="chk-item" ${l.existe ? 'checked' : ''} onchange="onItemCheck(this)"></label>
+                    <div class="item-info">
+                        <div class="item-nome">${esc(nomeProduto(l))}</div>
+                        <div class="item-meta">levado: ${l.qtdLevada} · vendido: ${l.vendido} · sobra: ${sobra}${l.existe ? '' : ' · <span class="tag-excluido">produto não existe mais</span>'}</div>
+                    </div>
+                    <div class="campo">
+                        <label>Qtd</label>
+                        <input type="number" class="item-qtd" min="0" step="1" value="${l.qtdLevada}" ${l.existe ? '' : 'disabled'}>
+                    </div>
+                    <div class="campo">
+                        <label>Valor (R$)</label>
+                        <input type="number" class="item-valor" min="0" step="0.01" value="${Number(l.preco).toFixed(2)}" ${l.existe ? '' : 'disabled'}>
+                    </div>`;
+                cont.appendChild(div);
+            });
+            sincronizarSelAll();
+            atualizarContador();
+        }
+
+        window.onItemCheck = function (chk) {
+            const linha = chk.closest('.item-linha');
+            const habilitar = chk.checked;
+            linha.querySelector('.item-qtd').disabled = !habilitar;
+            linha.querySelector('.item-valor').disabled = !habilitar;
+            sincronizarSelAll();
+            atualizarContador();
+        };
+
+        window.toggleSelAll = function (checked) {
+            document.querySelectorAll('#itensLista .chk-item').forEach(chk => {
+                chk.checked = checked;
+                onItemCheck(chk);
+            });
+        };
+
+        function sincronizarSelAll() {
+            const todos = [...document.querySelectorAll('#itensLista .chk-item')];
+            const marcados = todos.filter(c => c.checked);
+            const selAll = document.getElementById('selAllChk');
+            selAll.checked = todos.length > 0 && marcados.length === todos.length;
+            selAll.indeterminate = marcados.length > 0 && marcados.length < todos.length;
+        }
+
+        function atualizarContador() {
+            const n = document.querySelectorAll('#itensLista .chk-item:checked').length;
+            document.getElementById('contador').textContent = n + (n === 1 ? ' marcado' : ' marcados');
+            document.getElementById('btnGerar').disabled = n === 0;
+        }
+
+        // ── CSV ────────────────────────────────────────────────────────────────
+        // Delimitador ";" e decimal com vírgula (padrão do Excel pt-BR). Colunas:
+        //   produtoId ; produtoNome ; corId ; corNome ; quantidade ; valor
+        function campoCsv(v) {
+            const s = String(v == null ? '' : v);
+            return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+
+        window.gerarCsv = function () {
+            const fb = document.getElementById('feedback');
+            const linhasCsv = [['produtoId', 'produtoNome', 'corId', 'corNome', 'quantidade', 'valor']];
+
+            document.querySelectorAll('#itensLista .item-linha').forEach(div => {
+                const chk = div.querySelector('.chk-item');
+                if (!chk.checked) return;
+                const l = linhas[Number(div.dataset.i)];
+                let qtd = parseInt(div.querySelector('.item-qtd').value, 10);
+                if (isNaN(qtd) || qtd <= 0) qtd = 1;   // marcado + qtd 0 → 1
+                let valor = parseFloat(div.querySelector('.item-valor').value);
+                if (isNaN(valor) || valor < 0) valor = 0;
+                linhasCsv.push([
+                    l.produtoId,
+                    nomeBase(l.produtoId),   // nome do produto (cor vai na coluna própria)
+                    l.corId || '',
+                    l.corNome || '',
+                    qtd,
+                    valor.toFixed(2).replace('.', ',')
+                ]);
+            });
+
+            if (linhasCsv.length === 1) { fb.className = 'feedback'; fb.textContent = 'Marque pelo menos um produto.'; return; }
+
+            const conteudo = '﻿' + linhasCsv.map(cols => cols.map(campoCsv).join(';')).join('\r\n');
+            const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'estoque-' + slug(eventoSelecionado && eventoSelecionado.nome) + '.csv';
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+            fb.className = 'feedback ok';
+            fb.textContent = `CSV com ${linhasCsv.length - 1} produto(s) gerado. Importe no cadastro do novo evento.`;
+        };
+    </script>
+</body>
+</html>

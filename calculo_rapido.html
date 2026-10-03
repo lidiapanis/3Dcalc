@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cálculo Rápido de Impressão</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 760px; margin: 20px auto; }
+        h1 { color: #333; text-align: center; margin: 0 0 6px; }
+        .sub { text-align: center; color: #6a7c93; font-size: .9em; margin: 0 0 24px; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+        .full { grid-column: 1 / -1; }
+        label { display: block; font-weight: 600; color: #555; margin-bottom: 5px; font-size: .92em; }
+        input, select { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; background: #fff; }
+        input:focus, select:focus { outline: none; border-color: #4A93B0; box-shadow: 0 0 0 3px rgba(74,147,176,.15); }
+        .hint { font-size: .78em; color: #999; margin-top: 4px; }
+
+        .seg { display: inline-flex; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+        .seg button { background: #fff; border: none; padding: 7px 14px; cursor: pointer; color: #555; font-size: .88em; }
+        .seg button + button { border-left: 1px solid #ccc; }
+        .seg button.on { background: #4A93B0; color: #fff; font-weight: 700; }
+        .pair { display: flex; gap: 10px; align-items: center; }
+        .pair > div { flex: 1; }
+        .pair span { color: #999; }
+
+        .result { margin-top: 26px; border: 1px solid #e3ecf0; border-radius: 10px; overflow: hidden; }
+        .result-head { background: #1B4C65; color: #fff; padding: 12px 16px; font-weight: 700; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .result-head small { font-weight: 400; opacity: .85; }
+        .linha { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 11px 16px; border-top: 1px solid #eef2f4; }
+        .linha:first-child { border-top: none; }
+        .linha .num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .linha .det { color: #999; font-size: .85em; }
+        .linha.total { font-weight: 700; font-size: 1.15em; background: #f4f7f6; color: #28a745; }
+        .vazio { padding: 22px 16px; text-align: center; color: #999; }
+        .aviso { margin: 10px 0 0; font-size: .85em; color: #c0631c; }
+
+        .acoes { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
+        .btn { border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; font-weight: 700; font-size: .92em; }
+        .btn-pri { background: #4A93B0; color: #fff; }
+        .btn-pri:hover { background: #3A7A96; }
+        .btn-sec { background: none; border: 1px solid #ccc; color: #555; font-weight: 600; }
+
+        details.params { margin-top: 26px; border: 1px solid #e3ecf0; border-radius: 10px; padding: 0 16px; }
+        details.params summary { cursor: pointer; padding: 13px 0; font-weight: 700; color: #1B4C65; }
+        details.params .grid { padding-bottom: 16px; }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .container { padding: 20px 14px; margin: 8px auto; }
+            .grid { grid-template-columns: 1fr; }
+        }
+
+        html[data-theme="dark"] .sub, html[data-theme="dark"] .hint { color: #9aa7b4 !important; }
+        html[data-theme="dark"] input[type="time"] { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+        html[data-theme="dark"] .seg { border-color: #555; }
+        html[data-theme="dark"] .seg button { background: #2a2a3e; color: #ccc; }
+        html[data-theme="dark"] .seg button + button { border-left-color: #555; }
+        html[data-theme="dark"] .seg button.on { background: #2E7496; color: #fff; }
+        html[data-theme="dark"] .result, html[data-theme="dark"] details.params { border-color: #3a3a50; }
+        html[data-theme="dark"] .linha { border-top-color: #33334a; }
+        html[data-theme="dark"] .linha.total { background: #22333d; color: #5fd47a; }
+        html[data-theme="dark"] details.params summary { color: #7fc1de; }
+        html[data-theme="dark"] .btn-sec { border-color: #555; color: #ccc; }
+    </style>
+    <link rel="stylesheet" href="dark-mode.css">
+    <script src="theme.js"></script>
+</head>
+<body>
+<div class="container">
+    <h1><i class="fas fa-calculator" style="color:#4A93B0;margin-right:8px"></i>Cálculo Rápido</h1>
+    <p class="sub">Custo de uma impressão a partir do tempo e do peso de filamento (Bambu Studio / Handy).</p>
+
+    <div class="grid">
+        <div class="full">
+            <label for="nome">Nome da peça <span style="font-weight:400;color:#999">(opcional)</span></label>
+            <input type="text" id="nome" placeholder="Ex.: Dragonite Katana">
+        </div>
+        <div>
+            <label for="impressora">Impressora</label>
+            <select id="impressora">
+                <option value="a1mini">A1 mini</option>
+                <option value="a1">A1</option>
+            </select>
+        </div>
+        <div>
+            <label for="material">Material</label>
+            <select id="material">
+                <option value="pla">PLA</option>
+                <option value="quente">PETG / ABS / ASA (+20% energia)</option>
+            </select>
+        </div>
+        <div class="full">
+            <label>Tempo de impressão</label>
+            <div class="seg" id="modoTempo">
+                <button type="button" data-modo="duracao" class="on">Duração</button>
+                <button type="button" data-modo="horario">Início – fim</button>
+            </div>
+            <div class="pair" id="boxDuracao">
+                <div><input type="number" id="horas" min="0" step="1" placeholder="Horas" inputmode="numeric"></div>
+                <span>h</span>
+                <div><input type="number" id="minutos" min="0" max="59" step="1" placeholder="Minutos" inputmode="numeric"></div>
+                <span>min</span>
+            </div>
+            <div class="pair" id="boxHorario" style="display:none;">
+                <div><input type="time" id="inicio"></div>
+                <span>até</span>
+                <div><input type="time" id="fim"></div>
+            </div>
+            <div class="hint" id="hintTempo">Se o print mostrar horário de início e fim, use “Início – fim”: é mais preciso que o tempo arredondado.</div>
+        </div>
+        <div class="full">
+            <label for="peso">Peso total do filamento (g)</label>
+            <input type="number" id="peso" min="0" step="0.1" placeholder="Soma de todos os filamentos" inputmode="decimal">
+        </div>
+    </div>
+
+    <div class="result">
+        <div class="result-head"><span id="resTitulo">Resultado</span><small id="resInfo"></small></div>
+        <div id="resCorpo"><div class="vazio">Preencha o tempo e o peso para ver o custo.</div></div>
+    </div>
+    <p class="aviso" id="avisoMaterial" style="display:none;"><i class="fas fa-circle-info"></i> Material de mesa quente: consumo de energia aumentado em 20%.</p>
+
+    <div class="acoes">
+        <button type="button" class="btn btn-sec" onclick="limpar()"><i class="fas fa-eraser"></i> Limpar</button>
+        <button type="button" class="btn btn-pri" id="btnCopiar" onclick="copiar()" disabled><i class="fas fa-copy"></i> Copiar resultado</button>
+    </div>
+
+    <details class="params">
+        <summary><i class="fas fa-sliders" style="margin-right:6px"></i>Parâmetros de custo</summary>
+        <div class="grid">
+            <div><label for="pFilamento">Filamento (R$/kg)</label><input type="number" id="pFilamento" step="0.01" min="0"></div>
+            <div><label for="pTarifa">Energia (R$/kWh)</label><input type="number" id="pTarifa" step="0.01" min="0"></div>
+            <div><label for="pKwMini">Consumo A1 mini (kW)</label><input type="number" id="pKwMini" step="0.001" min="0"></div>
+            <div><label for="pKwA1">Consumo A1 (kW)</label><input type="number" id="pKwA1" step="0.001" min="0"></div>
+            <div><label for="pBico">Desgaste do bico (R$ por impressão)</label><input type="number" id="pBico" step="0.01" min="0"></div>
+            <div><label for="pValorImp">Valor base da impressora (R$)</label><input type="number" id="pValorImp" step="1" min="0"></div>
+            <div><label for="pVida">Vida útil da impressora (h)</label><input type="number" id="pVida" step="1" min="1"></div>
+            <div style="display:flex;align-items:flex-end;"><button type="button" class="btn btn-sec" style="width:100%" onclick="restaurarParametros()"><i class="fas fa-rotate-left"></i> Restaurar padrão</button></div>
+            <div class="full hint" id="hintDesgaste"></div>
+        </div>
+    </details>
+</div>
+
+<script>
+    // Parâmetros padrão (mesmos do skill "custo-impressao-3d")
+    const PADRAO = { filamento: 120, tarifa: 1.10, kwMini: 0.080, kwA1: 0.095, bico: 1.00, valorImp: 3600, vida: 5000 };
+    const CAMPOS = { filamento: 'pFilamento', tarifa: 'pTarifa', kwMini: 'pKwMini', kwA1: 'pKwA1', bico: 'pBico', valorImp: 'pValorImp', vida: 'pVida' };
+    const CHAVE = 'kombinei.calculoRapido.params';
+    const $ = id => document.getElementById(id);
+    const brl = v => 'R$ ' + v.toFixed(2).replace('.', ',');
+    const num = (v, casas) => v.toLocaleString('pt-BR', { maximumFractionDigits: casas });
+    let modo = 'duracao';
+    let textoCopia = '';
+
+    function lerParamsSalvos() {
+        try { return Object.assign({}, PADRAO, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }
+        catch (e) { return Object.assign({}, PADRAO); }
+    }
+    function preencherParams(p) { Object.keys(CAMPOS).forEach(k => { $(CAMPOS[k]).value = p[k]; }); }
+    function params() {
+        const p = {};
+        Object.keys(CAMPOS).forEach(k => { const v = parseFloat($(CAMPOS[k]).value); p[k] = isNaN(v) ? PADRAO[k] : v; });
+        return p;
+    }
+    function salvarParams() {
+        try { localStorage.setItem(CHAVE, JSON.stringify(params())); } catch (e) {}
+    }
+    function restaurarParametros() {
+        try { localStorage.removeItem(CHAVE); } catch (e) {}
+        preencherParams(PADRAO);
+        calcular();
+    }
+
+    // Retorna horas decimais, ou null se incompleto
+    function horasImpressao() {
+        if (modo === 'duracao') {
+            const h = parseFloat($('horas').value), m = parseFloat($('minutos').value);
+            if (isNaN(h) && isNaN(m)) return null;
+            const t = (isNaN(h) ? 0 : h) + (isNaN(m) ? 0 : m) / 60;
+            return t > 0 ? t : null;
+        }
+        const ini = $('inicio').value, fim = $('fim').value;
+        if (!ini || !fim) return null;
+        const [hi, mi] = ini.split(':').map(Number), [hf, mf] = fim.split(':').map(Number);
+        let min = (hf * 60 + mf) - (hi * 60 + mi);
+        if (min <= 0) min += 24 * 60;   // atravessou a meia-noite
+        return min / 60;
+    }
+    function fmtDuracao(h) {
+        const totalMin = Math.round(h * 60);
+        return Math.floor(totalMin / 60) + 'h' + String(totalMin % 60).padStart(2, '0');
+    }
+
+    function calcular() {
+        const p = params();
+        $('hintDesgaste').textContent = 'Desgaste da impressora = ' + brl(p.valorImp) + ' ÷ ' + num(p.vida, 0) + ' h = ' + brl(p.valorImp / p.vida) + ' por hora.';
+        const quente = $('material').value === 'quente';
+        $('avisoMaterial').style.display = quente ? '' : 'none';
+
+        const h = horasImpressao(), g = parseFloat($('peso').value);
+        const nomeImp = $('impressora').value === 'a1' ? 'A1' : 'A1 mini';
+        const nome = $('nome').value.trim();
+        $('resTitulo').textContent = nome || 'Resultado';
+
+        if (h === null || isNaN(g) || g <= 0) {
+            $('resInfo').textContent = '';
+            $('resCorpo').innerHTML = '<div class="vazio">Preencha o tempo e o peso para ver o custo.</div>';
+            $('btnCopiar').disabled = true;
+            textoCopia = '';
+            return;
+        }
+
+        const kw = ($('impressora').value === 'a1' ? p.kwA1 : p.kwMini) * (quente ? 1.2 : 1);
+        const kwh = h * kw;
+        const linhas = [
+            { item: 'Filamento', det: num(g, 1) + ' g', v: g * p.filamento / 1000 },
+            { item: 'Energia', det: num(kwh, 3) + ' kWh', v: kwh * p.tarifa },
+            { item: 'Bico', det: '', v: p.bico },
+            { item: 'Desgaste impressora', det: num(h, 2) + ' h', v: h * p.valorImp / p.vida },
+        ];
+        // Cada linha exibida arredondada; total calculado com os valores não arredondados
+        const total = linhas.reduce((s, l) => s + l.v, 0);
+        const info = nomeImp + ' · ' + fmtDuracao(h) + ' · ' + num(g, 1) + ' g' + (quente ? ' · PETG/ABS/ASA' : '');
+        $('resInfo').textContent = info;
+
+        $('resCorpo').innerHTML = linhas.map(l =>
+            '<div class="linha"><span>' + l.item + (l.det ? ' <span class="det">(' + l.det + ')</span>' : '') + '</span><span class="num">' + brl(l.v) + '</span></div>'
+        ).join('') + '<div class="linha total"><span>Total (custo)</span><span class="num">' + brl(total) + '</span></div>';
+
+        textoCopia = (nome ? nome + ' — ' : '') + info + '\n'
+            + linhas.map(l => l.item + (l.det ? ' (' + l.det + ')' : '') + ': ' + brl(l.v)).join('\n')
+            + '\nTotal (custo): ' + brl(total);
+        $('btnCopiar').disabled = false;
+    }
+
+    function copiar() {
+        if (!textoCopia) return;
+        const btn = $('btnCopiar'), orig = btn.innerHTML;
+        const ok = () => { btn.innerHTML = '<i class="fas fa-check"></i> Copiado'; setTimeout(() => { btn.innerHTML = orig; }, 1500); };
+        if (navigator.clipboard) navigator.clipboard.writeText(textoCopia).then(ok).catch(() => {});
+    }
+
+    function limpar() {
+        ['nome', 'horas', 'minutos', 'inicio', 'fim', 'peso'].forEach(id => { $(id).value = ''; });
+        calcular();
+        $('nome').focus();
+    }
+
+    function setModo(m) {
+        modo = m;
+        document.querySelectorAll('#modoTempo button').forEach(b => b.classList.toggle('on', b.dataset.modo === m));
+        $('boxDuracao').style.display = m === 'duracao' ? '' : 'none';
+        $('boxHorario').style.display = m === 'horario' ? '' : 'none';
+        calcular();
+    }
+
+    document.querySelectorAll('#modoTempo button').forEach(b => b.addEventListener('click', () => setModo(b.dataset.modo)));
+    ['nome', 'horas', 'minutos', 'inicio', 'fim', 'peso', 'impressora', 'material'].forEach(id => {
+        $(id).addEventListener('input', calcular);
+        $(id).addEventListener('change', calcular);
+    });
+    Object.values(CAMPOS).forEach(id => $(id).addEventListener('input', () => { salvarParams(); calcular(); }));
+
+    preencherParams(lerParamsSalvos());
+    calcular();
+</script>
+</body>
+</html>

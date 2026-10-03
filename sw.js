@@ -10,7 +10,7 @@
  *       • mesma-origem em /api/** (endpoints do Cloud Functions) → sempre rede, sem cache.
  *   - Só GET é cacheado; POST/PUT/etc. passam direto.
  */
-const CACHE = 'kombinei-app-v11';
+const CACHE = 'kombinei-app-v12';
 
 // Núcleo do shell pré-cacheado (resiliente: um 404 não quebra a instalação).
 const SHELL = [
@@ -24,7 +24,7 @@ const SHELL = [
   '/listagem_produtos.html', '/cadastro_produtos.html',
   '/listagem_insumos.html', '/cadastro_insumos.html',
   '/listagem_eventos.html', '/cadastro_eventos.html',
-  '/configuracoes.html',
+  '/configuracoes.html', '/calculo_rapido.html', '/inicio.html',
 ];
 
 self.addEventListener('install', (e) => {

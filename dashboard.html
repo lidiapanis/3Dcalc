@@ -143,7 +143,33 @@
         #averageTable th {
             background-color: #f8f9fa;
         }
-        
+
+        /* Tabela: Resumo de vendas por feira/evento */
+        #feirasTable {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        #feirasTable th, #feirasTable td {
+            border: 1px solid #eee;
+            padding: 10px;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        #feirasTable th {
+            background-color: #f8f9fa;
+        }
+        #feirasTable th.num, #feirasTable td.num {
+            text-align: right;
+        }
+        #feirasTable tr.linha-total td {
+            font-weight: 700;
+            background-color: #f4f7f6;
+        }
+        html[data-theme="dark"] #feirasTable tr.linha-total td {
+            background-color: #22333d !important;
+        }
+
         /* Botão Home */
         .home-btn {
             position: absolute;
@@ -274,6 +300,25 @@
                 <div class="metric-title">CLIENTES DISTINTOS</div>
                 <div class="metric-value" id="vClientes" style="color:#6741D9;">0</div>
             </div>
+        </div>
+
+        <div class="chart-card chart-full" style="margin-bottom:30px;">
+            <h2>Vendas por feira / evento</h2>
+            <p style="font-size:0.82em;color:#6a7c93;margin:4px 0 0;">Lista todas as feiras/eventos do cadastro, com o total de vendas de cada uma (todo o histórico). Não usa os filtros de Período / Evento / Origem acima.</p>
+            <table id="feirasTable">
+                <thead>
+                    <tr>
+                        <th>Feira / Evento</th>
+                        <th>Status</th>
+                        <th class="num">Nº de vendas</th>
+                        <th class="num">Itens vendidos</th>
+                        <th class="num">Faturamento</th>
+                        <th class="num">Ticket médio</th>
+                        <th class="num">% do total</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
         </div>
 
         <div class="charts-grid">
@@ -633,19 +678,23 @@
         //  SEÇÃO VENDAS (evento + online, via vendas.js)
         // ══════════════════════════════════════════════════════════════
         let todasVendas = [];
+        let eventosCadastro = [];   // roster completo de /eventos (aparece na tabela "por feira" mesmo sem venda)
         const PALETA_VENDAS = ['#1B4C65', '#4A93B0', '#28a745', '#e66a2e', '#ffc107', '#6741D9', '#2E7496', '#c0631c'];
         const vendasCharts = { periodo: null, produtos: null, pagamento: null, evento: null, clientes: null };
 
         function carregarVendas() {
             document.getElementById('vendasFeedback').textContent = 'Carregando vendas...';
-            Vendas.carregarConsolidado().then(rows => {
+            Promise.all([Vendas.carregarConsolidado(), empresaRef('eventos').once('value')]).then(([rows, evSnap]) => {
                 todasVendas = rows;
-                // popula o dropdown de eventos
-                const evs = {};
-                todasVendas.forEach(r => { if (r.eventoId) evs[r.eventoId] = r.eventoNome; });
+                eventosCadastro = [];
+                evSnap.forEach(c => {
+                    const d = c.val() || {};
+                    eventosCadastro.push({ id: c.key, nome: d.nome || ('Evento #' + c.key), status: d.status || 'planejado' });
+                });
+                // dropdown de eventos: todos os do cadastro (não só os que já tiveram venda)
                 const sel = document.getElementById('vEvento');
-                Object.keys(evs).sort((a, b) => (evs[a] || '').localeCompare(evs[b] || '')).forEach(id => {
-                    const o = document.createElement('option'); o.value = id; o.textContent = evs[id]; sel.appendChild(o);
+                eventosCadastro.slice().sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).forEach(ev => {
+                    const o = document.createElement('option'); o.value = ev.id; o.textContent = ev.nome; sel.appendChild(o);
                 });
                 document.getElementById('vendasFeedback').textContent = '';
                 aplicarFiltrosVendas();
@@ -680,11 +729,85 @@
             document.getElementById('vTicket').textContent = formatarMoeda(qtd ? total / qtd : 0);
             document.getElementById('vClientes').textContent = clientes.size;
 
+            renderResumoFeiras();
             renderVendasPeriodo(rows);
             renderTopBar(rows, 'produtos', 'vendasProdutosChart', r => r.produtoNome || '—', '#4A93B0');
             renderVendasPagamento(rows);
             renderTopBar(rows, 'evento', 'vendasEventoChart', r => r.eventoNome, '#28a745');
             renderTopClientes(rows);
+        }
+
+        // Tabela "Vendas por feira / evento": lista TODAS as feiras do cadastro (/eventos),
+        // com o total de vendas de cada uma (0 se ainda não vendeu). É uma visão geral —
+        // NÃO usa os filtros de Período/Evento/Origem da seção Vendas (mostra tudo, sempre).
+        const FEIRAS_COLS = ['Feira / Evento', 'Status', 'Nº de vendas', 'Itens vendidos', 'Faturamento', 'Ticket médio', '% do total'];
+        const ROTULO_STATUS = { planejado: 'Planejado', ativo: 'Ativo', encerrado: 'Encerrado' };
+
+        function renderResumoFeiras() {
+            const tbody = document.querySelector('#feirasTable tbody');
+            tbody.innerHTML = '';
+
+            // Agrega as vendas de evento (todas, não-canceladas, sem corte de período).
+            const acc = {};   // eventoId -> { vendas, itens, receita }
+            todasVendas.forEach(r => {
+                if (r.origem !== 'evento' || !r.eventoId || r.status === 'cancelada') return;
+                const a = acc[r.eventoId] || (acc[r.eventoId] = { vendas: 0, itens: 0, receita: 0 });
+                a.vendas++;
+                a.itens += Number(r.qtd) || 0;
+                a.receita += Number(r.valorTotal) || 0;
+            });
+
+            // Roster: todo evento do cadastro + qualquer eventoId que só exista nas vendas.
+            const mapa = {};
+            eventosCadastro.forEach(ev => {
+                mapa[ev.id] = Object.assign({ nome: ev.nome, status: ev.status }, acc[ev.id] || { vendas: 0, itens: 0, receita: 0 });
+            });
+            Object.keys(acc).forEach(k => { if (!mapa[k]) mapa[k] = Object.assign({ nome: 'Evento #' + k, status: null }, acc[k]); });
+
+            const lista = Object.values(mapa).sort((a, b) => b.receita - a.receita || (a.nome || '').localeCompare(b.nome || ''));
+
+            if (!lista.length) {
+                const tr = tbody.insertRow();
+                const td = tr.insertCell();
+                td.colSpan = FEIRAS_COLS.length; td.style.textAlign = 'center'; td.style.color = '#999';
+                td.textContent = 'Nenhuma feira/evento cadastrada.';
+                return;
+            }
+
+            const totalReceita = lista.reduce((s, f) => s + f.receita, 0);
+            const totalVendas = lista.reduce((s, f) => s + f.vendas, 0);
+            const totalItens = lista.reduce((s, f) => s + f.itens, 0);
+
+            const preencher = (tr, vals, isTotal) => {
+                vals.forEach((v, i) => {
+                    const td = tr.insertCell();
+                    td.textContent = v;
+                    if (i >= 2) td.className = 'num';
+                    td.setAttribute('data-label', FEIRAS_COLS[i]);
+                });
+                if (isTotal) tr.className = 'linha-total';
+            };
+
+            lista.forEach(f => {
+                preencher(tbody.insertRow(), [
+                    f.nome,
+                    f.status ? (ROTULO_STATUS[f.status] || f.status) : '—',
+                    f.vendas,
+                    f.itens,
+                    formatarMoeda(f.receita),
+                    formatarMoeda(f.vendas ? f.receita / f.vendas : 0),
+                    (totalReceita ? (f.receita / totalReceita * 100) : 0).toFixed(1) + '%'
+                ], false);
+            });
+            preencher(tbody.insertRow(), [
+                `Total — ${lista.length} feira(s)`,
+                '',
+                totalVendas,
+                totalItens,
+                formatarMoeda(totalReceita),
+                formatarMoeda(totalVendas ? totalReceita / totalVendas : 0),
+                totalReceita ? '100%' : '0%'
+            ], true);
         }
 
         // Agrega receita por chave (via keyFn) e desenha as N maiores em barras horizontais.

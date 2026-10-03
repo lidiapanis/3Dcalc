@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Início</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <style>
+        :root {
+            --bg: #f4f7f6;
+            --card: #ffffff;
+            --text: #24323d;
+            --muted: #6a7c93;
+            --line: #e6edf0;
+            --shadow: 0 2px 10px rgba(27, 76, 101, 0.07);
+            --shadow-hover: 0 10px 24px rgba(27, 76, 101, 0.14);
+            --hero-a: #1B4C65;
+            --hero-b: #2E7496;
+            --input-bg: rgba(255, 255, 255, 0.16);
+        }
+        html[data-theme="dark"] {
+            --bg: #121212;
+            --card: #1e1e2e;
+            --text: #e4e6eb;
+            --muted: #9aa7b4;
+            --line: #2e2e42;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+            --shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.5);
+            --hero-a: #0f3460;
+            --hero-b: #16213e;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 28px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg); color: var(--text);
+        }
+        .wrap { max-width: 1080px; margin: 0 auto; }
+
+        /* ── Saudação ── */
+        .hero {
+            position: relative; overflow: hidden;
+            background: linear-gradient(120deg, var(--hero-a), var(--hero-b));
+            color: #fff; border-radius: 16px; padding: 30px 32px;
+            box-shadow: var(--shadow);
+        }
+        .hero::after {   /* cubo decorativo ao fundo */
+            content: "\f1b2"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+            position: absolute; right: 28px; top: 50%; transform: translateY(-50%) rotate(-12deg);
+            font-size: 120px; opacity: .08; pointer-events: none;
+        }
+        .hero .data { font-size: .9em; opacity: .8; margin: 0 0 6px; }
+        .hero h1 { margin: 0; font-size: 1.9em; font-weight: 700; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .hero .frase { margin: 8px 0 0; opacity: .85; font-size: 1em; }
+        .btn-nome {
+            background: none; border: none; color: #fff; opacity: .55; cursor: pointer;
+            font-size: .5em; padding: 6px; border-radius: 6px;
+        }
+        .btn-nome:hover { opacity: 1; background: rgba(255,255,255,.12); }
+        .link-nome {
+            display: inline-block; margin-top: 12px; background: rgba(255,255,255,.14); color: #fff;
+            border: 1px solid rgba(255,255,255,.3); border-radius: 20px; padding: 6px 14px;
+            cursor: pointer; font-size: .85em; font-family: inherit;
+        }
+        .link-nome:hover { background: rgba(255,255,255,.22); }
+        .form-nome { display: none; margin-top: 14px; gap: 8px; flex-wrap: wrap; position: relative; z-index: 1; }
+        .form-nome.open { display: flex; }
+        .form-nome input {
+            flex: 1; min-width: 180px; max-width: 280px; padding: 9px 12px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,.35); background: var(--input-bg); color: #fff; font-size: 1em;
+        }
+        .form-nome input::placeholder { color: rgba(255,255,255,.6); }
+        .form-nome button { border: none; border-radius: 8px; padding: 9px 14px; cursor: pointer; font-weight: 700; font-family: inherit; }
+        .form-nome .ok { background: #fff; color: #1B4C65; }
+        .form-nome .cancel { background: none; color: #fff; opacity: .8; }
+
+        /* ── Seções ── */
+        h2.secao {
+            font-size: .78em; letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+            margin: 30px 0 12px; font-weight: 700;
+        }
+
+        /* Atalhos principais */
+        .principais { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        .card {
+            background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+            padding: 20px; cursor: pointer; text-align: left; font-family: inherit; color: var(--text);
+            box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s, border-color .15s;
+            display: flex; flex-direction: column; gap: 12px; width: 100%;
+        }
+        .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); border-color: transparent; }
+        .card:focus-visible, .tile:focus-visible { outline: 2px solid #4A93B0; outline-offset: 2px; }
+        .card .ico {
+            width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center;
+            font-size: 1.3em; background: var(--c-bg); color: var(--c);
+        }
+        .card b { font-size: 1.05em; }
+        .card span { font-size: .85em; color: var(--muted); line-height: 1.35; }
+
+        /* Demais atalhos */
+        .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+        .tile {
+            background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+            padding: 14px; cursor: pointer; font-family: inherit; color: var(--text); font-size: .92em;
+            display: flex; align-items: center; gap: 12px; text-align: left; width: 100%;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .tile:hover { border-color: var(--c); box-shadow: var(--shadow); }
+        .tile i {
+            width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex-shrink: 0;
+            background: var(--c-bg); color: var(--c); font-size: .95em;
+        }
+
+        /* Paleta de cores dos ícones (por área) */
+        .c-azul    { --c: #2E7496; --c-bg: #e0f0f8; }
+        .c-verde   { --c: #218838; --c-bg: #e3f5e8; }
+        .c-laranja { --c: #d0661f; --c-bg: #fdeede; }
+        .c-roxo    { --c: #6f4fc2; --c-bg: #efeafb; }
+        .c-rosa    { --c: #c2417a; --c-bg: #fbe8f0; }
+        .c-cinza   { --c: #56687a; --c-bg: #eaeff3; }
+        html[data-theme="dark"] .c-azul    { --c: #7fc1de; --c-bg: rgba(127,193,222,.14); }
+        html[data-theme="dark"] .c-verde   { --c: #5fd47a; --c-bg: rgba(95,212,122,.14); }
+        html[data-theme="dark"] .c-laranja { --c: #f0a066; --c-bg: rgba(240,160,102,.14); }
+        html[data-theme="dark"] .c-roxo    { --c: #b39cf0; --c-bg: rgba(179,156,240,.14); }
+        html[data-theme="dark"] .c-rosa    { --c: #ec8db6; --c-bg: rgba(236,141,182,.14); }
+        html[data-theme="dark"] .c-cinza   { --c: #a9b7c4; --c-bg: rgba(169,183,196,.14); }
+
+        [hidden] { display: none !important; }
+
+        @media (max-width: 900px) { .principais { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) {
+            body { padding: 14px; }
+            .hero { padding: 22px 20px; border-radius: 14px; }
+            .hero h1 { font-size: 1.45em; }
+            .hero::after { font-size: 84px; right: 10px; }
+            .principais { gap: 10px; }
+            .card { padding: 14px; gap: 10px; }
+            .card .ico { width: 40px; height: 40px; font-size: 1.1em; }
+            .card span { display: none; }
+            .tiles { grid-template-columns: 1fr 1fr; gap: 10px; }
+            .tile { padding: 11px; font-size: .88em; gap: 9px; }
+            .tile i { width: 30px; height: 30px; }
+        }
+    </style>
+    <script src="theme.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+    <section class="hero">
+        <p class="data" id="hoje"></p>
+        <h1><span id="saudacao">Olá!</span>
+            <button class="btn-nome" id="btnEditarNome" title="Alterar como você é chamado" hidden><i class="fas fa-pen"></i></button>
+        </h1>
+        <p class="frase">O que vamos fazer hoje?</p>
+        <button class="link-nome" id="btnDefinirNome" hidden><i class="fas fa-user-pen" style="margin-right:6px"></i>Como você quer ser chamado?</button>
+        <form class="form-nome" id="formNome">
+            <input type="text" id="inputNome" maxlength="40" placeholder="Seu nome" autocomplete="given-name">
+            <button type="submit" class="ok">Salvar</button>
+            <button type="button" class="cancel" id="btnCancelarNome">Cancelar</button>
+        </form>
+    </section>
+
+    <h2 class="secao">Acesso rápido</h2>
+    <div class="principais">
+        <button class="card c-verde" data-modulo="produtos" data-pagina="calculo_rapido.html" data-titulo="Cálculo Rápido">
+            <div class="ico"><i class="fas fa-calculator"></i></div>
+            <b>Cálculo Rápido</b>
+            <span>Custo de uma impressão pelo tempo e peso</span>
+        </button>
+        <button class="card c-azul" data-modulo="orcamentos" data-pagina="cadastro_orcamentos.html" data-titulo="Novo Orçamento" data-menu="listagem_orcamentos.html">
+            <div class="ico"><i class="fas fa-file-circle-plus"></i></div>
+            <b>Novo Orçamento</b>
+            <span>Monte um orçamento para um cliente</span>
+        </button>
+        <button class="card c-laranja" data-modulo="orcamentos" data-pagina="listagem_eventos.html" data-titulo="Eventos">
+            <div class="ico"><i class="fas fa-cash-register"></i></div>
+            <b>Vender em Evento</b>
+            <span>Abra o PDV de uma feira ou evento</span>
+        </button>
+        <button class="card c-roxo" data-modulo="dashboard" data-pagina="dashboard.html" data-titulo="Dashboard">
+            <div class="ico"><i class="fas fa-chart-pie"></i></div>
+            <b>Dashboard</b>
+            <span>Vendas, faturamento e resultados</span>
+        </button>
+    </div>
+
+    <h2 class="secao">Atalhos</h2>
+    <div class="tiles">
+        <button class="tile c-azul"    data-modulo="orcamentos" data-pagina="listagem_orcamentos.html" data-titulo="Orçamentos"><i class="fas fa-file-invoice-dollar"></i>Orçamentos</button>
+        <button class="tile c-laranja" data-modulo="orcamentos" data-pagina="listagem_eventos.html" data-titulo="Eventos"><i class="fas fa-store"></i>Eventos / Feiras</button>
+        <button class="tile c-laranja" data-modulo="orcamentos" data-pagina="historico_vendas.html" data-titulo="Histórico de Vendas"><i class="fas fa-receipt"></i>Histórico de Vendas</button>
+        <button class="tile c-verde"   data-modulo="produtos" data-pagina="listagem_produtos.html" data-titulo="Produtos"><i class="fas fa-cube"></i>Produtos</button>
+        <button class="tile c-verde"   data-modulo="produtos" data-pagina="cadastro_produtos.html" data-titulo="Novo Produto" data-menu="listagem_produtos.html"><i class="fas fa-square-plus"></i>Novo Produto</button>
+        <button class="tile c-verde"   data-modulo="produtos" data-pagina="listagem_insumos.html" data-titulo="Insumos"><i class="fas fa-boxes-stacked"></i>Insumos</button>
+        <button class="tile c-rosa"    data-modulo="produtos" data-pagina="listagem_hueforges.html" data-titulo="HueForges"><i class="fas fa-palette"></i>HueForges</button>
+        <button class="tile c-azul"    data-modulo="clientes" data-pagina="listagem_pessoas.html?tipo=cliente" data-titulo="Clientes"><i class="fas fa-user-group"></i>Clientes</button>
+        <button class="tile c-cinza"   data-modulo="configuracoes" data-pagina="configuracoes.html" data-titulo="Configurações"><i class="fas fa-gear"></i>Configurações</button>
+    </div>
+
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+        authDomain: "calculo3d.firebaseapp.com",
+        databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+        projectId: "calculo3d",
+        storageBucket: "calculo3d.firebasestorage.app",
+        messagingSenderId: "372705279593",
+        appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    const $ = id => document.getElementById(id);
+
+    // ── Data + saudação por horário ──
+    function saudacaoDoHorario() {
+        const h = new Date().getHours();
+        if (h >= 5 && h < 12) return 'Bom dia';
+        if (h >= 12 && h < 18) return 'Boa tarde';
+        return 'Boa noite';
+    }
+    const dataHoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    $('hoje').textContent = dataHoje.charAt(0).toUpperCase() + dataHoje.slice(1);
+
+    function primeiroNome(n) { return String(n || '').trim().split(/\s+/)[0]; }
+
+    function renderSaudacao(nome) {
+        const n = primeiroNome(nome);
+        $('saudacao').textContent = saudacaoDoHorario() + (n ? ', ' + n + '!' : '!');
+        $('btnEditarNome').hidden = !n;
+        $('btnDefinirNome').hidden = !!n;
+    }
+    renderSaudacao('');
+
+    // ── Nome de exibição (perfil do Firebase Auth → vale em qualquer aparelho) ──
+    function abrirFormNome() {
+        const u = firebase.auth().currentUser;
+        $('inputNome').value = (u && u.displayName) || '';
+        $('formNome').classList.add('open');
+        $('btnDefinirNome').hidden = true;
+        $('inputNome').focus();
+    }
+    function fecharFormNome() {
+        $('formNome').classList.remove('open');
+        const u = firebase.auth().currentUser;
+        renderSaudacao(u && u.displayName);
+    }
+    $('btnDefinirNome').addEventListener('click', abrirFormNome);
+    $('btnEditarNome').addEventListener('click', abrirFormNome);
+    $('btnCancelarNome').addEventListener('click', fecharFormNome);
+    $('formNome').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const u = firebase.auth().currentUser;
+        const nome = $('inputNome').value.trim();
+        if (!u || !nome) return;
+        try {
+            await u.updateProfile({ displayName: nome });
+            try { if (window.parent !== window && parent.atualizarUsuarioTopo) parent.atualizarUsuarioTopo(); } catch (err) {}
+        } catch (err) { console.warn('Não foi possível salvar o nome:', err); }
+        fecharFormNome();
+    });
+
+    // ── Navegação: abre a página pelo menu do home.html (marca o item ativo) ──
+    document.querySelectorAll('[data-pagina]').forEach(el => {
+        el.addEventListener('click', () => {
+            const pagina = el.dataset.pagina, titulo = el.dataset.titulo, menu = el.dataset.menu || pagina;
+            try {
+                if (window.parent !== window && parent.abrirPagina) { parent.abrirPagina(pagina, titulo, menu); return; }
+            } catch (err) {}
+            location.href = pagina;
+        });
+    });
+
+    // ── Permissões: esconde atalhos de módulos sem acesso ──
+    (async () => {
+        const ctx = await initEmpresa();
+        if (!ctx) return;
+        renderSaudacao(firebase.auth().currentUser && firebase.auth().currentUser.displayName);
+        document.querySelectorAll('[data-modulo]').forEach(el => { el.hidden = !temPermissao(el.dataset.modulo); });
+        document.querySelectorAll('.principais, .tiles').forEach(g => {
+            const sec = g.previousElementSibling;
+            const vazio = !g.querySelector('[data-modulo]:not([hidden])');
+            g.hidden = vazio; if (sec) sec.hidden = vazio;
+        });
+    })();
+</script>
+</body>
+</html>

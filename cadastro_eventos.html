@@ -139,6 +139,7 @@
                 <div id="estoqueArea">
                     <button type="button" class="btn-add-produto" onclick="abrirModalAddProduto()"><i class="fas fa-plus"></i> Adicionar produto</button>
                     <button type="button" class="btn-add-produto" style="background:#6741D9;" onclick="abrirModalImportar()"><i class="fas fa-file-import"></i> Importar lista (texto)</button>
+                    <button type="button" class="btn-add-produto" style="background:#2f9e44;" onclick="abrirModalImportarCsv()"><i class="fas fa-file-csv"></i> Importar CSV (evento anterior)</button>
                     <small style="color:#999;">O preço no evento já vem preenchido com o preço de venda atual do produto, mas é editável.
                     Ao salvar, a <b>Qtd levada</b> é dada baixa do estoque do produto (na cor escolhida); reduzir a quantidade (ou remover) <b>devolve</b> ao estoque, limitado ao que ainda não foi vendido.</small>
                     <div id="estoqueLinhas" style="margin-top:14px;"></div>
@@ -250,6 +251,27 @@
             <div class="modal-footer">
                 <button class="btn-cancel-modal" onclick="fecharModalImportar()">Cancelar</button>
                 <button class="btn-confirm-modal" id="impBtnConfirmar" style="display:none;" onclick="impConfirmarImportacao()"><i class="fas fa-check"></i> Importar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Importar CSV gerado por evento_estoque_csv.html (produtos do evento anterior) -->
+    <div class="modal-backdrop" id="modalImportarCsv" onclick="fecharModalImportarCsvFora(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3><i class="fas fa-file-csv" style="color:#2f9e44;margin-right:8px"></i>Importar CSV do evento anterior</h3>
+            <p style="font-size:.82em;color:#999;margin:0 0 10px;">Use o arquivo gerado em <b>Eventos → Gerar CSV p/ novo evento</b>. Colunas (separador <b>;</b>):
+            <code>produtoId ; produtoNome ; corId ; corNome ; quantidade ; valor</code>. Cada linha vira estoque deste evento, ligada ao produto <b>existente</b> pelo ID (ou pelo nome, se o ID não bater). Ao salvar, a Qtd é dada baixa do estoque do produto.</p>
+            <label>Colar texto do CSV</label>
+            <textarea id="csvTexto" placeholder="produtoId;produtoNome;corId;corNome;quantidade;valor&#10;12;Chaveiro Dragão;;;10;15,90" oninput="csvLimparPreview()"></textarea>
+            <label>Ou escolher o arquivo .csv</label>
+            <input type="file" id="csvArquivo" accept=".csv,text/csv,text/plain" onchange="csvCarregarArquivo(this)">
+            <button type="button" class="btn-add-produto" style="margin-top:10px;background:#2f9e44;" onclick="csvAnalisar()"><i class="fas fa-magnifying-glass"></i> Analisar</button>
+            <div id="csvResumo" class="imp-resumo" style="display:none;"></div>
+            <div id="csvPreview" style="max-height:240px;overflow-y:auto;"></div>
+            <p id="csvFeedback" style="min-height:1.1em;font-size:.85em;color:#dc3545;margin:6px 0 0;"></p>
+            <div class="modal-footer">
+                <button class="btn-cancel-modal" onclick="fecharModalImportarCsv()">Cancelar</button>
+                <button class="btn-confirm-modal" id="csvBtnConfirmar" style="display:none;" onclick="csvConfirmarImportacao()"><i class="fas fa-check"></i> Importar</button>
             </div>
         </div>
     </div>
@@ -776,6 +798,158 @@
             } finally {
                 btn.disabled = false;
             }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  MODAL "Importar CSV do evento anterior" — cada linha do CSV
+        //  (produtoId;produtoNome;corId;corNome;quantidade;valor) vira uma
+        //  linha de estoque LIGADA a um produto que já existe (casa pelo
+        //  ID; se não achar, tenta pelo nome exato). Igual aos outros
+        //  importadores: a linha fica pendente até "Salvar Evento".
+        // ══════════════════════════════════════════════════════════════
+        let csvLinhasValidas = [];   // [{ produtoId, qtd, valor, corId, corNome, nome }]
+
+        function abrirModalImportarCsv() {
+            document.getElementById('csvTexto').value = '';
+            document.getElementById('csvArquivo').value = '';
+            document.getElementById('csvFeedback').textContent = '';
+            csvLimparPreview();
+            document.getElementById('modalImportarCsv').classList.add('open');
+            setTimeout(() => document.getElementById('csvTexto').focus(), 60);
+        }
+        function fecharModalImportarCsv() { document.getElementById('modalImportarCsv').classList.remove('open'); }
+        function fecharModalImportarCsvFora(e) { if (e.target === e.currentTarget) fecharModalImportarCsv(); }
+
+        function csvCarregarArquivo(input) {
+            const arquivo = input.files && input.files[0];
+            if (!arquivo) return;
+            const reader = new FileReader();
+            reader.onload = () => { document.getElementById('csvTexto').value = String(reader.result || '').replace(/^﻿/, ''); csvAnalisar(); };
+            reader.onerror = () => { document.getElementById('csvFeedback').textContent = 'Não foi possível ler o arquivo.'; };
+            reader.readAsText(arquivo, 'utf-8');
+        }
+
+        function csvLimparPreview() {
+            csvLinhasValidas = [];
+            document.getElementById('csvResumo').style.display = 'none';
+            document.getElementById('csvPreview').innerHTML = '';
+            document.getElementById('csvBtnConfirmar').style.display = 'none';
+            document.getElementById('csvFeedback').textContent = '';
+        }
+
+        // Split de 1 linha CSV respeitando aspas. delim = ';' ou ','
+        function csvSplitLinha(linha, delim) {
+            const out = []; let cur = ''; let emAspas = false;
+            for (let i = 0; i < linha.length; i++) {
+                const ch = linha[i];
+                if (emAspas) {
+                    if (ch === '"') { if (linha[i + 1] === '"') { cur += '"'; i++; } else emAspas = false; }
+                    else cur += ch;
+                } else if (ch === '"') { emAspas = true; }
+                else if (ch === delim) { out.push(cur); cur = ''; }
+                else cur += ch;
+            }
+            out.push(cur);
+            return out.map(s => s.trim());
+        }
+
+        function csvParseValor(txt) {
+            let s = String(txt || '').replace(/r\$\s*/i, '').replace(/\s/g, '');
+            if (s.indexOf('.') > -1 && s.indexOf(',') > -1) s = s.replace(/\./g, '').replace(',', '.');
+            else if (s.indexOf(',') > -1) s = s.replace(',', '.');
+            const n = parseFloat(s);
+            return isNaN(n) ? null : n;
+        }
+
+        // Casa produtoId (ou nome) contra produtosMap → retorna a chave real ou null
+        function csvResolverProduto(idBruto, nomeBruto) {
+            const id = String(idBruto || '').replace(/\D/g, '');
+            if (id && produtosMap[id]) return id;
+            const nome = String(nomeBruto || '').trim().toLowerCase();
+            if (nome) {
+                const achado = Object.keys(produtosMap).find(k => (produtosMap[k].nome || '').trim().toLowerCase() === nome);
+                if (achado) return achado;
+            }
+            return null;
+        }
+
+        function csvAnalisar() {
+            const bruto = document.getElementById('csvTexto').value.replace(/^﻿/, '');
+            const linhas = bruto.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            const preview = document.getElementById('csvPreview');
+            const resumo = document.getElementById('csvResumo');
+            const btn = document.getElementById('csvBtnConfirmar');
+            csvLinhasValidas = [];
+            preview.innerHTML = '';
+
+            if (!linhas.length) {
+                document.getElementById('csvFeedback').textContent = 'Cole o CSV ou escolha um arquivo .csv primeiro.';
+                resumo.style.display = 'none'; btn.style.display = 'none';
+                return;
+            }
+            document.getElementById('csvFeedback').textContent = '';
+
+            const delim = (linhas[0].split(';').length >= linhas[0].split(',').length) ? ';' : ',';
+            // Pula o cabeçalho, se houver
+            let dados = linhas;
+            if (/produtoid|quantidade|produtonome/i.test(linhas[0])) dados = linhas.slice(1);
+
+            // Linhas produto+cor já presentes no formulário (evita duplicar)
+            const jaNoForm = new Set([...document.querySelectorAll('.estoque-linha')]
+                .map(l => String(l.dataset.produtoId) + '|' + (l.dataset.corId || '')));
+
+            let erros = 0, dups = 0;
+            dados.forEach(linha => {
+                const c = csvSplitLinha(linha, delim);
+                const [idBruto, nomeBruto, corIdBruto, corNomeBruto, qtdBruto, valorBruto] = c;
+                const div = document.createElement('div');
+
+                const produtoId = csvResolverProduto(idBruto, nomeBruto);
+                if (!produtoId) {
+                    erros++;
+                    div.className = 'imp-linha erro';
+                    div.innerHTML = `<span class="imp-nome">${esc(linha)}</span><span class="imp-valor">produto não encontrado</span>`;
+                    preview.appendChild(div);
+                    return;
+                }
+
+                const corId = (corIdBruto || '').trim() || null;
+                const corNome = (corNomeBruto || '').trim() || null;
+                const chave = String(produtoId) + '|' + (corId || '');
+                if (jaNoForm.has(chave)) {
+                    dups++;
+                    div.className = 'imp-linha erro';
+                    div.innerHTML = `<span class="imp-nome">${esc(produtosMap[produtoId].nome)}${corNome ? ' · ' + esc(corNome) : ''}</span><span class="imp-valor">já está na lista</span>`;
+                    preview.appendChild(div);
+                    return;
+                }
+
+                let qtd = parseInt(qtdBruto, 10);
+                if (isNaN(qtd) || qtd <= 0) qtd = 1;
+                let valor = csvParseValor(valorBruto);
+                if (valor == null || valor < 0) valor = Number(produtosMap[produtoId].precoVenda) || 0;
+
+                csvLinhasValidas.push({ produtoId, qtd, valor, corId, corNome, nome: produtosMap[produtoId].nome });
+                jaNoForm.add(chave);
+                div.className = 'imp-linha';
+                div.innerHTML = `<span class="imp-nome">${qtd}× ${esc(produtosMap[produtoId].nome)}${corNome ? ' · ' + esc(corNome) : ''}</span><span class="imp-valor">${formatarMoeda(valor)}</span>`;
+                preview.appendChild(div);
+            });
+
+            resumo.style.display = 'block';
+            resumo.textContent = `${csvLinhasValidas.length} produto(s) serão adicionados ao evento`
+                + (dups ? ` · ${dups} já na lista` : '')
+                + (erros ? ` · ${erros} linha(s) sem produto correspondente` : '');
+            btn.style.display = csvLinhasValidas.length ? '' : 'none';
+        }
+
+        function csvConfirmarImportacao() {
+            if (!csvLinhasValidas.length) return;
+            csvLinhasValidas.forEach(item => {
+                const novoEstoqueId = empresaRef(CAMINHO_RTDB + '/' + idEmEdicao + '/estoque').push().key;
+                adicionarLinhaEstoque(novoEstoqueId, item.produtoId, item.qtd, item.valor, null, item.corId, item.corNome);
+            });
+            fecharModalImportarCsv();
         }
 
         function adicionarLinhaEstoque(estoqueId, produtoId, qtdLevada, precoEvento, filamentoId, corId, corNome) {
