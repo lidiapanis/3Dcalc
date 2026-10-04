@@ -1,5 +1,5 @@
 # KOMBINEI — Estado do Projeto
-> Última atualização: 2026-10-03 (tela Início + Cálculo Rápido + ícones do menu + sync do deploy de 2026-08-29)
+> Última atualização: 2026-10-04 (novo nome/título do app)
 > Usar este arquivo para iniciar nova sessão de desenvolvimento.
 > ⚠️ Sempre que este projeto for alterado (código, infra, deploy), atualizar este arquivo no mesmo
 > momento — ver nota no fim da seção 2 e da seção 9.
@@ -65,6 +65,11 @@ firebase deploy --only functions      # só functions
 firebase deploy --only hosting,functions,firestore:rules,database
 ```
 Logado como `leonardomonizbarros@gmail.com`.
+
+**2026-10-04 — Novo nome do app:** `manifest.json` `name`, `<title>` do `home.html` e do
+`login.html` = "Kombinei - Sistema de Gestão Inteligente de Produtos Personalizados" (mesmo texto
+nos três para o Chrome não repetir o nome na barra de título do app instalado). `short_name`
+continua `KOMBINEI`. SW: cache `kombinei-app-v13`.
 
 **2026-10-03 — Cálculo Rápido + sync do deploy de 2026-08-29:**
 - Descoberto que houve um deploy de hosting em **2026-08-29** que nunca foi commitado (de novo).
