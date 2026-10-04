@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cálculo Rápido de Impressão</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="empresa.js"></script>
+    <script src="maquinas.js"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
         .container { background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); max-width: 760px; margin: 20px auto; }
@@ -41,6 +46,7 @@
         .btn { border: none; border-radius: 6px; padding: 10px 16px; cursor: pointer; font-weight: 700; font-size: .92em; }
         .btn-pri { background: #4A93B0; color: #fff; }
         .btn-pri:hover { background: #3A7A96; }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
         .btn-sec { background: none; border: 1px solid #ccc; color: #555; font-weight: 600; }
 
         details.params { margin-top: 26px; border: 1px solid #e3ecf0; border-radius: 10px; padding: 0 16px; }
@@ -84,12 +90,16 @@
                 <option value="a1mini">A1 mini</option>
                 <option value="a1">A1</option>
             </select>
+            <div class="hint" id="hintImpressora"></div>
         </div>
         <div>
             <label for="material">Material</label>
             <select id="material">
-                <option value="pla">PLA</option>
-                <option value="quente">PETG / ABS / ASA (+20% energia)</option>
+                <option value="PLA">PLA</option>
+                <option value="PLA Silk">PLA Silk</option>
+                <option value="PETG">PETG (+20% energia)</option>
+                <option value="ABS">ABS (+20% energia)</option>
+                <option value="ASA">ASA (+20% energia)</option>
             </select>
         </div>
         <div class="full">
@@ -125,7 +135,7 @@
 
     <div class="acoes">
         <button type="button" class="btn btn-sec" onclick="limpar()"><i class="fas fa-eraser"></i> Limpar</button>
-        <button type="button" class="btn btn-pri" id="btnCopiar" onclick="copiar()" disabled><i class="fas fa-copy"></i> Copiar resultado</button>
+        <button type="button" class="btn btn-pri" id="btnProduto" onclick="criarProduto()" disabled title="Abre o cadastro de produto já preenchido com estes dados"><i class="fas fa-cube"></i> Criar produto com este cálculo</button>
     </div>
 
     <details class="params">
@@ -133,13 +143,14 @@
         <div class="grid">
             <div><label for="pFilamento">Filamento (R$/kg)</label><input type="number" id="pFilamento" step="0.01" min="0"></div>
             <div><label for="pTarifa">Energia (R$/kWh)</label><input type="number" id="pTarifa" step="0.01" min="0"></div>
-            <div><label for="pKwMini">Consumo A1 mini (kW)</label><input type="number" id="pKwMini" step="0.001" min="0"></div>
-            <div><label for="pKwA1">Consumo A1 (kW)</label><input type="number" id="pKwA1" step="0.001" min="0"></div>
-            <div><label for="pBico">Desgaste do bico (R$ por impressão)</label><input type="number" id="pBico" step="0.01" min="0"></div>
-            <div><label for="pValorImp">Valor base da impressora (R$)</label><input type="number" id="pValorImp" step="1" min="0"></div>
-            <div><label for="pVida">Vida útil da impressora (h)</label><input type="number" id="pVida" step="1" min="1"></div>
+            <div class="gen"><label for="pKwMini">Consumo A1 mini (kW)</label><input type="number" id="pKwMini" step="0.001" min="0"></div>
+            <div class="gen"><label for="pKwA1">Consumo A1 (kW)</label><input type="number" id="pKwA1" step="0.001" min="0"></div>
+            <div class="gen"><label for="pBico">Desgaste do bico (R$ por impressão)</label><input type="number" id="pBico" step="0.01" min="0"></div>
+            <div class="gen"><label for="pValorImp">Valor base da impressora (R$)</label><input type="number" id="pValorImp" step="1" min="0"></div>
+            <div class="gen"><label for="pVida">Vida útil da impressora (h)</label><input type="number" id="pVida" step="1" min="1"></div>
             <div style="display:flex;align-items:flex-end;"><button type="button" class="btn btn-sec" style="width:100%" onclick="restaurarParametros()"><i class="fas fa-rotate-left"></i> Restaurar padrão</button></div>
             <div class="full hint" id="hintDesgaste"></div>
+            <div class="full hint">No “Criar produto”, o preço do kg segue a média dos filamentos desse tipo cadastrados em Insumos (se houver); este valor só é usado quando não houver.</div>
         </div>
     </details>
 </div>
@@ -153,7 +164,8 @@
     const brl = v => 'R$ ' + v.toFixed(2).replace('.', ',');
     const num = (v, casas) => v.toLocaleString('pt-BR', { maximumFractionDigits: casas });
     let modo = 'duracao';
-    let textoCopia = '';
+    let dadosProduto = null;   // preenchido pelo calcular(); usado pelo "Criar produto"
+    let maquinas = {};         // máquinas da empresa (Configurações → Minhas máquinas)
 
     function lerParamsSalvos() {
         try { return Object.assign({}, PADRAO, JSON.parse(localStorage.getItem(CHAVE) || '{}')); }
@@ -196,51 +208,74 @@
 
     function calcular() {
         const p = params();
-        $('hintDesgaste').textContent = 'Desgaste da impressora = ' + brl(p.valorImp) + ' ÷ ' + num(p.vida, 0) + ' h = ' + brl(p.valorImp / p.vida) + ' por hora.';
-        const quente = $('material').value === 'quente';
+        const maq = maquinas[$('impressora').value];   // undefined = parâmetros genéricos (A1 mini / A1)
+        $('hintDesgaste').textContent = maq
+            ? 'Consumo, manutenção e desgaste vêm da máquina “' + (maq.apelido || '') + '” (Configurações → Minhas máquinas): '
+              + (Number(maq.consumoW) || 0) + ' W · ' + brl(Number(maq.custoManutencao) || 0) + '/impressão · ' + brl(Maquinas.desgastePorHora(maq)) + '/h.'
+            : 'Desgaste da impressora = ' + brl(p.valorImp) + ' ÷ ' + num(p.vida, 0) + ' h = ' + brl(p.valorImp / p.vida) + ' por hora.';
+        const quente = Maquinas.fatorMaterial($('material').value) > 1;
         $('avisoMaterial').style.display = quente ? '' : 'none';
 
         const h = horasImpressao(), g = parseFloat($('peso').value);
-        const nomeImp = $('impressora').value === 'a1' ? 'A1' : 'A1 mini';
+        const nomeImp = maq ? (maq.apelido || 'Máquina') : ($('impressora').value === 'a1' ? 'A1' : 'A1 mini');
         const nome = $('nome').value.trim();
         $('resTitulo').textContent = nome || 'Resultado';
 
         if (h === null || isNaN(g) || g <= 0) {
             $('resInfo').textContent = '';
             $('resCorpo').innerHTML = '<div class="vazio">Preencha o tempo e o peso para ver o custo.</div>';
-            $('btnCopiar').disabled = true;
-            textoCopia = '';
+            $('btnProduto').disabled = true;
+            dadosProduto = null;
             return;
         }
 
-        const kw = ($('impressora').value === 'a1' ? p.kwA1 : p.kwMini) * (quente ? 1.2 : 1);
+        let kw, manutencao, desgaste;
+        if (maq) {
+            const c = Maquinas.custos(maq, h, $('material').value);
+            kw = c.watts / 1000; manutencao = c.manutencao; desgaste = c.desgaste;
+        } else {
+            kw = ($('impressora').value === 'a1' ? p.kwA1 : p.kwMini) * (quente ? 1.2 : 1);
+            manutencao = p.bico; desgaste = h * p.valorImp / p.vida;
+        }
         const kwh = h * kw;
         const linhas = [
             { item: 'Filamento', det: num(g, 1) + ' g', v: g * p.filamento / 1000 },
             { item: 'Energia', det: num(kwh, 3) + ' kWh', v: kwh * p.tarifa },
-            { item: 'Bico', det: '', v: p.bico },
-            { item: 'Desgaste impressora', det: num(h, 2) + ' h', v: h * p.valorImp / p.vida },
+            { item: maq ? 'Manutenção (bico etc.)' : 'Bico', det: '', v: manutencao },
+            { item: 'Desgaste impressora', det: num(h, 2) + ' h', v: desgaste },
         ];
         // Cada linha exibida arredondada; total calculado com os valores não arredondados
         const total = linhas.reduce((s, l) => s + l.v, 0);
-        const info = nomeImp + ' · ' + fmtDuracao(h) + ' · ' + num(g, 1) + ' g' + (quente ? ' · PETG/ABS/ASA' : '');
+        const info = nomeImp + ' · ' + fmtDuracao(h) + ' · ' + num(g, 1) + ' g · ' + $('material').value;
         $('resInfo').textContent = info;
 
         $('resCorpo').innerHTML = linhas.map(l =>
             '<div class="linha"><span>' + l.item + (l.det ? ' <span class="det">(' + l.det + ')</span>' : '') + '</span><span class="num">' + brl(l.v) + '</span></div>'
         ).join('') + '<div class="linha total"><span>Total (custo)</span><span class="num">' + brl(total) + '</span></div>';
 
-        textoCopia = (nome ? nome + ' — ' : '') + info + '\n'
-            + linhas.map(l => l.item + (l.det ? ' (' + l.det + ')' : '') + ': ' + brl(l.v)).join('\n')
-            + '\nTotal (custo): ' + brl(total);
-        $('btnCopiar').disabled = false;
+        // Mapeado para os campos do cadastro de produto (modo "Custo simplificado")
+        dadosProduto = {
+            nome,
+            tipo: $('material').value,
+            precoKg: p.filamento.toFixed(2),
+            peso: String(g),
+            kwh: String(p.tarifa),
+            watts: String(Math.round(kw * 1000)),
+            horas: h.toFixed(4),
+            outros: (linhas[2].v + linhas[3].v).toFixed(3),   // bico + desgaste (3 casas: total bate com o daqui)
+        };
+        if (maq) dadosProduto.maquina = $('impressora').value;   // no cadastro, a máquina recalcula consumo e outros custos
+        $('btnProduto').disabled = false;
     }
 
-    function copiar() {
-        if (!textoCopia) return;
-        const btn = $('btnCopiar'), orig = btn.innerHTML;
-        const ok = () => { btn.innerHTML = '<i class="fas fa-check"></i> Copiado'; setTimeout(() => { btn.innerHTML = orig; }, 1500); };
-        if (navigator.clipboard) navigator.clipboard.writeText(textoCopia).then(ok).catch(() => {});
+    // Abre o cadastro de produto já preenchido (cadastro_produtos.html lê ?rapido=1&...)
+    function criarProduto() {
+        if (!dadosProduto) return;
+        const pagina = 'cadastro_produtos.html?rapido=1&' + new URLSearchParams(dadosProduto).toString();
+        try {
+            if (window.parent !== window && parent.abrirPagina) { parent.abrirPagina(pagina, 'Novo Produto', 'listagem_produtos.html'); return; }
+        } catch (e) {}
+        location.href = pagina;
     }
 
     function limpar() {
@@ -266,6 +301,33 @@
 
     preencherParams(lerParamsSalvos());
     calcular();
+
+    // Máquinas cadastradas substituem as opções genéricas "A1 mini / A1"
+    firebase.initializeApp({
+        apiKey: "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
+        authDomain: "calculo3d.firebaseapp.com",
+        databaseURL: "https://calculo3d-default-rtdb.firebaseio.com",
+        projectId: "calculo3d",
+        storageBucket: "calculo3d.firebasestorage.app",
+        messagingSenderId: "372705279593",
+        appId: "1:372705279593:web:0b584c7a71dd3675a96cf8",
+    });
+    (async () => {
+        if (!(await initEmpresa())) return;
+        try { maquinas = await Maquinas.carregar(empresaRef); } catch (e) { maquinas = {}; }
+        const ativas = Object.keys(maquinas).filter(id => maquinas[id].ativa !== false)
+            .sort((a, b) => String(maquinas[a].apelido || '').localeCompare(String(maquinas[b].apelido || '')));
+        if (ativas.length) {
+            const padrao = Maquinas.padrao(maquinas);
+            $('impressora').innerHTML = ativas.map(id => '<option value="' + id + '"' + (id === padrao ? ' selected' : '') + '>'
+                + Maquinas.nomeExibicao(maquinas[id]).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) + '</option>').join('');
+            document.querySelectorAll('.gen').forEach(el => { el.style.display = 'none'; });
+            $('hintImpressora').textContent = '';
+        } else {
+            $('hintImpressora').innerHTML = 'Valores genéricos. Cadastre suas máquinas em <b>Configurações → Minhas máquinas</b> para usar os dados reais.';
+        }
+        calcular();
+    })();
 </script>
 </body>
 </html>

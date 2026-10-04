@@ -9,8 +9,10 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
   <script src="empresa.js"></script>
+  <script src="maquinas.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -65,13 +67,82 @@
       padding: 12px 16px; font-size: 0.82em; color: #2c5282; margin-top: 8px;
     }
     .info-box i { margin-right: 6px; }
+
+    /* ── Máquinas ── */
+    h2.sec { font-size: 1.1em; color: #333; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+    h2.sec i { color: #4A93B0; }
+    .sec-sub { font-size: .84em; color: #777; margin: 0 0 14px; line-height: 1.4; }
+    .maq-lista { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+    .maq {
+      border: 1px solid #e0e0e0; border-radius: 8px; padding: 14px 16px;
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .maq.inativa { opacity: .6; }
+    .maq-ico { width: 40px; height: 40px; border-radius: 10px; background: #e0f0f8; color: #2E7496; display: grid; place-items: center; flex-shrink: 0; }
+    .maq-corpo { flex: 1; min-width: 0; }
+    .maq-corpo h3 { margin: 0; font-size: 1em; color: #333; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .maq-corpo .det { font-size: .84em; color: #777; margin: 3px 0 0; }
+    .maq-corpo .num { font-size: .82em; color: #555; margin: 6px 0 0; display: flex; gap: 14px; flex-wrap: wrap; }
+    .maq-corpo .num b { color: #333; }
+    .tag-padrao { background: #d4edda; color: #155724; font-size: .7em; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+    .tag-inativa { background: #eee; color: #666; font-size: .7em; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+    .maq-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+    .maq-acoes button { border: none; border-radius: 5px; padding: 7px 10px; cursor: pointer; font-size: .85em; }
+    .btn-edit { background: #ffc107; color: #333; }
+    .btn-del { background: #dc3545; color: #fff; }
+    .vazio { text-align: center; color: #999; padding: 18px; border: 1px dashed #ddd; border-radius: 8px; font-size: .9em; }
+
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: flex-start; justify-content: center; z-index: 700; padding: 24px 12px; overflow-y: auto; }
+    .modal-bg.open { display: flex; }
+    .modal-cx { background: #fff; border-radius: 10px; width: 100%; max-width: 620px; padding: 22px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+    .modal-cx h3 { margin: 0 0 4px; color: #1B4C65; }
+    .modal-cx .grp { font-size: .78em; font-weight: 700; color: #4A93B0; text-transform: uppercase; letter-spacing: .5px; margin: 18px 0 2px; }
+    .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .fgrid .full { grid-column: 1 / -1; }
+    .modal-cx label { display: block; font-weight: 600; color: #555; margin: 10px 0 4px; font-size: .88em; }
+    .modal-cx input[type=text], .modal-cx input[type=number], .modal-cx input[type=date], .modal-cx select, .modal-cx textarea {
+      width: 100%; padding: 9px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: .95em; font-family: inherit; background: #fff;
+    }
+    .modal-cx textarea { min-height: 60px; resize: vertical; }
+    .modal-cx small { color: #999; font-size: .78em; display: block; margin-top: 3px; }
+    .chk { display: flex; align-items: center; gap: 8px; font-weight: 500 !important; margin-top: 12px !important; cursor: pointer; }
+    .chk input { width: 17px; height: 17px; }
+    .resumo-custo { background: #f0f7fb; border: 1px solid #bee3f8; border-radius: 6px; padding: 10px 14px; font-size: .86em; color: #2c5282; margin-top: 14px; }
+    .modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    .btn-sec { background: none; border: 1px solid #ccc; color: #555; border-radius: 6px; padding: 10px 16px; cursor: pointer; }
+    #maqFeedback { min-height: 1.1em; font-size: .88em; margin: 10px 0 0; color: #dc3545; }
+
+    @media (max-width: 600px) {
+      .fgrid { grid-template-columns: 1fr; }
+      .maq { flex-wrap: wrap; }
+      .maq-acoes { width: 100%; justify-content: flex-end; }
+    }
+    html[data-theme="dark"] h2.sec, html[data-theme="dark"] .maq-corpo h3, html[data-theme="dark"] .maq-corpo .num b { color: #e0e0e0 !important; }
+    html[data-theme="dark"] .maq, html[data-theme="dark"] .vazio { border-color: #3a3a50 !important; }
+    html[data-theme="dark"] .maq-corpo .det, html[data-theme="dark"] .maq-corpo .num, html[data-theme="dark"] .sec-sub { color: #9aa7b4 !important; }
+    html[data-theme="dark"] .maq-ico { background: rgba(127,193,222,.14); color: #7fc1de; }
+    html[data-theme="dark"] .modal-cx { background: #1e1e2e !important; color: #e0e0e0; }
+    html[data-theme="dark"] .modal-cx h3 { color: #7fc1de !important; }
+    html[data-theme="dark"] .modal-cx label { color: #ccc !important; }
+    html[data-theme="dark"] .modal-cx input, html[data-theme="dark"] .modal-cx select, html[data-theme="dark"] .modal-cx textarea { background: #2a2a3e !important; color: #e0e0e0 !important; border-color: #555 !important; }
+    html[data-theme="dark"] .resumo-custo { background: #1a2b3a; border-color: #2E7496; color: #9fd0ea; }
+    html[data-theme="dark"] .btn-sec { border-color: #555; color: #ccc; }
   </style>
   <link rel="stylesheet" href="dark-mode.css">
   <script src="theme.js"></script>
 </head>
 <body>
 <div class="container">
-  <h1><i class="fas fa-cog"></i> Configurações de Integrações</h1>
+  <h1><i class="fas fa-gear"></i> Configurações</h1>
+
+  <!-- Máquinas / Impressoras -->
+  <h2 class="sec"><i class="fas fa-print"></i> Minhas máquinas</h2>
+  <p class="sec-sub">Cadastre suas impressoras com os dados de compra. A partir delas o sistema calcula sozinho o
+    consumo de energia, o desgaste e a manutenção de cada peça no cadastro de produto e no Cálculo Rápido.</p>
+  <div class="maq-lista" id="maqLista"><div class="vazio"><i class="fas fa-spinner fa-spin"></i> Carregando...</div></div>
+  <button class="btn-auth btn-save" onclick="abrirMaquina()"><i class="fas fa-plus"></i> Cadastrar máquina</button>
+
+  <h2 class="sec" style="margin-top:34px;"><i class="fas fa-plug"></i> Integrações</h2>
 
   <!-- Melhor Envio -->
   <div class="integration-card" id="cardME">
@@ -123,6 +194,73 @@
   </div>
 </div>
 
+<!-- Modal: cadastro/edição de máquina -->
+<div class="modal-bg" id="modalMaquina" onclick="if (event.target === this) fecharMaquina()">
+  <div class="modal-cx">
+    <h3 id="maqTitulo">Cadastrar máquina</h3>
+
+    <div class="grp">Identificação</div>
+    <div class="fgrid">
+      <div class="full">
+        <label for="mApelido">Nome da máquina *</label>
+        <input type="text" id="mApelido" maxlength="40" placeholder="Ex.: Lindinha, Bambu 1, Resina do escritório">
+        <small>O nome “genérico” que você usa no dia a dia — aparece nos cadastros e no Cálculo Rápido.</small>
+      </div>
+      <div><label for="mMarca">Marca</label><input type="text" id="mMarca" maxlength="40" placeholder="Ex.: Bambu Lab, Creality, Elegoo"></div>
+      <div><label for="mModelo">Modelo</label><input type="text" id="mModelo" maxlength="40" placeholder="Ex.: A1 mini, Ender 3 V3, Saturn 4"></div>
+      <div><label for="mTipo">Tipo</label><select id="mTipo"></select></div>
+      <div><label for="mSerie">Nº de série</label><input type="text" id="mSerie" maxlength="60"></div>
+    </div>
+
+    <div class="grp">Uso e custos</div>
+    <div class="fgrid">
+      <div>
+        <label for="mConsumo">Consumo médio (W)</label>
+        <input type="number" id="mConsumo" min="0" step="1">
+        <small>Consumo médio imprimindo (não o pico). A1 mini ≈ 80 W, A1 ≈ 95 W.</small>
+      </div>
+      <div>
+        <label for="mVida">Vida útil estimada (horas)</label>
+        <input type="number" id="mVida" min="1" step="1">
+        <small>Usada para o desgaste: valor pago ÷ vida útil.</small>
+      </div>
+      <div>
+        <label for="mManut">Manutenção por impressão (R$)</label>
+        <input type="number" id="mManut" min="0" step="0.01">
+        <small>Bico, PEI, graxa etc. — custo fixo por peça.</small>
+      </div>
+    </div>
+
+    <div class="grp">Compra</div>
+    <div class="fgrid">
+      <div><label for="mValor">Valor pago (R$)</label><input type="number" id="mValor" min="0" step="0.01"></div>
+      <div><label for="mData">Data de aquisição</label><input type="date" id="mData"></div>
+      <div><label for="mNota">Nº da nota fiscal</label><input type="text" id="mNota" maxlength="60"></div>
+      <div>
+        <label for="mFornecedor">Fornecedor</label>
+        <select id="mFornecedor" onchange="onFornecedorChange()"></select>
+      </div>
+      <div class="full" id="mFornecedorOutroBox" style="display:none;">
+        <label for="mFornecedorOutro">Nome do fornecedor</label>
+        <input type="text" id="mFornecedorOutro" maxlength="60" placeholder="Ex.: Loja oficial Bambu, Shopee, Mercado Livre">
+      </div>
+    </div>
+
+    <div class="grp">Outros</div>
+    <label for="mObs">Observações</label>
+    <textarea id="mObs" maxlength="500" placeholder="Garantia, upgrades, histórico de manutenção..."></textarea>
+    <label class="chk"><input type="checkbox" id="mPadrao"> Máquina padrão (já vem selecionada nos produtos novos e no Cálculo Rápido)</label>
+    <label class="chk"><input type="checkbox" id="mAtiva" checked> Ativa (desmarque se vendeu ou parou de usar)</label>
+
+    <div class="resumo-custo" id="mResumo"></div>
+    <p id="maqFeedback"></p>
+    <div class="modal-foot">
+      <button class="btn-sec" onclick="fecharMaquina()">Cancelar</button>
+      <button class="btn-auth btn-save" id="btnSalvarMaq" onclick="salvarMaquina()"><i class="fas fa-save"></i> Salvar máquina</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const firebaseConfig = {
     apiKey:            "AIzaSyCkGTyw1o7_XGpnXF9-dFwXyCxRZyJOG4c",
@@ -142,7 +280,216 @@
     EMPRESA_ID = ctx.empresaId;
     verificarStatus();
     carregarBrandingForm();            // window.EMPRESA_BRANDING já foi populado por initEmpresa
+    carregarMaquinas();
   })();
+
+  // ── Máquinas ────────────────────────────────────────────────────────────────
+  let maquinas = {};          // { id: maquina }
+  let fornecedores = {};      // { pessoaId: nome } (Pessoas do tipo fornecedor)
+  let maqEditando = null;     // id em edição (null = nova)
+  const $m = id => document.getElementById(id);
+  const brl = v => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const escH = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function carregarMaquinas() {
+    try {
+      const [mapa, pesSnap] = await Promise.all([Maquinas.carregar(empresaRef), empresaRef('pessoas').once('value')]);
+      maquinas = mapa;
+      fornecedores = {};
+      pesSnap.forEach(p => {
+        const d = p.val() || {};
+        const ehFornecedor = (d.tipo === 'fornecedor' || d.tipo === 'ambos') || (d.tipos && d.tipos.fornecedor);
+        if (ehFornecedor) fornecedores[p.key] = d.nome || ('#' + p.key);
+      });
+      renderMaquinas();
+    } catch (e) {
+      $m('maqLista').innerHTML = '<div class="vazio">Erro ao carregar máquinas: ' + escH(e.message) + '</div>';
+    }
+  }
+
+  function renderMaquinas() {
+    const ids = Object.keys(maquinas).sort((a, b) =>
+      (maquinas[b].ativa !== false) - (maquinas[a].ativa !== false) || String(maquinas[a].apelido || '').localeCompare(String(maquinas[b].apelido || '')));
+    if (!ids.length) {
+      $m('maqLista').innerHTML = '<div class="vazio">Nenhuma máquina cadastrada ainda.</div>';
+      return;
+    }
+    const idPadrao = Maquinas.padrao(maquinas);
+    $m('maqLista').innerHTML = ids.map(id => {
+      const m = maquinas[id];
+      const det = [m.marca, m.modelo, m.tipo].filter(Boolean).map(escH).join(' · ');
+      const compra = [m.valorCompra ? brl(m.valorCompra) : '', m.dataAquisicao ? new Date(m.dataAquisicao + 'T12:00:00').toLocaleDateString('pt-BR') : '',
+        m.fornecedorNome ? escH(m.fornecedorNome) : '', m.notaFiscal ? 'NF ' + escH(m.notaFiscal) : ''].filter(Boolean).join(' · ');
+      return '<div class="maq' + (m.ativa === false ? ' inativa' : '') + '">'
+        + '<div class="maq-ico"><i class="fas fa-print"></i></div>'
+        + '<div class="maq-corpo"><h3>' + escH(m.apelido || 'Máquina')
+        + (id === idPadrao ? ' <span class="tag-padrao">PADRÃO</span>' : '')
+        + (m.ativa === false ? ' <span class="tag-inativa">INATIVA</span>' : '') + '</h3>'
+        + (det ? '<p class="det">' + det + '</p>' : '')
+        + (compra ? '<p class="det"><i class="fas fa-receipt" style="margin-right:4px"></i>' + compra + '</p>' : '')
+        + '<p class="num"><span>Consumo <b>' + (Number(m.consumoW) || 0) + ' W</b></span>'
+        + '<span>Desgaste <b>' + brl(Maquinas.desgastePorHora(m)) + '/h</b></span>'
+        + '<span>Manutenção <b>' + brl(m.custoManutencao) + '/peça</b></span></p></div>'
+        + '<div class="maq-acoes"><button class="btn-edit" title="Editar" onclick="abrirMaquina(\'' + id + '\')"><i class="fas fa-pen"></i></button>'
+        + '<button class="btn-del" title="Excluir" onclick="excluirMaquina(\'' + id + '\')"><i class="fas fa-trash"></i></button></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function renderFornecedoresMaq(selId, nomeLivre) {
+    const ids = Object.keys(fornecedores).sort((a, b) => fornecedores[a].localeCompare(fornecedores[b]));
+    let html = '<option value="">— não informado —</option>'
+      + ids.map(id => '<option value="' + escH(id) + '">' + escH(fornecedores[id]) + '</option>').join('')
+      + '<option value="__outro">Outro (digitar o nome)</option>';
+    $m('mFornecedor').innerHTML = html;
+    if (selId && fornecedores[selId]) $m('mFornecedor').value = selId;
+    else if (nomeLivre) { $m('mFornecedor').value = '__outro'; $m('mFornecedorOutro').value = nomeLivre; }
+    else $m('mFornecedor').value = '';
+    onFornecedorChange();
+  }
+  function onFornecedorChange() {
+    $m('mFornecedorOutroBox').style.display = $m('mFornecedor').value === '__outro' ? '' : 'none';
+  }
+
+  function atualizarResumoMaq() {
+    const m = { valorCompra: $m('mValor').value, vidaUtilHoras: $m('mVida').value };
+    const dh = Maquinas.desgastePorHora(m);
+    const man = Number($m('mManut').value) || 0;
+    $m('mResumo').innerHTML = '<i class="fas fa-calculator" style="margin-right:6px"></i>Desgaste: <b>' + brl(dh) + ' por hora</b>'
+      + ' · Ex.: peça de 5 h = ' + brl(man) + ' (manutenção) + ' + brl(5 * dh) + ' (desgaste) = <b>' + brl(man + 5 * dh) + '</b> de outros custos.';
+  }
+  ['mValor', 'mVida', 'mManut'].forEach(id => $m(id).addEventListener('input', atualizarResumoMaq));
+  $m('mTipo').innerHTML = Maquinas.TIPOS.map(t => '<option>' + escH(t) + '</option>').join('');
+
+  function abrirMaquina(id) {
+    maqEditando = id || null;
+    const m = (id && maquinas[id]) || {};
+    const P = Maquinas.PADROES;
+    $m('maqTitulo').textContent = id ? 'Editar máquina' : 'Cadastrar máquina';
+    $m('mApelido').value = m.apelido || '';
+    $m('mMarca').value = m.marca || '';
+    $m('mModelo').value = m.modelo || '';
+    $m('mTipo').value = m.tipo || Maquinas.TIPOS[0];
+    $m('mSerie').value = m.numeroSerie || '';
+    $m('mConsumo').value = m.consumoW != null ? m.consumoW : P.consumoW;
+    $m('mVida').value = m.vidaUtilHoras != null ? m.vidaUtilHoras : P.vidaUtilHoras;
+    $m('mManut').value = m.custoManutencao != null ? m.custoManutencao : P.custoManutencao.toFixed(2);
+    $m('mValor').value = m.valorCompra != null ? m.valorCompra : '';
+    $m('mData').value = m.dataAquisicao || '';
+    $m('mNota').value = m.notaFiscal || '';
+    $m('mFornecedorOutro').value = '';
+    renderFornecedoresMaq(m.fornecedorId, m.fornecedorId ? '' : m.fornecedorNome);
+    $m('mObs').value = m.observacoes || '';
+    // Primeira máquina já nasce como padrão
+    $m('mPadrao').checked = id ? !!m.padrao : !Object.keys(maquinas).length;
+    $m('mAtiva').checked = m.ativa !== false;
+    $m('maqFeedback').textContent = '';
+    atualizarResumoMaq();
+    $m('modalMaquina').classList.add('open');
+    setTimeout(() => $m('mApelido').focus(), 50);
+  }
+  function fecharMaquina() { $m('modalMaquina').classList.remove('open'); }
+
+  async function produtosDaMaquina(id) {
+    const snap = await empresaRef('produtos').orderByChild('maquinaId').equalTo(id).once('value');
+    const lista = [];
+    snap.forEach(c => { lista.push({ id: c.key, dados: c.val() || {} }); });
+    return lista;
+  }
+
+  async function salvarMaquina() {
+    const fb = $m('maqFeedback');
+    const apelido = $m('mApelido').value.trim();
+    if (!apelido) { fb.textContent = 'Dê um nome para a máquina.'; $m('mApelido').focus(); return; }
+    const fornSel = $m('mFornecedor').value;
+    const numOuNull = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
+    const dados = {
+      apelido,
+      marca: $m('mMarca').value.trim(),
+      modelo: $m('mModelo').value.trim(),
+      tipo: $m('mTipo').value,
+      numeroSerie: $m('mSerie').value.trim(),
+      consumoW: numOuNull($m('mConsumo').value) || 0,
+      vidaUtilHoras: numOuNull($m('mVida').value) || Maquinas.PADROES.vidaUtilHoras,
+      custoManutencao: numOuNull($m('mManut').value) || 0,
+      valorCompra: numOuNull($m('mValor').value) || 0,
+      dataAquisicao: $m('mData').value || '',
+      notaFiscal: $m('mNota').value.trim(),
+      fornecedorId: (fornSel && fornSel !== '__outro') ? fornSel : '',
+      fornecedorNome: fornSel === '__outro' ? $m('mFornecedorOutro').value.trim() : (fornecedores[fornSel] || ''),
+      observacoes: $m('mObs').value.trim(),
+      padrao: $m('mPadrao').checked,
+      ativa: $m('mAtiva').checked,
+      dataAtualizacao: new Date().toISOString(),
+    };
+    if (!dados.ativa) dados.padrao = false;
+
+    const antiga = maqEditando ? maquinas[maqEditando] : null;
+    const id = maqEditando || empresaRef('maquinas').push().key;
+    if (!antiga) dados.dataCriacao = dados.dataAtualizacao;
+    else dados.dataCriacao = antiga.dataCriacao || dados.dataAtualizacao;
+
+    const updates = { ['maquinas/' + id]: dados };
+    // Só uma máquina padrão por empresa
+    if (dados.padrao) Object.keys(maquinas).forEach(k => { if (k !== id && maquinas[k].padrao) updates['maquinas/' + k + '/padrao'] = false; });
+
+    $m('btnSalvarMaq').disabled = true;
+    fb.style.color = '#4A93B0'; fb.textContent = 'Salvando...';
+    try {
+      // Mudou algo que afeta o custo? Oferece recalcular os produtos que usam esta máquina.
+      let recalculados = 0;
+      const mudouCusto = antiga && ['consumoW', 'vidaUtilHoras', 'custoManutencao', 'valorCompra']
+        .some(k => Number(antiga[k] || 0) !== Number(dados[k] || 0));
+      const mudouNome = antiga && antiga.apelido !== dados.apelido;
+      if (mudouCusto || mudouNome) {
+        const prods = await produtosDaMaquina(id);
+        const comCusto = prods.filter(p => p.dados.modoCusto !== 'sem');
+        if (mudouCusto && comCusto.length && confirm(
+            comCusto.length + ' produto(s) usam a máquina "' + dados.apelido + '".\n\n'
+            + 'Atualizar o custo deles com os novos dados? (O preço de venda de cada produto não é alterado.)')) {
+          comCusto.forEach(p => {
+            const r = Maquinas.recalcularProduto(p.dados, dados);
+            if (!r) return;
+            Object.keys(r).forEach(k => { updates['produtos/' + p.id + '/' + k] = r[k]; });
+            recalculados++;
+          });
+        }
+        if (mudouNome) prods.forEach(p => { updates['produtos/' + p.id + '/maquinaNome'] = dados.apelido; });
+      }
+      await empresaRef('').update(updates);
+      Object.keys(updates).forEach(k => {
+        const m = k.match(/^maquinas\/([^/]+)\/padrao$/);
+        if (m) maquinas[m[1]].padrao = false;
+      });
+      maquinas[id] = dados;
+      renderMaquinas();
+      fecharMaquina();
+      if (recalculados) alert('Máquina salva. Custo atualizado em ' + recalculados + ' produto(s).');
+    } catch (e) {
+      fb.style.color = '#dc3545'; fb.textContent = 'Erro ao salvar: ' + e.message;
+    } finally {
+      $m('btnSalvarMaq').disabled = false;
+    }
+  }
+
+  async function excluirMaquina(id) {
+    const m = maquinas[id];
+    if (!m) return;
+    try {
+      const prods = await produtosDaMaquina(id);
+      if (prods.length) {
+        alert(prods.length + ' produto(s) usam a máquina "' + (m.apelido || '') + '", então ela não pode ser excluída.\n\n'
+          + 'Se você vendeu ou parou de usar, edite e desmarque "Ativa": ela some das opções, mas os produtos continuam com o histórico.');
+        return;
+      }
+      if (!confirm('Excluir a máquina "' + (m.apelido || '') + '"? Essa ação não pode ser desfeita.')) return;
+      await empresaRef('maquinas/' + id).remove();
+      delete maquinas[id];
+      renderMaquinas();
+    } catch (e) {
+      alert('Erro ao excluir: ' + e.message);
+    }
+  }
 
   // ── Aparência / Marca ──────────────────────────────────────────────────────
   const BRAND_DEFAULT = { corPrimaria: '#1B4C65', corSecundaria: '#26617E', corDestaque: '#4A93B0' };

@@ -22,6 +22,7 @@
     <script src="../barcode.js"></script>
     <script src="../cliente-pdv.js"></script>
     <script src="../estoque.js"></script>
+    <script src="../maquinas.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     <script src="../etiqueta.js"></script>
     <style>
@@ -617,10 +618,12 @@
             </div>
 
             <div class="fs" id="cEnergiaFs">
-                <div class="leg"><i class="fas fa-bolt"></i> Energia elétrica <small style="font-weight:normal;color:#999;">opcional</small></div>
+                <div class="leg"><i class="fas fa-bolt"></i> Máquina, energia e outros custos <small style="font-weight:normal;color:#999;">opcional</small></div>
+                <div class="fld"><label>Máquina</label><select id="cMaquina" onchange="recalcularP()"><option value="">— sem máquina (manual) —</option></select><small id="cMaquinaHint" style="display:block;color:#888;font-size:.8em;margin-top:3px;"></small></div>
                 <div class="fld"><label>Valor do kWh (R$)</label><input type="number" id="cKwh" min="0" step="0.0001" value="1" inputmode="decimal"></div>
                 <div class="fld"><label>Consumo da impressora (W)</label><input type="number" id="cConsumo" min="0" step="1" value="320" inputmode="decimal"></div>
                 <div class="fld"><label>Tempo de impressão (h)</label><input type="number" id="cTempo" min="0" step="0.01" value="3.5" inputmode="decimal"></div>
+                <div class="fld"><label>Outros custos por peça — bico, desgaste (R$)</label><input type="number" id="cOutros" min="0" step="0.01" value="0" inputmode="decimal" oninput="recalcularP()"></div>
             </div>
 
             <div class="fs" id="cMargemFs">
@@ -658,6 +661,7 @@
                 <div class="venda-block2">
                     <div class="linha-res"><span>Custo material</span><b id="rMaterial">R$ 0,00</b></div>
                     <div class="linha-res"><span>Custo energia</span><b id="rEnergia">R$ 0,00</b></div>
+                    <div class="linha-res"><span>Outros custos</span><b id="rOutros">R$ 0,00</b></div>
                     <div class="linha-res total"><span>Custo total</span><b id="rTotal">R$ 0,00</b></div>
                     <div class="linha-res"><span>Margem</span><b id="rMargem">0%</b></div>
                     <div class="linha-res"><span>Preço sugerido</span><span class="preco-sug" id="rSugerido">R$ 0,00</span></div>
@@ -1698,6 +1702,7 @@
         }
 
         function numP(id) { return parseFloat(document.getElementById(id).value) || 0; }
+        let maquinasMapP = {};   // { id: maquina } — recarregado ao abrir o cadastro
 
         // Recalcula custos ao vivo (mesma regra do cadastro web). Retorna os números.
         function recalcularP() {
@@ -1715,7 +1720,22 @@
                 if (hintRolo) hintRolo.textContent = tipoFil ? `Sem filamento ${tipoFil} — informe manual.` : 'Selecione o tipo (ou informe manual).';
             }
             const precoRolo = numP('cPrecoRolo'), peso = numP('cPeso'), kwh = numP('cKwh');
-            const consumo = numP('cConsumo'), tempo = numP('cTempo'), margem = numP('cMargem');
+            const tempo = numP('cTempo'), margem = numP('cMargem');
+            // Máquina escolhida → consumo (W) e outros custos automáticos (maquinas.js)
+            const maq = maquinasMapP[document.getElementById('cMaquina').value];
+            const elConsumo = document.getElementById('cConsumo'), elOutros = document.getElementById('cOutros');
+            let outrosMaq = null;
+            if (maq) {
+                const c = Maquinas.custos(maq, tempo, tipoFil);
+                outrosMaq = c.outros;
+                elConsumo.value = c.watts; elOutros.value = c.outros.toFixed(2);
+                elConsumo.readOnly = true; elOutros.readOnly = true;
+                document.getElementById('cMaquinaHint').textContent = `⚡ Automático: ${c.watts} W · manutenção ${fmt(c.manutencao)} + ${fmt(c.desgasteHora)}/h de desgaste.`;
+            } else {
+                elConsumo.readOnly = false; elOutros.readOnly = false;
+                document.getElementById('cMaquinaHint').textContent = Object.keys(maquinasMapP).length ? 'Sem máquina: consumo e outros custos manuais.' : 'Cadastre suas máquinas em Configurações (sistema web).';
+            }
+            const consumo = numP('cConsumo'), outros = outrosMaq != null ? outrosMaq : numP('cOutros');
             const custoFilamento = (precoRolo / 1000) * peso;
 
             let custoInsumos = 0;
@@ -1737,28 +1757,32 @@
 
             // O total depende do modo escolhido (mesma regra do cadastro web).
             const modo = document.getElementById('cModoCusto').value;
-            let custoMaterial, custoEnergia, custoTotal;
+            // "Outros custos" = bico, desgaste da impressora etc. (por peça; entra nos modos com custo)
+            let custoMaterial, custoEnergia, custoOutros, custoTotal;
             if (modo === 'sem') {
-                custoMaterial = 0; custoEnergia = 0; custoTotal = 0;
+                custoMaterial = 0; custoEnergia = 0; custoOutros = 0; custoTotal = 0;
             } else if (modo === 'simples') {
                 custoMaterial = custoFilamento;
                 custoEnergia  = (consumo / 1000) * tempo * kwh;
-                custoTotal    = custoMaterial + custoEnergia;
+                custoOutros   = outros;
+                custoTotal    = custoMaterial + custoEnergia + custoOutros;
             } else {
                 custoMaterial = custoFilamento + custoReceita;
                 custoEnergia  = (consumo / 1000) * tempo * kwh;
-                custoTotal    = custoMaterial + custoEnergia;
+                custoOutros   = outros;
+                custoTotal    = custoMaterial + custoEnergia + custoOutros;
             }
             const sugerido = custoTotal * (1 + margem / 100);
 
             document.getElementById('rMaterial').textContent = fmt(custoMaterial);
             document.getElementById('rEnergia').textContent = fmt(custoEnergia);
+            document.getElementById('rOutros').textContent = fmt(custoOutros);
             document.getElementById('rTotal').textContent = fmt(custoTotal);
             document.getElementById('rMargem').textContent = margem + '%';
             document.getElementById('rSugerido').textContent = fmt(sugerido);
             if (!precoManual) document.getElementById('cPrecoVenda').value = sugerido.toFixed(2);
 
-            return { custoMaterial, custoEnergia, custoTotal, sugerido };
+            return { custoMaterial, custoEnergia, custoOutros, custoTotal, sugerido };
         }
         function usarSugeridoCad() { precoManual = false; recalcularP(); }
 
@@ -1915,6 +1939,9 @@
             document.getElementById('cKwh').value = '1';
             document.getElementById('cConsumo').value = '320';
             document.getElementById('cTempo').value = '3.5';
+            document.getElementById('cOutros').value = '0';
+            try { maquinasMapP = await Maquinas.carregar(empresaRef); } catch (e) { maquinasMapP = {}; }
+            document.getElementById('cMaquina').innerHTML = Maquinas.opcoes(maquinasMapP, Maquinas.padrao(maquinasMapP) || '', '— sem máquina (manual) —');
             document.getElementById('cMargem').value = '100';
             document.getElementById('cModoCusto').value = 'simples';
             aplicarVisibilidadeModoCustoP();
@@ -1954,6 +1981,8 @@
             document.getElementById('cKwh').value = d.taxaKWh || 0;
             document.getElementById('cConsumo').value = d.consumoImpressora || 0;
             document.getElementById('cTempo').value = d.tempoImpressao || 0;
+            document.getElementById('cOutros').value = d.custoOutros || 0;
+            document.getElementById('cMaquina').innerHTML = Maquinas.opcoes(maquinasMapP, d.maquinaId || '', '— sem máquina (manual) —');
             document.getElementById('cMargem').value = d.margemLucro || 0;
             document.getElementById('cTipoFilamento').value = d.tipoFilamento || '';
 
@@ -2094,11 +2123,14 @@
                 tags: cTagsSelecionadas,
                 cores: cCoresSelecionadas,
                 tipoFilamento: document.getElementById('cTipoFilamento').value,
+                maquinaId: document.getElementById('cMaquina').value || null,
+                maquinaNome: (maquinasMapP[document.getElementById('cMaquina').value] || {}).apelido || null,
                 modoCusto: document.getElementById('cModoCusto').value,
                 receita: coletarReceitaP(),
                 subprodutos: coletarSubprodutosP(),
                 custoMaterial: r.custoMaterial,
                 custoEnergia: r.custoEnergia,
+                custoOutros: r.custoOutros,
                 custoTotal: r.custoTotal,
                 precoVendaSugerido: r.sugerido,
                 precoVenda: precoVenda,

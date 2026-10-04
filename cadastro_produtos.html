@@ -12,6 +12,7 @@
     <script src="cores.js"></script>
     <script src="empresa.js"></script>
     <script src="estoque.js"></script>
+    <script src="maquinas.js"></script>
     <script src="barcode.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     <script src="etiqueta.js"></script>
@@ -429,15 +430,24 @@
             </fieldset>
 
             <fieldset id="energiaFieldset">
-                <legend>Energia Elétrica <small style="font-weight:normal;color:#999;">opcional</small></legend>
+                <legend>Máquina, Energia e Outros Custos <small style="font-weight:normal;color:#999;">opcional</small></legend>
+                <label for="maquinaId">Máquina:</label>
+                <select id="maquinaId" onchange="recalcularCustos()"><option value="">— sem máquina (informar manualmente) —</option></select>
+                <small id="maquinaHint" style="display:block; color:#888; font-size:.82em; margin:-6px 0 8px;">Cadastre suas impressoras em Configurações → Minhas máquinas para o consumo e os outros custos virem calculados.</small>
+
                 <label for="taxaKWh">Valor do kWh na sua conta (R$):</label>
                 <input type="number" id="taxaKWh" min="0" step="0.0001" value="1">
 
                 <label for="consumoImpressora">Consumo da Impressora (Watts):</label>
                 <input type="number" id="consumoImpressora" min="0" step="1" value="320">
+                <small id="consumoHint" style="display:block; color:#888; font-size:.82em; margin:-6px 0 4px;"></small>
 
                 <label for="tempoImpressao">Tempo de Impressão (Horas):</label>
                 <input type="number" id="tempoImpressao" min="0" step="0.01" value="3.5">
+
+                <label for="custoOutros">Outros custos por peça — bico, desgaste da impressora (R$):</label>
+                <input type="number" id="custoOutros" min="0" step="0.01" value="0">
+                <small id="outrosHint" style="display:block; color:#888; font-size:.82em; margin:-6px 0 4px;"></small>
             </fieldset>
 
             <fieldset id="margemFieldset">
@@ -480,6 +490,7 @@
             <p>Custo do Material (filamento): <span id="custoMaterialView">R$ 0,00</span></p>
             <p>Custo da Receita (insumos/subprodutos): <span id="custoReceitaView">R$ 0,00</span></p>
             <p>Custo da Energia: <span id="custoEnergia">R$ 0,00</span></p>
+            <p>Outros Custos (bico, desgaste): <span id="custoOutrosView">R$ 0,00</span></p>
             <p class="total-custo">Custo Total de Produção: <span id="custoTotal">R$ 0,00</span></p>
 
             <div class="venda-block">
@@ -519,6 +530,7 @@
         let idEmEdicao = null;
         let coresSelecionadas = []; // [{corId,nome,hex}] do produto atual
         let corSeletorHandle = null;
+        let maquinasMap = {};       // { id: maquina } (maquinas.js) — consumo/outros custos automáticos
 
         // --- 2. PROTEÇÃO DE PÁGINA E INICIALIZAÇÃO DO CARREGAMENTO ---
 
@@ -529,8 +541,11 @@
             popularTipoFilamento();
             montarSeletorCores();
             await carregarReceitaRefs();
+            try { maquinasMap = await Maquinas.carregar(empresaRef); } catch (e) { maquinasMap = {}; }
+            // Produto novo já vem com a máquina padrão (no modo edição, preencherFormulario sobrescreve)
+            document.getElementById('maquinaId').innerHTML = Maquinas.opcoes(maquinasMap, Maquinas.padrao(maquinasMap) || '');
             // Recálculo ao vivo nas entradas de custo
-            ['precoRolo','pesoPeca','taxaKWh','consumoImpressora','tempoImpressao'].forEach(id => {
+            ['precoRolo','pesoPeca','taxaKWh','consumoImpressora','tempoImpressao','custoOutros'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', recalcularCustos);
             });
@@ -644,8 +659,11 @@
             document.getElementById('taxaKWh').value = dados.taxaKWh || 0;
             document.getElementById('consumoImpressora').value = dados.consumoImpressora || 0;
             document.getElementById('tempoImpressao').value = dados.tempoImpressao || 0;
+            document.getElementById('custoOutros').value = dados.custoOutros || 0;
             document.getElementById('margemLucro').value = dados.margemLucro || 0;
             document.getElementById('tipoFilamento').value = dados.tipoFilamento || '';
+            // Produtos antigos (sem maquinaId) ficam em "sem máquina" e mantêm os valores digitados
+            document.getElementById('maquinaId').innerHTML = Maquinas.opcoes(maquinasMap, dados.maquinaId || '');
 
             if (dados.imagemUrl) {
                 const preview = document.getElementById('previewImagem');
@@ -707,11 +725,38 @@
                 document.querySelector('h1').textContent = "Cadastro de Produto 3D";
                 document.getElementById('btnSubmit').textContent = "Salvar Cadastro";
                 document.getElementById('feedback').textContent = "Modo: Novo Cadastro.";
+                aplicarDadosCalculoRapido(urlParams);
                 iniciarCalculoESalvamento(false); 
             }
         }
     
     
+        // Novo produto vindo do "Cálculo Rápido" (calculo_rapido.html → ?rapido=1&nome=...&peso=...).
+        // O preço do kg continua seguindo a regra do cadastro (média dos Insumos do tipo);
+        // o R$/kg do cálculo só é usado se não houver filamento desse tipo em Insumos.
+        function aplicarDadosCalculoRapido(urlParams) {
+            if (urlParams.get('rapido') !== '1') return;
+            const setVal = (id, chave) => { const v = urlParams.get(chave); if (v !== null && v !== '') document.getElementById(id).value = v; };
+            document.getElementById('modoCusto').value = 'simples';
+            aplicarVisibilidadeModoCusto();
+            setVal('nomePeca', 'nome');
+            setVal('tipoFilamento', 'tipo');
+            const maq = urlParams.get('maquina');
+            // Com máquina, consumo/outros são recalculados por ela; sem, ficam os valores genéricos do cálculo
+            document.getElementById('maquinaId').innerHTML = Maquinas.opcoes(maquinasMap, (maq && maquinasMap[maq]) ? maq : '');
+            setVal('precoRolo', 'precoKg');
+            setVal('pesoPeca', 'peso');
+            setVal('taxaKWh', 'kwh');
+            setVal('consumoImpressora', 'watts');
+            setVal('tempoImpressao', 'horas');
+            setVal('custoOutros', 'outros');
+            recalcularCustos();
+            renderGradeEstoque();
+            setTimeout(() => {
+                document.getElementById('feedback').textContent = "Dados trazidos do Cálculo Rápido — confira e clique em Salvar Cadastro.";
+            }, 0);
+        }
+
         // --- 5. CÁLCULO E SALVAMENTO/ATUALIZAÇÃO (Fluxo unificado) ---
     
         async function iniciarCalculoESalvamento(salvar = true) {
@@ -798,6 +843,8 @@
                     tags: tagsSelecionadas,
                     cores: coresSelecionadas,
                     tipoFilamento: document.getElementById('tipoFilamento').value,
+                    maquinaId: document.getElementById('maquinaId').value || null,
+                    maquinaNome: (maquinasMap[document.getElementById('maquinaId').value] || {}).apelido || null,
                     modoCusto: document.getElementById('modoCusto').value,
                     // Receita
                     receita: coletarReceita(),
@@ -805,6 +852,7 @@
                     // Custos recalculados
                     custoMaterial: r.custoMaterial,
                     custoEnergia: r.custoEnergia,
+                    custoOutros: r.custoOutros,
                     custoTotal: r.custoTotal,
                     precoVendaSugerido: r.sugerido,
                     precoVenda: precoVenda,
@@ -969,9 +1017,34 @@
             const precoRolo = parseFloat(campoRolo.value) || 0;
             const pesoPeca  = parseFloat(document.getElementById('pesoPeca').value) || 0;
             const taxaKWh   = parseFloat(document.getElementById('taxaKWh').value) || 0;
-            const consumo   = parseFloat(document.getElementById('consumoImpressora').value) || 0;
             const tempo     = parseFloat(document.getElementById('tempoImpressao').value) || 0;
             const margem    = parseFloat(document.getElementById('margemLucro').value) || 0;
+
+            // Máquina escolhida → consumo (W) e outros custos (manutenção + desgaste) automáticos
+            const campoConsumo = document.getElementById('consumoImpressora');
+            const campoOutros  = document.getElementById('custoOutros');
+            const maq = maquinasMap[document.getElementById('maquinaId').value];
+            let outrosMaquina = null;
+            if (maq) {
+                const c = Maquinas.custos(maq, tempo, tipoFil);
+                outrosMaquina = c.outros;
+                campoConsumo.value = c.watts;
+                campoOutros.value = c.outros.toFixed(2);
+                [campoConsumo, campoOutros].forEach(el => { el.readOnly = true; el.style.background = '#eef2f5'; });
+                document.getElementById('consumoHint').innerHTML = `<i class="fas fa-bolt"></i> Automático: ${Number(maq.consumoW) || 0} W da máquina${Maquinas.fatorMaterial(tipoFil) > 1 ? ' + 20% (' + tipoFil + ', mesa quente)' : ''}.`;
+                document.getElementById('outrosHint').innerHTML = `<i class="fas fa-bolt"></i> Automático: manutenção ${formatarMoeda(c.manutencao)} + ${tempo.toLocaleString('pt-BR')} h × ${formatarMoeda(c.desgasteHora)}/h de desgaste.`;
+                document.getElementById('maquinaHint').textContent = 'Consumo e outros custos vêm do cadastro da máquina (Configurações).';
+            } else {
+                [campoConsumo, campoOutros].forEach(el => { el.readOnly = false; el.style.background = ''; });
+                document.getElementById('consumoHint').textContent = '';
+                document.getElementById('outrosHint').textContent = '';
+                document.getElementById('maquinaHint').textContent = Object.keys(maquinasMap).length
+                    ? 'Sem máquina: informe consumo e outros custos manualmente.'
+                    : 'Cadastre suas impressoras em Configurações → Minhas máquinas para o consumo e os outros custos virem calculados.';
+            }
+            const consumo   = parseFloat(campoConsumo.value) || 0;
+            // Valor sem arredondar quando vem da máquina (o campo mostra 2 casas)
+            const outros    = outrosMaquina != null ? outrosMaquina : (parseFloat(campoOutros.value) || 0);
 
             const custoPorGrama  = precoRolo / 1000;
             const custoFilamento = custoPorGrama * pesoPeca;
@@ -999,17 +1072,20 @@
             // O total depende do modo escolhido: "sem" zera tudo; "simples" ignora a receita
             // (insumos/subprodutos); "receita" soma filamento + receita, como já era antes.
             const modo = document.getElementById('modoCusto').value;
-            let custoMaterial, custoEnergia, custoTotal;
+            // "Outros custos" = bico, desgaste da impressora etc. (por peça; entra nos modos com custo)
+            let custoMaterial, custoEnergia, custoOutros, custoTotal;
             if (modo === 'sem') {
-                custoMaterial = 0; custoEnergia = 0; custoTotal = 0;
+                custoMaterial = 0; custoEnergia = 0; custoOutros = 0; custoTotal = 0;
             } else if (modo === 'simples') {
                 custoMaterial = custoFilamento;
                 custoEnergia  = (consumo / 1000) * tempo * taxaKWh;
-                custoTotal    = custoMaterial + custoEnergia;
+                custoOutros   = outros;
+                custoTotal    = custoMaterial + custoEnergia + custoOutros;
             } else {
                 custoMaterial = custoFilamento + custoReceita;
                 custoEnergia  = (consumo / 1000) * tempo * taxaKWh;
-                custoTotal    = custoMaterial + custoEnergia;
+                custoOutros   = outros;
+                custoTotal    = custoMaterial + custoEnergia + custoOutros;
             }
             const sugerido = custoTotal * (1 + (margem / 100));
 
@@ -1017,6 +1093,7 @@
             document.getElementById('custoMaterialView').textContent = formatarMoeda(custoFilamento);
             document.getElementById('custoReceitaView').textContent  = formatarMoeda(custoReceita);
             document.getElementById('custoEnergia').textContent      = formatarMoeda(custoEnergia);
+            document.getElementById('custoOutrosView').textContent   = formatarMoeda(custoOutros);
             document.getElementById('custoTotal').textContent        = formatarMoeda(custoTotal);
             document.getElementById('margemView').textContent        = margem + '%';
             document.getElementById('precoSugerido').textContent     = formatarMoeda(sugerido);
@@ -1024,7 +1101,7 @@
                 document.getElementById('precoVendaFinal').value = sugerido.toFixed(2);
             }
 
-            return { custoFilamento, custoReceita, custoMaterial, custoEnergia, custoTotal, sugerido, margem };
+            return { custoFilamento, custoReceita, custoMaterial, custoEnergia, custoOutros, custoTotal, sugerido, margem };
         }
 
         function usarSugerido() { precoVendaManual = false; recalcularCustos(); }

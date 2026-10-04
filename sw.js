@@ -10,14 +10,14 @@
  *       • mesma-origem em /api/** (endpoints do Cloud Functions) → sempre rede, sem cache.
  *   - Só GET é cacheado; POST/PUT/etc. passam direto.
  */
-const CACHE = 'kombinei-app-v13';
+const CACHE = 'kombinei-app-v15';
 
 // Núcleo do shell pré-cacheado (resiliente: um 404 não quebra a instalação).
 const SHELL = [
   '/', '/login.html', '/home.html', '/manifest.json',
   '/kombinei-logo.svg', '/icon-192.png', '/icon-512.png', '/pdv/icon-maskable-512.png',
   '/dark-mode.css', '/theme.js', '/empresa.js',
-  '/config.js', '/tags.js', '/cores.js', '/barcode.js', '/pwa.js', '/cliente-pdv.js', '/vendas.js', '/estoque.js',
+  '/config.js', '/tags.js', '/cores.js', '/barcode.js', '/pwa.js', '/cliente-pdv.js', '/vendas.js', '/estoque.js', '/maquinas.js',
   '/dashboard.html', '/historico_vendas.html',
   '/listagem_orcamentos.html', '/cadastro_orcamentos.html',
   '/listagem_pessoas.html', '/cadastro_pessoas.html',

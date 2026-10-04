@@ -1,5 +1,5 @@
 # KOMBINEI — Estado do Projeto
-> Última atualização: 2026-10-04 (novo nome/título do app)
+> Última atualização: 2026-10-04 (cadastro de Máquinas + custos automáticos no produto e no Cálculo Rápido)
 > Usar este arquivo para iniciar nova sessão de desenvolvimento.
 > ⚠️ Sempre que este projeto for alterado (código, infra, deploy), atualizar este arquivo no mesmo
 > momento — ver nota no fim da seção 2 e da seção 9.
@@ -18,6 +18,7 @@ Sistema SaaS multi-tenant de gestão para empresas de impressão 3D. Funcionalid
 - Dashboard de análise
 - **Catálogo de HueForges** — correlação de cores: descobre quais artes (até 4 cores) são imprimíveis com a carga atual da impressora, sem trocar bobina
 - **Importação de vendas da Shopee** (planilha `.xlsx/.csv`)
+- **Máquinas** (Configurações → Minhas máquinas) — impressoras com dados de compra; calculam consumo, desgaste e manutenção dos produtos
 - **Tela Início** (`inicio.html`) — saudação "Bom dia/Boa tarde/Boa noite, <nome>" + atalhos rápidos; é a página padrão ao abrir o sistema
 - **Cálculo Rápido de impressão** (`calculo_rapido.html`, menu Ferramentas) — custo de uma peça a partir de tempo + peso (filamento, energia, bico, desgaste)
 - Branding por empresa (logo + cores)
@@ -65,6 +66,44 @@ firebase deploy --only functions      # só functions
 firebase deploy --only hosting,functions,firestore:rules,database
 ```
 Logado como `leonardomonizbarros@gmail.com`.
+
+**2026-10-04 — Cadastro de Máquinas (`maquinas.js`) + custos automáticos:**
+- **Configurações → Minhas máquinas** (`configuracoes.html`): lista + modal de cadastro. Campos em
+  RTDB `empresas/{id}/maquinas/{pushId}`: `apelido` (nome genérico, obrigatório), `marca`,
+  `modelo`, `tipo` (FDM/Resina/Laser/Outra), `numeroSerie`, `consumoW`, `vidaUtilHoras`,
+  `custoManutencao` (R$/impressão — bico etc.), `valorCompra`, `dataAquisicao`, `notaFiscal`,
+  `fornecedorId` (Pessoa fornecedor) **ou** `fornecedorNome` livre ("Outro"), `observacoes`,
+  `padrao` (só uma por empresa), `ativa`, `dataCriacao`, `dataAtualizacao`. A 1ª máquina nasce padrão.
+- Regras (fonte única `maquinas.js`): desgaste/h = valorCompra ÷ vidaUtilHoras; outros custos/peça
+  = custoManutencao + horas × desgaste/h; consumo = consumoW × 1,2 se PETG/ABS/ASA.
+- **Produto (web + PDV):** novo select "Máquina" (`maquinaId`, salva também `maquinaNome`).
+  Produto novo vem com a máquina padrão; com máquina, `consumoImpressora` e `custoOutros` ficam
+  automáticos (somente leitura). Produtos antigos/sem máquina continuam manuais.
+- **Manter produtos em dia:** ao salvar uma máquina com mudança de consumo/valor/vida/manutenção,
+  pergunta se recalcula os produtos que a usam (`Maquinas.recalcularProduto`: consumo, custoEnergia,
+  custoOutros, custoTotal, precoVendaSugerido — **não mexe no `precoVenda`**). Renomear atualiza
+  `maquinaNome`. Máquina em uso não pode ser excluída (sugere inativar).
+- **Cálculo Rápido:** lista as máquinas ativas (padrão selecionada) no lugar de "A1 mini / A1";
+  sem máquinas cadastradas, mantém os parâmetros genéricos. Passa `maquina=` para o produto.
+- Busca "produtos da máquina" usa `orderByChild('maquinaId')` — **sem `.indexOn` ainda** (funciona,
+  com aviso de performance). Índice fica no backlog junto com `codigoBarras` (não publiquei regras
+  do RTDB sem conferir as regras vivas).
+- SW: cache `kombinei-app-v15` (+ `/maquinas.js` no pré-cache).
+
+**2026-10-04 — Cálculo Rápido → "Criar produto" + campo `custoOutros`:**
+- `calculo_rapido.html`: botão "Copiar resultado" trocado por **"Criar produto com este cálculo"**,
+  que abre `cadastro_produtos.html?rapido=1&nome=&tipo=&precoKg=&peso=&kwh=&watts=&horas=&outros=`
+  (via `parent.abrirPagina`, marcando "Produtos" no menu). Material agora usa os mesmos tipos do
+  cadastro (PLA, PLA Silk, PETG, ABS, ASA; +20% de energia em PETG/ABS/ASA).
+- `cadastro_produtos.html`: `aplicarDadosCalculoRapido()` preenche o novo produto (modo "Custo
+  simplificado"). **Preço do kg continua a regra do cadastro** (média dos filamentos do tipo em
+  Insumos); o R$/kg do cálculo só vale se não houver filamento do tipo — decisão do usuário.
+- **Novo campo de produto `custoOutros`** ("Outros custos por peça — bico, desgaste"), no web
+  (`cadastro_produtos.html`) e no PDV (`pdv/index.html`, `cOutros`). Entra no `custoTotal` nos
+  modos "simples" e "receita" (zerado em "sem"); produtos antigos = 0, sem mudança de custo.
+  Cadastros rápidos de produto em `cadastro_orcamentos.html` / `cadastro_eventos.html` não têm o
+  campo (criam produto novo sem ele — ok).
+- SW: cache `kombinei-app-v14`.
 
 **2026-10-04 — Novo nome do app:** `manifest.json` `name`, `<title>` do `home.html` e do
 `login.html` = "Kombinei - Sistema de Gestão Inteligente de Produtos Personalizados" (mesmo texto
@@ -173,6 +212,7 @@ Cores — registro por empresa + seletor reutilizável, produto.cores, PDV "Adic
 ├── listagem_eventos.html      # listagem + botão de QR/link da landing + "Gerar CSV p/ novo evento"
 ├── evento_estoque_csv.html    # gera CSV (produtoId;produtoNome;corId;corNome;quantidade;valor) do estoque de um evento
 ├── inicio.html                # tela inicial (saudação + atalhos; respeita permissões; nome = displayName do Firebase Auth)
+├── maquinas.js                # ★ regras de custo por máquina (desgaste/h, outros custos, consumo × material), opções de <select>, recalcularProduto()
 ├── calculo_rapido.html        # Cálculo Rápido de custo de impressão (sem banco; parâmetros em localStorage)
 ├── evento_venda.html          # PDV de balcão (web)
 ├── evento_relatorio.html      # relatório de vendas do evento
@@ -258,7 +298,7 @@ Tudo isolado sob `/empresas/{id}/`:
 /empresas/{id}/produtos/{id}      → { idSequencial, nomePeca, nomeResumido, tags[],
                                       codigoBarras, receita[{insumoId,quantidade}],
                                       subprodutos[{produtoId,quantidade}],
-                                      custoMaterial(=filamento+receita), custoEnergia, custoTotal,
+                                      custoMaterial(=filamento+receita), custoEnergia, custoOutros, custoTotal,
                                       precoVendaSugerido, precoVenda, imagemUrl,
                                       precoRolo, pesoPeca, taxaKWh, consumoImpressora,
                                       tempoImpressao, margemLucro, dataCriacao,
@@ -313,7 +353,7 @@ Tudo isolado sob `/empresas/{id}/`:
 ## 8. Funcionalidades por Módulo
 
 ### Produtos + Receita
-- Custo = **filamento** (precoRolo/1000 × peso) + **receita** (Σ insumos `custoUnitario×qtd` + Σ subprodutos `custoTotal×qtd`) + **energia** (W/1000 × h × kWh).
+- Custo = **filamento** (precoRolo/1000 × peso) + **receita** (Σ insumos `custoUnitario×qtd` + Σ subprodutos `custoTotal×qtd`) + **energia** (W/1000 × h × kWh) + **outros custos** (`custoOutros`: bico, desgaste — R$ por peça).
 - `precoVendaSugerido = custoTotal × (1 + margem%)`; `precoVenda` editável (default = sugerido, override detectado).
 - **Imagem** redimensionada 200×200 (canvas) → Storage. **Código de barras** único por empresa.
 - **Tipo de filamento** (2026-07-01): campo `tipoFilamento` (PLA/PLA Silk/PETG/ABS/ASA) nas 3 telas de preço (cadastro web, PDV, modal do orçamento). O "Preço do rolo" passa a ser a **média do PREÇO** (`precoUnitario`) dos filamentos **desse tipo** (`Estoque.precoRoloMedio(map, tipo)`); sem tipo → média geral (retrocompat).
@@ -413,7 +453,7 @@ Tudo isolado sob `/empresas/{id}/`:
 2. **Licença da empresa 1 vitalícia** — garantir que o job diário não trave o superadmin.
 
 ### Média prioridade
-3. **Índice RTDB** `codigoBarras` em `database.rules.json` (`.indexOn`) para silenciar aviso de performance na validação de duplicidade.
+3. **Índice RTDB** em `produtos`: `.indexOn: ["codigoBarras", "maquinaId"]` em `database.rules.json` (silencia aviso de performance na validação de código de barras e na busca de produtos por máquina). Conferir as regras vivas no console antes de publicar.
 4. **CEP no cadastro de Pessoas** — auto-preencher no orçamento.
 5. Multi-tenant Fase 2 (auto-cadastro de empresas + checkout de licença) e Fase 3 (permissões por recurso — já há base via `permissoes`).
 
