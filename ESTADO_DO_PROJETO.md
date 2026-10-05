@@ -89,6 +89,7 @@ Logado como `leonardomonizbarros@gmail.com`.
   com aviso de performance). Índice fica no backlog junto com `codigoBarras` (não publiquei regras
   do RTDB sem conferir as regras vivas).
 - SW: cache `kombinei-app-v15` (+ `/maquinas.js` no pré-cache).
+- Ajuste: data de aquisição da máquina limitada a hoje (`max` no calendário + validação ao salvar). SW `kombinei-app-v16`.
 
 **2026-10-04 — Cálculo Rápido → "Criar produto" + campo `custoOutros`:**
 - `calculo_rapido.html`: botão "Copiar resultado" trocado por **"Criar produto com este cálculo"**,

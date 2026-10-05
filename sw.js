@@ -10,7 +10,7 @@
  *       • mesma-origem em /api/** (endpoints do Cloud Functions) → sempre rede, sem cache.
  *   - Só GET é cacheado; POST/PUT/etc. passam direto.
  */
-const CACHE = 'kombinei-app-v15';
+const CACHE = 'kombinei-app-v16';
 
 // Núcleo do shell pré-cacheado (resiliente: um 404 não quebra a instalação).
 const SHELL = [

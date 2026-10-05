@@ -376,6 +376,7 @@
     $m('mManut').value = m.custoManutencao != null ? m.custoManutencao : P.custoManutencao.toFixed(2);
     $m('mValor').value = m.valorCompra != null ? m.valorCompra : '';
     $m('mData').value = m.dataAquisicao || '';
+    $m('mData').max = hojeISO();   // aquisição não pode ser no futuro
     $m('mNota').value = m.notaFiscal || '';
     $m('mFornecedorOutro').value = '';
     renderFornecedoresMaq(m.fornecedorId, m.fornecedorId ? '' : m.fornecedorNome);
@@ -387,6 +388,11 @@
     atualizarResumoMaq();
     $m('modalMaquina').classList.add('open');
     setTimeout(() => $m('mApelido').focus(), 50);
+  }
+  // Data de hoje (fuso local) no formato do <input type="date">
+  function hojeISO() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
   function fecharMaquina() { $m('modalMaquina').classList.remove('open'); }
 
@@ -401,6 +407,9 @@
     const fb = $m('maqFeedback');
     const apelido = $m('mApelido').value.trim();
     if (!apelido) { fb.textContent = 'Dê um nome para a máquina.'; $m('mApelido').focus(); return; }
+    if ($m('mData').value && $m('mData').value > hojeISO()) {
+      fb.textContent = 'A data de aquisição não pode ser no futuro.'; $m('mData').focus(); return;
+    }
     const fornSel = $m('mFornecedor').value;
     const numOuNull = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
     const dados = {
