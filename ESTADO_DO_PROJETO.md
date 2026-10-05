@@ -1,5 +1,5 @@
 # KOMBINEI — Estado do Projeto
-> Última atualização: 2026-10-04 (cadastro de Máquinas + custos automáticos no produto e no Cálculo Rápido)
+> Última atualização: 2026-10-04 (proteção contra perder cadastro não salvo + máquinas)
 > Usar este arquivo para iniciar nova sessão de desenvolvimento.
 > ⚠️ Sempre que este projeto for alterado (código, infra, deploy), atualizar este arquivo no mesmo
 > momento — ver nota no fim da seção 2 e da seção 9.
@@ -66,6 +66,22 @@ firebase deploy --only functions      # só functions
 firebase deploy --only hosting,functions,firestore:rules,database
 ```
 Logado como `leonardomonizbarros@gmail.com`.
+
+**2026-10-04 — Proteção contra perder cadastro não salvo (`protecao-saida.js`):**
+- Problema relatado: clicar sem querer fora / gesto de voltar do touchpad fazia perder o que estava
+  sendo digitado. Janelas (modais) de cadastro fechavam com clique no fundo escuro.
+- `protecao-saida.js` (incluído em `cadastro_pessoas/insumos/produtos/orcamentos/eventos/hueforges`,
+  `calculo_rapido`, `configuracoes`): marca "com alterações" só em eventos reais do usuário
+  (`isTrusted`; campos `type=search` ou dentro de `[data-sem-aviso]` não contam). Pede confirmação:
+  (1) no menu do `home.html` (`podeSairDoFrame()` em `navegar`/`abrirPagina`/`irConfiguracoes`/
+  `handleLogout`), (2) no gesto/botão voltar (passo extra via `history.pushState` + `popstate`),
+  (3) recarregar/fechar (`beforeunload`). Telas chamam `KombineiSaida.liberar()` após salvar com
+  sucesso (antes do redirect) e `limpar()` quando continuam abertas (Configurações).
+- Modais de cadastro não fecham mais com clique fora (só Cancelar/Salvar): orçamento (novo produto,
+  novo cliente), evento (adicionar produto, importar, importar CSV), máquina. Mantidos com clique fora:
+  busca de insumo, visualizador de imagem, link do evento, extrato, carrinho do PDV.
+- PDV (`pdv/index.html`): mesma proteção no cadastro de produto (botão voltar + `beforeunload`).
+- SW: cache `kombinei-app-v17` (+ `/protecao-saida.js` no pré-cache).
 
 **2026-10-04 — Cadastro de Máquinas (`maquinas.js`) + custos automáticos:**
 - **Configurações → Minhas máquinas** (`configuracoes.html`): lista + modal de cadastro. Campos em
@@ -213,6 +229,7 @@ Cores — registro por empresa + seletor reutilizável, produto.cores, PDV "Adic
 ├── listagem_eventos.html      # listagem + botão de QR/link da landing + "Gerar CSV p/ novo evento"
 ├── evento_estoque_csv.html    # gera CSV (produtoId;produtoNome;corId;corNome;quantidade;valor) do estoque de um evento
 ├── inicio.html                # tela inicial (saudação + atalhos; respeita permissões; nome = displayName do Firebase Auth)
+├── protecao-saida.js          # ★ aviso ao sair de cadastro não salvo (KombineiSaida.podeSair/liberar/limpar)
 ├── maquinas.js                # ★ regras de custo por máquina (desgaste/h, outros custos, consumo × material), opções de <select>, recalcularProduto()
 ├── calculo_rapido.html        # Cálculo Rápido de custo de impressão (sem banco; parâmetros em localStorage)
 ├── evento_venda.html          # PDV de balcão (web)

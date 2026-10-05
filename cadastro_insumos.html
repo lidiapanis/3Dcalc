@@ -45,6 +45,7 @@
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
     <div class="container">
@@ -353,6 +354,7 @@
                     if (acao === 'salvo') {
                         document.getElementById('insumoForm').reset();
                     }
+                    KombineiSaida.liberar();
                     setTimeout(() => { window.location.href = 'listagem_insumos.html'; }, 1200);
                 })
                 .catch((error) => {

@@ -1394,7 +1394,22 @@
             showView('viewHome');
         }
         function abrirPDV() { carregarEventos(); }
-        function voltarProdutos() { abrirProdutos(); }
+        // ── Proteção do cadastro de produto: não perder o que foi digitado ──
+        let cadSujo = false;
+        const MSG_SAIR_CAD = 'Você tem informações não salvas neste produto.\n\nSair mesmo assim e perder o que foi digitado?';
+        ['input', 'change'].forEach(tipo => document.addEventListener(tipo, e => {
+            if (!e.isTrusted || !e.target.closest) return;
+            if (e.target.closest('#viewCadastro') && e.target.matches('input, select, textarea')) cadSujo = true;
+        }, true));
+        window.addEventListener('beforeunload', e => {
+            if (!cadSujo || !document.getElementById('viewCadastro').classList.contains('active')) return;
+            e.preventDefault(); e.returnValue = ''; return '';
+        });
+        function voltarProdutos() {
+            if (cadSujo && !confirm(MSG_SAIR_CAD)) return;
+            cadSujo = false;
+            abrirProdutos();
+        }
 
         // ══════════════════════════════════════════════════════════════
         //  PRODUTOS — busca e listagem
@@ -1956,6 +1971,7 @@
             document.getElementById('cadTitulo').textContent = id ? ('Editar #' + id) : 'Novo produto';
             document.getElementById('btnSalvarProd').textContent = id ? 'Atualizar produto' : 'Salvar produto';
             showView('viewCadastro');
+            cadSujo = false;
 
             await carregarReceitaRefsP();
             await carregarTagsGlobaisP();
@@ -2151,6 +2167,7 @@
                     try { await aplicarProducaoEstoqueP(id); }
                     catch (e) { console.warn('Falha ao aplicar produção de estoque:', e.message); }
                     document.getElementById('cadFeedback').textContent = `Produto #${id} ${editando ? 'atualizado' : 'salvo'} com sucesso!`;
+                    cadSujo = false;
                     setTimeout(() => { _reabilitarSalvar(btn, txtOrig); abrirProdutos(); }, 1200);
                 } catch (e) {
                     _reabilitarSalvar(btn, txtOrig);

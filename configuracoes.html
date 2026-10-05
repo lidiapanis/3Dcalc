@@ -130,6 +130,7 @@
   </style>
   <link rel="stylesheet" href="dark-mode.css">
   <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
 <div class="container">
@@ -195,7 +196,7 @@
 </div>
 
 <!-- Modal: cadastro/edição de máquina -->
-<div class="modal-bg" id="modalMaquina" onclick="if (event.target === this) fecharMaquina()">
+<div class="modal-bg" id="modalMaquina">
   <div class="modal-cx">
     <h3 id="maqTitulo">Cadastrar máquina</h3>
 
@@ -394,7 +395,7 @@
     const d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
-  function fecharMaquina() { $m('modalMaquina').classList.remove('open'); }
+  function fecharMaquina() { $m('modalMaquina').classList.remove('open'); KombineiSaida.limpar(); }
 
   async function produtosDaMaquina(id) {
     const snap = await empresaRef('produtos').orderByChild('maquinaId').equalTo(id).once('value');
@@ -540,6 +541,7 @@
       window.aplicarBranding(branding);   // reflete imediatamente nesta página
       fb.style.color = '#28a745';
       fb.textContent = 'Aparência salva! Recarregue o sistema para ver no menu lateral.';
+      KombineiSaida.limpar();
     } catch (e) {
       fb.style.color = '#dc3545';
       fb.textContent = 'Erro ao salvar: ' + e.message;

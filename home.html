@@ -501,7 +501,17 @@
             return pagina + sep + 'theme=' + getTheme();
         }
 
+        // Tela atual com cadastro não salvo? Pergunta antes de sair (protecao-saida.js na página do iframe)
+        function podeSairDoFrame() {
+            try {
+                const w = document.getElementById('contentFrame').contentWindow;
+                if (w && w.KombineiSaida) return w.KombineiSaida.podeSair();
+            } catch (e) {}
+            return true;
+        }
+
         function navegar(pagina, btn, titulo) {
+            if (!podeSairDoFrame()) return;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('contentFrame').src = urlComTema(pagina);
@@ -511,6 +521,7 @@
 
         // Usado pelos atalhos da tela inicial: abre `pagina` e marca no menu o item de `menuPagina`
         window.abrirPagina = function (pagina, titulo, menuPagina) {
+            if (!podeSairDoFrame()) return;
             const alvo = "'" + (menuPagina || pagina) + "'";
             const btn = Array.from(document.querySelectorAll('.sidebar-nav .nav-item'))
                 .find(b => (b.getAttribute('onclick') || '').includes(alvo));
@@ -566,6 +577,7 @@
         }
 
         window.handleLogout = function () {
+            if (!podeSairDoFrame()) return;
             auth.signOut().then(() => window.location.href = 'login.html');
         };
 
@@ -581,6 +593,7 @@
             if (m) { m.classList.remove('open'); document.getElementById('topbarUser').setAttribute('aria-expanded', 'false'); }
         });
         window.irConfiguracoes = function () {
+            if (!podeSairDoFrame()) return;
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             document.getElementById('contentFrame').src = urlComTema('configuracoes.html');
             document.getElementById('topbarTitle').textContent = 'Configurações';

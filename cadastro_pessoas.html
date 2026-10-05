@@ -51,6 +51,7 @@
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
     <div class="container">
@@ -237,6 +238,7 @@
                 .then(() => {
                     document.getElementById('feedback').textContent = `Pessoa #${id} ${acao} com sucesso!`;
                     if (acao === 'salva') document.getElementById('pessoaForm').reset();
+                    KombineiSaida.liberar();
                     setTimeout(() => { window.location.href = 'listagem_pessoas.html?tipo=' + tipoContexto; }, 1200);
                 })
                 .catch((error) => {

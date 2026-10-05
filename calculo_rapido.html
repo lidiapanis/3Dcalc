@@ -73,6 +73,7 @@
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
 <div class="container">
@@ -271,6 +272,7 @@
     // Abre o cadastro de produto já preenchido (cadastro_produtos.html lê ?rapido=1&...)
     function criarProduto() {
         if (!dadosProduto) return;
+        KombineiSaida.liberar();   // os dados vão junto para o cadastro
         const pagina = 'cadastro_produtos.html?rapido=1&' + new URLSearchParams(dadosProduto).toString();
         try {
             if (window.parent !== window && parent.abrirPagina) { parent.abrirPagina(pagina, 'Novo Produto', 'listagem_produtos.html'); return; }

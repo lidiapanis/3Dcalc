@@ -345,10 +345,11 @@
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
     <!-- Modal: Buscar Insumo -->
-    <div class="modal-insumo-backdrop" id="modalInsumo" onclick="fecharModalInsumo(event)">
+    <div class="modal-insumo-backdrop" id="modalInsumo" onclick="fecharModalInsumo(event)" data-sem-aviso>
         <div class="modal-insumo" onclick="event.stopPropagation()">
             <div class="mi-head">
                 <h3><i class="fas fa-search" style="color:#4A93B0;margin-right:8px;"></i>Buscar Insumo</h3>
@@ -1465,6 +1466,7 @@
                     document.getElementById('calculatorForm').reset();
                 }
 
+                KombineiSaida.liberar();
                 setTimeout(() => {
                     window.location.href = 'listagem_produtos.html';
                 }, 1500);

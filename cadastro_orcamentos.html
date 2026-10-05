@@ -201,11 +201,12 @@
         .np-custos .linha.total { border-top: 1px dashed #c4d8e2; margin-top: 4px; padding-top: 6px; font-weight: 700; color: #e66a2e; }
         .np-custos .sug { color: #28a745; font-weight: 700; }
     </style>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
 
 <!-- Modal: Novo Produto (completo — espelha cadastro_produtos.html) -->
-<div class="modal-backdrop" id="modalProduto" onclick="fecharModalProduto(event)">
+<div class="modal-backdrop" id="modalProduto">
     <div class="modal modal-lg" onclick="event.stopPropagation()">
         <h3><i class="fas fa-box" style="color:#4A93B0;margin-right:8px"></i>Novo Produto</h3>
         <div class="modal-scroll">
@@ -278,7 +279,7 @@
 </div>
 
 <!-- Modal: Novo Cliente -->
-<div class="modal-backdrop" id="modalCliente" onclick="fecharModalCliente(event)">
+<div class="modal-backdrop" id="modalCliente">
     <div class="modal" onclick="event.stopPropagation()">
         <h3><i class="fas fa-user-plus" style="color:#28a745;margin-right:8px"></i>Novo Cliente</h3>
         <label>Nome *</label>
@@ -870,6 +871,7 @@
         empresaRef(CAMINHO_ORCAMENTOS + '/' + id).set(dados)
             .then(() => {
                 document.getElementById('feedback').textContent = `Orçamento #${id} ${acao} com sucesso!`;
+                KombineiSaida.liberar();
                 setTimeout(() => window.location.href = 'listagem_orcamentos.html', 1500);
             })
             .catch(e => { document.getElementById('feedback').textContent = `Erro: ` + e.message; });

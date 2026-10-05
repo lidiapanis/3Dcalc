@@ -86,6 +86,7 @@
     </style>
     <link rel="stylesheet" href="dark-mode.css">
     <script src="theme.js"></script>
+    <script src="protecao-saida.js"></script>
 </head>
 <body>
     <div class="container">
@@ -152,7 +153,7 @@
     </div>
 
     <!-- Modal: Adicionar produto ao evento (busca produto existente ou cria um novo na hora) -->
-    <div class="modal-backdrop" id="modalAddProduto" onclick="fecharModalAddProdutoFora(event)">
+    <div class="modal-backdrop" id="modalAddProduto">
         <div class="modal" onclick="event.stopPropagation()">
             <h3><i class="fas fa-cubes-stacked" style="color:#4A93B0;margin-right:8px"></i>Adicionar produto ao evento</h3>
 
@@ -236,7 +237,7 @@
     </div>
 
     <!-- Modal: Importar lista de produtos por texto (cola texto ou sobe .txt) -->
-    <div class="modal-backdrop" id="modalImportar" onclick="fecharModalImportarFora(event)">
+    <div class="modal-backdrop" id="modalImportar">
         <div class="modal" onclick="event.stopPropagation()">
             <h3><i class="fas fa-file-import" style="color:#6741D9;margin-right:8px"></i>Importar produtos por texto</h3>
             <p style="font-size:.82em;color:#999;margin:0 0 10px;">Uma linha por produto: <b>QUANTIDADE NOME DO PRODUTO VALOR</b> (a quantidade é opcional, padrão 1). Os produtos são criados <b>sem custo</b> (R$ 0,00) e já entram no estoque deste evento. Se já existir um produto com o mesmo nome, um novo é criado mesmo assim.</p>
@@ -256,7 +257,7 @@
     </div>
 
     <!-- Modal: Importar CSV gerado por evento_estoque_csv.html (produtos do evento anterior) -->
-    <div class="modal-backdrop" id="modalImportarCsv" onclick="fecharModalImportarCsvFora(event)">
+    <div class="modal-backdrop" id="modalImportarCsv">
         <div class="modal" onclick="event.stopPropagation()">
             <h3><i class="fas fa-file-csv" style="color:#2f9e44;margin-right:8px"></i>Importar CSV do evento anterior</h3>
             <p style="font-size:.82em;color:#999;margin:0 0 10px;">Use o arquivo gerado em <b>Eventos → Gerar CSV p/ novo evento</b>. Colunas (separador <b>;</b>):
@@ -430,7 +431,6 @@
             setTimeout(() => document.getElementById('apBusca').focus(), 60);
         }
         function fecharModalAddProduto() { document.getElementById('modalAddProduto').classList.remove('open'); }
-        function fecharModalAddProdutoFora(e) { if (e.target === e.currentTarget) fecharModalAddProduto(); }
 
         function apMostrarEtapa(etapa) {
             document.getElementById('apBuscaEtapa').style.display = (etapa === 'busca') ? '' : 'none';
@@ -674,7 +674,6 @@
             setTimeout(() => document.getElementById('impTexto').focus(), 60);
         }
         function fecharModalImportar() { document.getElementById('modalImportar').classList.remove('open'); }
-        function fecharModalImportarFora(e) { if (e.target === e.currentTarget) fecharModalImportar(); }
 
         function impCarregarArquivo(input) {
             const arquivo = input.files && input.files[0];
@@ -818,7 +817,6 @@
             setTimeout(() => document.getElementById('csvTexto').focus(), 60);
         }
         function fecharModalImportarCsv() { document.getElementById('modalImportarCsv').classList.remove('open'); }
-        function fecharModalImportarCsvFora(e) { if (e.target === e.currentTarget) fecharModalImportarCsv(); }
 
         function csvCarregarArquivo(input) {
             const arquivo = input.files && input.files[0];
@@ -1117,6 +1115,7 @@
                     mov.movs.forEach(m => { const k = empresaRef('movimentacoes_estoque').push().key; mov.updates['movimentacoes_estoque/' + k] = m; });
                     await empresaRef('').update(mov.updates);
                     fb.textContent = `Evento #${idEmEdicao} atualizado!`;
+                    KombineiSaida.liberar();
                     setTimeout(() => location.href = 'listagem_eventos.html', 1200);
                 } else {
                     fb.textContent = "Buscando ID...";
@@ -1128,6 +1127,7 @@
                     if (flyer) dados.flyerUrl = flyer;
                     await empresaRef(CAMINHO_RTDB + '/' + novoId).set(dados);
                     fb.textContent = `Evento #${novoId} criado! Designe o estoque...`;
+                    KombineiSaida.liberar();
                     setTimeout(() => location.href = `cadastro_eventos.html?id=${novoId}`, 1000);
                 }
             } catch (e) {
